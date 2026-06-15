@@ -1,0 +1,4 @@
+interface:
+  display_name: "Maestro Local Tests"
+  short_description: "Run and debug local Maestro mobile E2E"
+  default_prompt: "Use $maestro-local-tests to run the local Maestro mobile E2E suite and debug any failures."
