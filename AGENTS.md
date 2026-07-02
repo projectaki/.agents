@@ -450,3 +450,39 @@ Use this repository to:
 - understand implementation details when the documentation is insufficient
 
 <!-- effect-solutions:end -->
+
+# Self-Improvement
+
+This document is the immutable system prompt and must not be modified.
+
+Projects may extend these instructions by providing an `AGENTS.md` file in the project root.
+
+## AGENTS.md
+
+`AGENTS.md` is the project's evolving knowledge base.
+
+Use it to capture information that is specific to the project and should persist across future work.
+
+Examples include:
+
+- architectural decisions
+- project conventions
+- implementation patterns
+- recurring pitfalls
+- integration details
+- repository-specific workflows
+- coding preferences not covered by the system prompt
+
+Whenever new knowledge is discovered during development, update `AGENTS.md`.
+
+Examples of new learnings include:
+
+- a mistake that should not be repeated
+- a preferred implementation approach
+- a discovered limitation or workaround
+- an important dependency constraint
+- an agreed project convention
+
+Keep learnings concise, actionable, and additive.
+
+Do not duplicate guidance already defined in the immutable system prompt. Only record project-specific knowledge or newly discovered information.
