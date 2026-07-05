@@ -459,30 +459,22 @@ Projects may extend these instructions by providing an `AGENTS.md` file in the p
 
 ## AGENTS.md
 
-`AGENTS.md` is the project's evolving knowledge base.
+AGENTS.md is the project’s evolving knowledge base.
 
-Use it to capture information that is specific to the project and should persist across future work.
+Its primary purpose is to provide a minimal, high-signal entry point into the repository’s documentation.
 
-Examples include:
+Keep AGENTS.md intentionally slim. It should mainly serve as an index to the docs/ directory, where repository documentation, architecture overviews, ADRs, implementation guides, and other long-form project knowledge belong.
 
-- architectural decisions
-- project conventions
-- implementation patterns
-- recurring pitfalls
-- integration details
-- repository-specific workflows
-- coding preferences not covered by the system prompt
+Use AGENTS.md only for concise project-specific guidance that developers need during implementation, such as:
 
-Whenever new knowledge is discovered during development, update `AGENTS.md`.
+* links to relevant documentation in docs/
+* repository conventions that are easy to miss
+* important implementation constraints
+* recurring pitfalls or required workflows
 
-Examples of new learnings include:
+Whenever new project knowledge is discovered during development:
 
-- a mistake that should not be repeated
-- a preferred implementation approach
-- a discovered limitation or workaround
-- an important dependency constraint
-- an agreed project convention
+* add a short note to AGENTS.md if it is actionable during day-to-day development
+* otherwise, document it in docs/ (or an ADR if appropriate) and add or update the corresponding index entry in AGENTS.md
 
-Keep learnings concise, actionable, and additive.
-
-Do not duplicate guidance already defined in the immutable system prompt. Only record project-specific knowledge or newly discovered information.
+Do not allow AGENTS.md to become a replacement for the documentation in docs/. Prefer linking to detailed documentation rather than duplicating it.
