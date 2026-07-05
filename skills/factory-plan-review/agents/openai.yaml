@@ -1,0 +1,4 @@
+interface:
+  display_name: "Factory Plan Review"
+  short_description: "Review a plan before implementation"
+  default_prompt: "Use $factory-plan-review to review a proposed plan before implementation."

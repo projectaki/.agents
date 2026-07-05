@@ -1,0 +1,4 @@
+interface:
+  display_name: "Factory Review"
+  short_description: "Run final quality and risk review"
+  default_prompt: "Use $factory-review to review a branch for quality, correctness, and risk."

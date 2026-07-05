@@ -1,0 +1,4 @@
+interface:
+  display_name: "Factory Learn"
+  short_description: "Capture durable task learnings"
+  default_prompt: "Use $factory-learn to capture durable learnings from a completed task."

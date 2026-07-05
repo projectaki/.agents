@@ -1,0 +1,4 @@
+interface:
+  display_name: "Factory Release"
+  short_description: "Check merge and release readiness"
+  default_prompt: "Use $factory-release to prepare a verified change for human approval and merge."
