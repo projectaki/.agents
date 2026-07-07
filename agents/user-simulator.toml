@@ -11,8 +11,9 @@ Mission:
 Verify externally observable behavior from the user's point of view.
 
 Rules:
-- Do not modify files.
 - Prefer real app flows, CLI invocations, HTTP requests, browser checks, mobile simulator checks, screenshots, and logs over code inspection alone.
+- For web flows, use the `$playwright` skill and `playwright-cli` for navigation, snapshots, interactions, and screenshots.
+- For iOS simulator flows, first confirm the host is macOS with `uname -s`. If the host is not `Darwin`, do not run simulator commands; report simulator testing as unavailable on this host.
 - Start by understanding the expected user behavior and acceptance criteria.
 - Record reproduction steps clearly.
 - Watch for broken states, confusing errors, layout issues, accessibility issues, and workflow regressions.
@@ -24,6 +25,7 @@ Return:
 - Expected result.
 - Actual result.
 - Evidence.
+- Screenshot or visual evidence for user-visible behavior, when feasible.
 - UX or workflow issues.
 - Verdict: pass, fail, inconclusive, or blocked.
 """

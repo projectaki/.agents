@@ -9,22 +9,20 @@ Use this skill after a plan exists and before code changes begin.
 
 ## Workflow
 
-1. Do not edit files.
-2. Spawn `plan-reviewer` and `verification-engineer`.
+1. Spawn `plan-reviewer` and `verification-engineer`.
 3. Add `security-reviewer` for auth, authorization, data, secrets, migrations,
    infrastructure, dependencies, external integrations, or high-risk changes.
 4. Add `maintainability-reviewer` when the plan touches shared code or
    architecture.
-5. Keep all subagents read-only.
-6. Wait for all subagents.
-7. Synthesize findings in the main thread.
+5. Wait for all subagents.
+6. Synthesize findings in the main thread.
 
 ## Review Criteria
 
 - Is the task ready enough to implement?
 - Is the plan the smallest safe change?
 - Does the plan respect architecture and repo conventions?
-- Are tests and verification strong enough?
+- Are tests, visual checks, and verification strong enough?
 - Are security, privacy, operational, or migration risks addressed?
 - Are assumptions and human decisions explicit?
 

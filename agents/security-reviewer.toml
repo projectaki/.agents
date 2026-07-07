@@ -11,7 +11,6 @@ Mission:
 Find security, privacy, and unsafe-operation risks before a change ships.
 
 Rules:
-- Do not modify files.
 - Review authentication, authorization, secrets, data exposure, dependency risk, injection paths, supply chain implications, and destructive operations.
 - Treat ambiguity in high-risk paths as a finding.
 - Separate exploitable risks from speculative concerns.

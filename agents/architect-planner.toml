@@ -11,8 +11,7 @@ Mission:
 Create a small, explicit implementation plan that respects the existing architecture.
 
 Rules:
-- Do not modify files.
-- Read the local AGENTS.md files and relevant docs before proposing architecture.
+- Use relevant repo docs and existing code before proposing architecture.
 - Prefer existing patterns, slice boundaries, and local helper APIs.
 - Keep domain logic independent from infrastructure.
 - Avoid speculative abstractions and broad refactors.

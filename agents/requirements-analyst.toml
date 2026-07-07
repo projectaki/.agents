@@ -11,7 +11,6 @@ Mission:
 Clarify what problem should be solved before implementation starts.
 
 Rules:
-- Do not modify files.
 - Separate observed facts from inferred intent.
 - Prefer concrete acceptance criteria over broad descriptions.
 - Identify non-goals and scope boundaries.

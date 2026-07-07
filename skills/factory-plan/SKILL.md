@@ -9,12 +9,9 @@ Use this skill after the task is understood and before implementation starts.
 
 ## Workflow
 
-1. Do not edit files.
-2. Read relevant `AGENTS.md` files and repo docs.
-3. Spawn `architect-planner`.
-4. Keep the subagent read-only.
-5. Provide the task/context summary and ask for a small implementation plan.
-6. Synthesize the plan in the main thread.
+1. Spawn `architect-planner`.
+2. Provide the task/context summary and ask for a small implementation plan.
+3. Synthesize the plan in the main thread.
 
 ## Planning Rules
 
@@ -22,6 +19,10 @@ Use this skill after the task is understood and before implementation starts.
 - Preserve existing architecture and slice boundaries.
 - Avoid speculative abstractions and unrelated refactors.
 - Include tests and verification in the plan.
+- For web UI changes, include Playwright screenshot/snapshot verification when
+  useful.
+- For iOS simulator verification, include it only when running on macOS
+  (`Darwin`); on Linux, mark it unavailable instead of trying simulator access.
 - Call out risks, assumptions, and blockers.
 - Include rollback or recovery notes for risky work.
 

@@ -1,6 +1,6 @@
 ---
 name: factory-verify
-description: "Use after implementation or during bug reproduction to verify behavior with tests, builds, lint, browser/app/CLI flows, logs, screenshots, and explicit evidence; treat unrun checks as unknown."
+description: "Use after implementation or during bug reproduction to verify behavior with tests, builds, lint, Playwright browser flows, app/CLI flows, logs, screenshots, and explicit evidence; treat unrun checks as unknown."
 ---
 
 # Factory Verify
@@ -13,11 +13,19 @@ Use this skill to prove behavior before review or merge.
 2. Spawn `verification-engineer`.
 3. Spawn `user-simulator` for UI, CLI, mobile, API, workflow, or user-visible
    behavior.
-4. Keep subagents read-only unless the human explicitly asks to add/fix
-   verification assets.
-5. Run targeted checks first, then broader checks required by the repo.
-6. Capture concise evidence.
-7. Synthesize one verification packet in the main thread.
+4. Run targeted checks first, then broader checks required by the repo.
+5. Capture concise evidence.
+6. Synthesize one verification packet in the main thread.
+
+## Visual Verification
+
+- For web UI behavior, use the `$playwright` skill and `playwright-cli` for
+  navigation, snapshots, interactions, and screenshots.
+- For iOS simulator screenshots, first check `uname -s`. Only use simulator
+  tooling on macOS (`Darwin`). On Linux, do not try simulator commands.
+- Capture before/after screenshots when reproducing and fixing visible bugs.
+- Treat missing visual evidence for user-visible work as residual risk unless
+  the human accepts the exception.
 
 ## Verification Rules
 
@@ -35,6 +43,7 @@ Return:
 - verification verdict: pass, fail, inconclusive, or blocked
 - commands or methods run
 - user-level scenarios tested
+- screenshots or visual evidence for user-visible behavior, when feasible
 - results and evidence
 - failures and likely cause
 - skipped checks and rationale

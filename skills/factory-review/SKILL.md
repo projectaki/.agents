@@ -9,15 +9,14 @@ Use this skill after implementation has been verified enough to review.
 
 ## Workflow
 
-1. Do not edit files during review.
-2. Compare the branch or worktree against the intended base branch.
-3. Spawn `maintainability-reviewer`.
-4. Spawn `security-reviewer`.
-5. Spawn `verification-engineer` when verification evidence is incomplete or
+1. Compare the branch or worktree against the intended base branch.
+2. Spawn `maintainability-reviewer`.
+3. Spawn `security-reviewer`.
+4. Spawn `verification-engineer` when verification evidence is incomplete or
    needs an independent check.
-6. Add `user-simulator` for user-facing changes.
-7. Wait for all subagents.
-8. Synthesize findings in the main thread.
+5. Add `user-simulator` for user-facing changes or missing visual evidence.
+6. Wait for all subagents.
+7. Synthesize findings in the main thread.
 
 ## Review Rules
 
@@ -27,6 +26,8 @@ Use this skill after implementation has been verified enough to review.
 - Cite files and line numbers when possible.
 - Do not request unrelated refactors.
 - If no blocking issues are found, say that clearly and name residual risk.
+- For web UI changes, prefer Playwright screenshot/snapshot evidence.
+- For iOS simulator checks, only attempt simulator access on macOS (`Darwin`).
 
 ## Output
 
