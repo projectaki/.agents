@@ -1,6 +1,6 @@
 interface:
   display_name: "Factory Verify"
-  short_description: "Verify a change with evidence"
-  default_prompt: "Use $factory-verify to verify a change with tests and user-level evidence."
+  short_description: "Verify CI parity and regression confidence"
+  default_prompt: "Use $factory-verify to run all applicable CI validation checks and produce a PR-ready regression-confidence report."
 policy:
   allow_implicit_invocation: false
