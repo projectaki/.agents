@@ -1,4 +1,6 @@
 interface:
   display_name: "Factory Review"
-  short_description: "Run final quality and risk review"
-  default_prompt: "Use $factory-review to review a branch for quality, correctness, and risk."
+  short_description: "Run a multi-model review matrix"
+  default_prompt: "Use $factory-review to run the Codex and Claude review matrix and return one numbered merged report."
+policy:
+  allow_implicit_invocation: false

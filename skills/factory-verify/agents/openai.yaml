@@ -2,3 +2,5 @@ interface:
   display_name: "Factory Verify"
   short_description: "Verify a change with evidence"
   default_prompt: "Use $factory-verify to verify a change with tests and user-level evidence."
+policy:
+  allow_implicit_invocation: false

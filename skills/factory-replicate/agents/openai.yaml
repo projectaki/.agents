@@ -1,0 +1,6 @@
+interface:
+  display_name: "Factory Replicate"
+  short_description: "Reproduce and document a reported bug"
+  default_prompt: "Use $factory-replicate to reproduce a reported bug and capture baseline evidence without implementing a fix."
+policy:
+  allow_implicit_invocation: false

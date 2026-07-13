@@ -2,3 +2,5 @@ interface:
   display_name: "Factory Plan"
   short_description: "Create a scoped implementation plan"
   default_prompt: "Use $factory-plan to create a scoped implementation and verification plan."
+policy:
+  allow_implicit_invocation: false
