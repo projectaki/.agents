@@ -1,6 +1,7 @@
 ---
 name: factory-learn
 description: "Use after task completion, failed verification, review rejection, incident, or repeated agent mistake to capture durable software-factory learnings in AGENTS.md, docs, decisions, or follow-up tasks."
+disable-model-invocation: true
 ---
 
 # Factory Learn

@@ -1,9 +1,10 @@
 ---
-name: factory-intake-context
+name: factory-context
 description: "Use at the start of a software-factory task, bugfix, feature, refactor, UI/mobile/web change, or investigation to clarify the request, gather local, visual, and external context, identify acceptance criteria, classify risk, and decide whether the task is ready for planning."
+disable-model-invocation: true
 ---
 
-# Factory Intake Context
+# Factory Context
 
 Use this skill before implementation or planning. The goal is to turn a request
 into a clear task and a compact context summary.

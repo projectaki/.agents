@@ -1,6 +1,7 @@
 ---
 name: factory-implement
 description: "Use after human approval of a plan to implement a scoped software-factory change in the current Codex thread or worktree, add targeted tests, and prepare an implementation summary."
+disable-model-invocation: true
 ---
 
 # Factory Implement

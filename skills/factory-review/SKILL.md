@@ -1,6 +1,7 @@
 ---
 name: factory-review
 description: "Use after implementation and verification to review a branch or diff for correctness, simplicity, maintainability, test coverage, architecture fit, security, privacy, and operational risk before human approval."
+disable-model-invocation: true
 ---
 
 # Factory Review

@@ -1,6 +1,7 @@
 ---
 name: factory-plan
 description: "Use after intake/context for a software-factory task to create the smallest maintainable implementation plan, expected touch points, verification strategy, risks, alternatives, and blockers before editing files."
+disable-model-invocation: true
 ---
 
 # Factory Plan

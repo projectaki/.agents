@@ -1,6 +1,7 @@
 ---
 name: "playwright"
 description: "Use when the task requires automating a real browser from the terminal (navigation, form filling, snapshots, screenshots, data extraction, UI-flow debugging) via the globally installed `playwright-cli` command."
+disable-model-invocation: true
 ---
 
 

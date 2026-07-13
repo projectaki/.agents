@@ -1,6 +1,7 @@
 ---
 name: factory-verify
 description: "Use after implementation or during bug reproduction to verify behavior with tests, builds, lint, Playwright browser flows, app/CLI flows, logs, screenshots, and explicit evidence; treat unrun checks as unknown."
+disable-model-invocation: true
 ---
 
 # Factory Verify

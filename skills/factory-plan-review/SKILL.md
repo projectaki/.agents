@@ -1,6 +1,7 @@
 ---
 name: factory-plan-review
 description: "Use before implementation to review a proposed software-factory plan for scope, simplicity, architecture fit, missing verification, security risk, and unresolved assumptions."
+disable-model-invocation: true
 ---
 
 # Factory Plan Review

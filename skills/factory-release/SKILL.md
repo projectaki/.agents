@@ -1,6 +1,7 @@
 ---
 name: factory-release
 description: "Use after review to prepare a software-factory change for human approval, merge, release notes, deployment awareness, rollback planning, and post-merge observation."
+disable-model-invocation: true
 ---
 
 # Factory Release
