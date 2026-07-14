@@ -44,6 +44,9 @@ essential safe reproduction details, return that mismatch or gap to the human.
 4. Reproduce the unchanged behavior without editing product code or implementing
    a fix. Keep any temporary artifacts outside tracked source files.
 5. Record exact steps, inputs, environment, actual result, and evidence.
+   Follow `$capture-pr-evidence` for new screenshots or video so the final
+   walkthrough is compact, state coverage is explicit, sessions remain private,
+   and temporary artifacts stay outside the repository.
 6. Repeat only when cheap and necessary. Use at most three attempts unless the
    context provides a justified different bound.
 7. Minimize reliable steps and identify the observed boundary without claiming

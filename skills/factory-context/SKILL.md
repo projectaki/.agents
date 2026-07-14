@@ -50,6 +50,9 @@ known reproduction steps, frequency, existing evidence, and safety constraints.
 
 ## Visual Context
 
+- When collecting new screenshots or video, follow `$capture-pr-evidence` as a
+  supporting workflow. Rehearse before recording, capture distinct meaningful
+  states, and keep temporary artifacts outside the repository.
 - For web UI context, prefer Playwright navigation, snapshots, and screenshots
   when the environment policy permits it.
 - Use available browser tooling, existing screenshots, HTTP/CLI flows, logs, or

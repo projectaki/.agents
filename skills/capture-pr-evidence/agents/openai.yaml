@@ -1,0 +1,4 @@
+interface:
+  display_name: "Capture PR Evidence"
+  short_description: "Capture compact before-and-after PR evidence"
+  default_prompt: "Use $capture-pr-evidence to capture concise, sanitized screenshots and a compact UI walkthrough for this task."
