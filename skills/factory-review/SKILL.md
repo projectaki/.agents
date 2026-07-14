@@ -47,11 +47,11 @@ Interpret “ensure no regressions” as the regression-reviewer role.
 
 ### Models
 
-- Codex: `gpt-5.6-sol` with `model_reasoning_effort="high"`
-- Claude: `claude-fable-5[1m]` with `--effort high`
+- Codex cells use `$codex-cli` with `gpt-5.6-sol` and high reasoning.
+- Claude cells use `$claude-cli` with `claude-fable-5[1m]` and high effort.
 
-Allow environment variables in the bundled runner to override model identifiers
-when a runtime renames a model, but do not silently substitute another model.
+Do not silently substitute another model. If a requested model is unavailable,
+mark that cell failed.
 
 ### Roles
 
@@ -69,32 +69,44 @@ Regression reviewer:
 - Check compatibility, edge cases, tests, migrations, performance, observability,
   rollback, and unchanged behavior outside the intended scope.
 
-## CLI Runner
+## Matrix Subagents
 
-Use [scripts/run-review-matrix.sh](scripts/run-review-matrix.sh) from this skill.
-Run all four cells concurrently and wait for every process.
+Use the host runtime's subagent mechanism. Spawn exactly one subagent for each
+matrix cell. Request all four concurrently when capacity permits; if the host
+has fewer child-agent slots, queue remaining cells and start them as soon as a
+slot is free. Never collapse two cells into one subagent.
+
+Each subagent must receive:
+
+- exactly one matrix cell identifier and review role
+- the same sanitized review scope and human-supplied context
+- the repository or worktree path
+- the cell output contract below
+- an explicit instruction to use exactly one CLI skill
+
+Use these assignments:
+
+| Cell | Subagent instruction |
+|---|---|
+| Codex × bug finder | Use `$codex-cli`; run one `gpt-5.6-sol` high-reasoning review |
+| Claude × bug finder | Use `$claude-cli`; run one `claude-fable-5[1m]` high-effort review |
+| Codex × regression reviewer | Use `$codex-cli`; run one `gpt-5.6-sol` high-reasoning review |
+| Claude × regression reviewer | Use `$claude-cli`; run one `claude-fable-5[1m]` high-effort review |
+
+Tell every subagent:
 
 ```text
-bash <skill-path>/scripts/run-review-matrix.sh \
-  --repo <repository> \
-  --context-file <sanitized-context-file> \
-  --scope <review-scope>
+Use the assigned CLI skill to execute exactly one independent review cell.
+The CLI response is the cell result. Do not review the work directly, invoke the
+other CLI, spawn nested agents, edit files, merge findings, or inspect another
+cell's output.
 ```
 
-The runner uses:
-
-- `codex exec --ephemeral --sandbox read-only -m gpt-5.6-sol`
-- `claude -p --model claude-fable-5[1m] --effort high
-  --permission-mode plan`
-
-Do not use bypass-permission flags. Do not let matrix agents edit files, fix
-findings, communicate with each other, or see another cell's output.
-
-Treat both CLIs and all four cells as required. Perform one cheap CLI preflight
-and one ordinary matrix attempt. If a CLI is missing, unauthenticated, denied by
-the sandbox, or otherwise inaccessible, stop retrying and report the affected
-cells as unavailable. Do not install a CLI or seek elevated access automatically.
-An incomplete matrix cannot produce an `approve` verdict.
+Wait for all four subagents before merging. Treat all cells as required. If
+subagents are unavailable, a CLI skill reports unavailable, or a cell fails
+once, report the matrix as incomplete. Do not install a CLI, change
+authentication, seek elevated access, retry, or run the missing cell in the main
+agent. An incomplete matrix cannot produce an `approve` verdict.
 
 ## Cell Output Contract
 

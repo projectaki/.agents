@@ -1,0 +1,6 @@
+interface:
+  display_name: "Claude CLI"
+  short_description: "Run one isolated Claude CLI task"
+  default_prompt: "Use $claude-cli to run one isolated read-only Claude CLI task and return its result."
+policy:
+  allow_implicit_invocation: false
