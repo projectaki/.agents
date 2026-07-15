@@ -1,6 +1,6 @@
 ---
 name: factory-verify
-description: "Use only when the human explicitly starts the verification lifecycle and supplies the task, approved plan, implementation packet, and relevant bug baseline, to run every applicable CI validation check, verify behavior with observable evidence, and produce a PR-ready scope and regression-confidence report while treating unrun checks as unknown."
+description: "Use only when the human explicitly starts the verification lifecycle and supplies the task, context packet, approved plan, implementation packet, and relevant bug baseline, to run every applicable CI validation check, verify behavior with observable before-and-after evidence, and produce a PR-ready scope and regression-confidence report while treating unrun checks as unknown."
 disable-model-invocation: true
 ---
 
@@ -12,9 +12,12 @@ outside this lifecycle.
 ## Input
 
 Require the task and acceptance criteria, approved plan, implementation packet,
-current branch or diff, and repository verification instructions. For a bug fix,
-also require the applicable replication baseline. If the evidence needed to
-define verification is missing, return `inconclusive` with the input gap.
+current branch or diff, repository verification instructions, and the context
+packet. For a bug fix, also require the applicable replication baseline. When
+context gathering produced visual evidence, require its evidence contract,
+temporary run path, interaction map, and baseline artifact manifest. If the
+evidence needed to define verification is missing, return `inconclusive` with
+the input gap.
 
 Also require access to the repository's CI definitions and any referenced local
 scripts, reusable workflows, composite actions, task runners, or build images.
@@ -38,7 +41,8 @@ scripts, reusable workflows, composite actions, task runners, or build images.
 
 ## Workflow
 
-1. Read the task, approved plan, implementation summary, and current diff.
+1. Read the task, context packet, approved plan, implementation summary, and
+   current diff. Identify any pre-change visual evidence handoff.
 2. Inventory the CI jobs applicable to this change before running checks.
 3. For a bug fix, read the human-supplied minimal replication baseline. Before
    rerunning it, re-evaluate safety and confirm that any destructive, irreversible,
@@ -50,7 +54,13 @@ scripts, reusable workflows, composite actions, task runners, or build images.
 5. Audit the CI inventory against executed checks so no applicable validation
    job or referenced command is omitted.
 6. Exercise externally observable behavior when feasible.
-7. Capture concise, reproducible evidence and produce the verification packet
+7. For user-visible behavior, follow `$capture-pr-evidence` as a supporting
+   workflow. When context gathering captured a baseline, continue the same
+   evidence run and repeat its interaction map, viewport, fixtures, and capture
+   points. Save final artifacts as `after-*`, compare them with `before-*`, and
+   distinguish intended changes from regressions. Do not replace a missing
+   baseline with a newly manufactured before-state.
+8. Capture concise, reproducible evidence and produce the verification packet
    plus the PR confidence report.
 
 ## CI Parity Gate
@@ -97,7 +107,16 @@ State remote CI status as pending unless actual CI evidence is supplied.
   return `inconclusive` or `blocked`, never `pass`.
 - For iOS simulator evidence, require macOS (`Darwin`) and reachable simulator
   access. Otherwise skip it under the environment policy.
-- Capture before/after evidence for visible bug fixes when feasible.
+- For user-visible changes, use `$capture-pr-evidence` to rehearse and capture
+  compact screenshots or video when the environment permits it. Preserve the
+  same framing and state coverage as the context-stage baseline so comparisons
+  can reveal regressions in behavior, timing, and important unchanged states.
+- Treat the context-stage `before-*` artifacts as immutable. Put only sanitized
+  publishable artifacts in `publish/`; keep session state and raw captures in
+  `private/` and `working/` outside the repository.
+- If visual comparison is required by an acceptance criterion but its baseline,
+  interaction map, or environment is unavailable, return `inconclusive` or
+  `blocked`. Otherwise report the skipped comparison and residual risk.
 - Sanitize evidence. Do not retain secrets, credentials, tokens, personal data,
   or sensitive production data in logs, screenshots, commands, or artifacts.
 
@@ -114,6 +133,7 @@ Explain:
 - slices, systems, contracts, users, data, and operations affected
 - important behavior intentionally unchanged
 - acceptance criteria and user scenarios verified
+- visual before/after comparison and intentional differences, when applicable
 - complete CI parity results and actual remote CI status
 - bug reproduction before/after evidence, when applicable
 - regression risks considered and evidence that addresses each one
@@ -127,6 +147,8 @@ Return:
 - commands or methods run
 - user-level scenarios tested
 - results and evidence
+- visual evidence run, publishable artifacts, and before/after comparison, when
+  applicable
 - bug baseline before/after result, when applicable
 - failures and likely cause
 - skipped checks, reasons, fallbacks, evidence gaps, and residual risk

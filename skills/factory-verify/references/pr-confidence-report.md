@@ -13,6 +13,16 @@
 |---|---|---|---|
 | <criterion> | `<command or observable flow>` | Pass/Fail | <artifact or concise evidence> |
 
+## Visual regression evidence
+
+| State or flow | Before | After | Comparison |
+|---|---|---|---|
+| <meaningful state> | <baseline artifact> | <final artifact> | <unchanged, intentionally changed, or regression observed> |
+
+- **Evidence run:** <temporary run path or not applicable>
+- **Capture parity:** <interaction map, viewport, fixtures, and capture points matched or explain differences>
+- **Intentional visual changes:** <expected differences or none>
+
 ## CI parity
 
 | CI job / matrix variant | CI source | Local equivalent | Result | Evidence |
