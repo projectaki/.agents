@@ -1,86 +1,67 @@
 ---
 name: codex-cli
-description: "Use only when explicitly requested by another workflow or the human to execute one isolated non-interactive Codex CLI task in a specified repository, with an explicit prompt, model, reasoning effort, sandbox, and output contract; perform one preflight and one attempt without orchestration or fallback models."
-disable-model-invocation: true
+description: "Use only when explicitly requested by another workflow or the human to execute one isolated Codex CLI task in a specified repository. Run Codex in an observable subagent, stream sanitized progress and user-facing response text, and perform one preflight and one attempt without fallback models."
 ---
 
 # Codex CLI
 
-Execute exactly one Codex CLI task and return its result to the caller. Do not
-coordinate multiple tasks or merge results.
+Execute one observable Codex CLI task. Keep the root responsive; never expose
+reasoning, raw protocol events, command output, or secrets.
 
 ## Input
 
-Require:
+Require the repository, complete prompt and output contract, model, reasoning
+effort, and sandbox. Default reviews to `gpt-5.6-sol`, high reasoning, ephemeral
+execution, and the read-only sandbox.
 
-- repository or worktree path
-- complete task prompt and output contract
-- model and reasoning effort
-- required sandbox mode
+## Orchestration
 
-Default review invocations to `gpt-5.6-sol`, high reasoning, an ephemeral
-session, and the read-only sandbox. Do not infer a different model or broaden
-permissions.
+- From the root, spawn one named subagent for the task. Inside an existing
+  dedicated factory or review subagent, run Codex there without nesting again.
+- Send the parent an attributed update at preflight, meaningful phase or tool
+  transitions, every 30 seconds while active, and completion or failure.
+- Relay user-facing answer text as it arrives, coalescing only for readability.
+  Do not wait for completion before reporting observable progress.
 
 ## Preflight
 
-Perform each check once:
-
-1. Confirm `codex` is on `PATH`.
-2. Run `codex --version`.
-3. Run `codex login status`.
-4. Confirm the repository path is readable.
-
-If a check fails because the CLI is missing, unauthenticated, sandboxed, or
-access-controlled, stop. Do not install Codex, change authentication, request
-elevated access, or substitute another model automatically.
+Once, confirm `codex` is on `PATH`, run `codex --version` and
+`codex login status`, and confirm the repository is readable. On failure, stop;
+do not install, authenticate, elevate access, or substitute a model.
 
 ## Invocation
 
-Pass the prompt through stdin and run one command shaped like:
+Pass the complete prompt through stdin to:
 
 ```text
-codex exec \
-  --ephemeral \
-  --sandbox read-only \
-  --color never \
-  -C <repository> \
-  -m gpt-5.6-sol \
-  -c 'model_reasoning_effort="high"' \
-  -
+python3 <skill-dir>/scripts/stream_codex.py \
+  --repository <repository> \
+  --model gpt-5.6-sol \
+  --reasoning-effort high \
+  --sandbox read-only
 ```
 
-Use `--output-last-message <temporary-file>` when the caller needs a clean final
-artifact. Keep diagnostic output separate from the returned result.
+The wrapper runs one ephemeral `codex exec --json` attempt. Consume its JSONL
+continuously and relay:
 
-Never use `--dangerously-bypass-approvals-and-sandbox`, broaden the sandbox,
-resume an unrelated session, or allow the CLI task to edit files unless the
-human explicitly supplies a different authorized contract.
+- `status`: initialization, heartbeat, and completion
+- `tool`: safe activity category only, never command or tool output
+- `text`: user-facing Codex message fragments
+- `result`: authoritative final response
+- `error`: sanitized failure
 
-## Execution Rules
+The wrapper stops after five minutes without a Codex event; heartbeats do not
+reset that timer. Active tasks may run longer while events continue.
 
-- Make one ordinary CLI attempt after preflight.
-- Give the CLI the complete task; do not rely on hidden parent-agent reasoning.
-- Instruct the CLI not to spawn nested agents when independent execution is part
-  of the caller's contract.
-- Treat an empty response, nonzero exit, model error, or access failure as a
-  failed cell, not as a finding or successful result.
-- Sanitize prompts and outputs. Do not persist secrets, credentials, tokens,
-  personal data, or sensitive production data.
+## Rules
 
-## Output
+- Give Codex the complete task and instruct it not to spawn agents.
+- Never broaden the sandbox, bypass approvals, resume unrelated sessions, or
+  permit edits unless the human explicitly authorizes a different contract.
+- Treat empty output, nonzero exit, model error, access failure, or stall as a
+  failed task. Make no retry or fallback.
+- Sanitize prompts, progress, and results.
 
-Return:
-
-- status: `completed`, `failed`, or `unavailable`
-- CLI and model used
-- repository and task scope
-- final Codex response when completed
-- exit or access failure when not completed
-- evidence gaps and residual risk
-
-## Stop Condition
-
-Stop after one completed or failed invocation, or after a failed preflight.
-Return the single-task result to the caller. Do not retry, invoke Claude, merge
-results, start another lifecycle, or perform the requested task outside Codex.
+Return status, CLI version and model, scope, final response or failure, evidence
+gaps, and residual risk. Do not invoke Claude, merge results, or perform the
+task outside Codex.

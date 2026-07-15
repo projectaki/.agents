@@ -33,9 +33,10 @@ model or broaden permissions.
 - The Claude-owning subagent sends its parent a concise update at preflight,
   each meaningful tool or phase transition, every 30 seconds while active, and
   completion or failure. Attribute every update to its cell or task name.
-- Stream user-facing answer text when it arrives. Never stream thinking blocks,
-  hidden reasoning, raw protocol JSON, tool results, authentication details, or
-  secrets.
+- Stream user-facing answer text when it arrives, coalescing only for
+  readability. Do not wait for completion before reporting observable progress.
+  Never stream thinking blocks, hidden reasoning, raw protocol JSON, tool
+  results, authentication details, or secrets.
 
 ## Preflight
 

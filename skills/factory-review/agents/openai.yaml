@@ -1,6 +1,6 @@
 interface:
   display_name: "Factory Review"
-  short_description: "Review any supplied lifecycle subject"
-  default_prompt: "Use $factory-review to review the supplied subject against its stated criteria."
+  short_description: "Run parallel Codex and Claude CLI reviews"
+  default_prompt: "Use $factory-review to run parallel Codex and Claude CLI reviews of the supplied subject and merge their findings."
 policy:
   allow_implicit_invocation: false
