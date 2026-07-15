@@ -1,49 +1,48 @@
-# PR Verification and Regression Confidence
+# PR Verification Report
 
-## Change scope
+## Scope
 
-- **Why:** <problem or intended outcome>
-- **What changed:** <concise behavior and implementation summary>
-- **Affected areas:** <slices, systems, contracts, users, data, operations>
-- **Intentionally unchanged:** <important neighboring behavior outside scope>
+- **Why:** <intended outcome>
+- **Changed:** <behavior and implementation>
+- **Affected:** <users, systems, contracts, data, operations>
+- **Unchanged:** <important neighboring behavior>
 
-## Acceptance and behavior evidence
+## Behavior
 
-| Scenario or criterion | Method | Result | Evidence |
+| Scenario | Method | Result | Evidence |
 |---|---|---|---|
-| <criterion> | `<command or observable flow>` | Pass/Fail | <artifact or concise evidence> |
+| <acceptance criterion> | <command or flow> | Pass/Fail | <artifact or observation> |
 
-## Visual regression evidence
+## Visual comparison
 
-| State or flow | Before | After | Comparison |
+| State | Before | After | Result |
 |---|---|---|---|
-| <meaningful state> | <baseline artifact> | <final artifact> | <unchanged, intentionally changed, or regression observed> |
+| <state or flow> | <artifact> | <artifact> | <unchanged, intended change, or regression> |
 
-- **Evidence run:** <temporary run path or not applicable>
-- **Capture parity:** <interaction map, viewport, fixtures, and capture points matched or explain differences>
-- **Intentional visual changes:** <expected differences or none>
+Note the evidence run, whether interaction map/viewport/fixtures matched, and
+any intentional differences. Omit this section when not applicable.
 
 ## CI parity
 
-| CI job / matrix variant | CI source | Local equivalent | Result | Evidence |
+| Job / variant | CI source | Local command | Result | Evidence |
 |---|---|---|---|---|
-| <job> | `<workflow:line>` | `<exact command>` | Pass/Fail/Unrun/CI-only | <evidence or reason> |
+| <job> | <workflow:line> | <command> | Pass/Fail/Unrun/CI-only | <evidence or reason> |
 
-- **Local CI parity:** <complete/incomplete>
-- **Remote CI status:** <passed/pending/failed/not supplied>
+- **Local parity:** <complete/incomplete>
+- **Remote CI:** <passed/pending/failed/not supplied>
 
 ## Regression confidence
 
-| Risk considered | Why it could regress | Evidence | Confidence |
-|---|---|---|---|
-| <risk> | <impact path> | <test, scenario, comparison, log, or artifact> | High/Medium/Low |
+| Risk | Evidence | Confidence |
+|---|---|---|
+| <possible regression> | <test, flow, comparison, or log> | High/Medium/Low |
 
-For bug fixes, include the original reproduction result before and after the
-change. State only that no regressions were observed within the verified scope.
+For bugs, include the original reproduction before and after the change. Say
+only that no regressions were observed in the verified scope.
 
-## Gaps and residual risk
+## Gaps
 
-- **Skipped or CI-only checks:** <check and concrete reason>
-- **Environment differences:** <local versus CI differences>
-- **Residual risk:** <what remains unknown and why>
-- **Human decision needed:** <approval, exception, or additional evidence>
+- **Skipped or CI-only:** <check and reason>
+- **Environment differences:** <local versus CI>
+- **Residual risk:** <remaining unknowns>
+- **Human decision:** <approval, exception, or more evidence>

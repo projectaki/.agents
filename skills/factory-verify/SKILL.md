@@ -1,163 +1,79 @@
 ---
 name: factory-verify
-description: "Use only when the human explicitly starts the verification lifecycle and supplies the task, context packet, approved plan, implementation packet, and relevant bug baseline, to run every applicable CI validation check, verify behavior with observable before-and-after evidence, and produce a PR-ready scope and regression-confidence report while treating unrun checks as unknown."
+description: "Use only when the human explicitly starts the verification lifecycle with the task, context, approved plan, implementation packet, diff, and relevant bug baseline. Verify behavior, local CI parity, and regressions with observable evidence, then return a PR-ready confidence report."
 disable-model-invocation: true
 ---
 
 # Factory Verify
 
-Prove implemented behavior within this lifecycle. Initial bug reproduction is
-outside this lifecycle.
+Prove the implemented behavior. Initial bug reproduction belongs to
+`$factory-replicate`.
 
-## Input
+## Need
 
-Require the task and acceptance criteria, approved plan, implementation packet,
-current branch or diff, repository verification instructions, and the context
-packet. For a bug fix, also require the applicable replication baseline. When
-context gathering produced visual evidence, require its evidence contract,
-temporary run path, interaction map, and baseline artifact manifest. If the
-evidence needed to define verification is missing, return `inconclusive` with
-the input gap.
+- Task, acceptance criteria, context packet, approved plan, implementation
+  packet, current diff, and repository verification instructions.
+- CI definitions and their referenced scripts, workflows, actions, runners, or
+  build images.
+- For bugs, the replication baseline.
+- When context captured visuals, its evidence run, interaction map, and manifest.
 
-Also require access to the repository's CI definitions and any referenced local
-scripts, reusable workflows, composite actions, task runners, or build images.
+Return `inconclusive` when required verification input is missing.
 
-## Environment Policy
+Spawn one `verification-engineer` subagent. For visible behavior, also spawn one
+`user-simulator`. If repository policy or the runtime prevents spawning,
+perform the roles in the main session and report the omission. Run
+tool-dependent checks in a capable session.
 
-- Cover the `verification-engineer` role and add `user-simulator` for
-  user-visible behavior. Delegate only when authorized by the user and
-  repository policy and suitable subagents are available; otherwise perform
-  those roles in the main session.
-- Treat read-only or otherwise capability-restricted subagents as analysis
-  support. Run tool-dependent verification in an authorized capable session.
-- Treat browser, simulator, device, GUI, network, and other access-controlled
-  tools as conditional. Use Playwright only when it and the target are reachable
-  without permission, sandbox, or access-control failures.
-- Make at most one cheap availability check and one ordinary attempt. After a
-  missing tool or clear access failure, stop retrying. Do not install tools or
-  seek elevated access solely for optional evidence.
-- Use reachable alternatives such as existing tests, HTTP requests, CLI flows,
-  logs, available browser tooling, existing screenshots, or manual steps.
+## Do
 
-## Workflow
+1. Read the inputs and diff.
+2. Inventory every applicable CI job and matrix variant, resolving triggers,
+   filters, dependencies, and referenced commands.
+3. Run targeted checks, then every applicable non-destructive CI validation
+   locally with equivalent versions, configuration, variants, and services.
+4. Reconcile the executed checks with the inventory.
+5. Exercise observable user behavior when feasible.
+6. For user-visible work, follow `$capture-pr-evidence`. Reuse the context-stage
+   run, interaction map, viewport, fixtures, and capture points; keep `before-*`
+   immutable, create `after-*`, and explain intended differences or regressions.
+7. Return the verification packet and the PR report from
+   [references/pr-confidence-report.md](references/pr-confidence-report.md).
 
-1. Read the task, context packet, approved plan, implementation summary, and
-   current diff. Identify any pre-change visual evidence handoff.
-2. Inventory the CI jobs applicable to this change before running checks.
-3. For a bug fix, read the human-supplied minimal replication baseline. Before
-   rerunning it, re-evaluate safety and confirm that any destructive, irreversible,
-   production-data, credential, or externally consequential step still has
-   explicit human authority. Otherwise skip it or return `blocked`.
-4. Run targeted checks first, then every applicable non-destructive CI
-   validation check using the same command, version, configuration, matrix
-   variant, and required service when reproducible locally.
-5. Audit the CI inventory against executed checks so no applicable validation
-   job or referenced command is omitted.
-6. Exercise externally observable behavior when feasible.
-7. For user-visible behavior, follow `$capture-pr-evidence` as a supporting
-   workflow. When context gathering captured a baseline, continue the same
-   evidence run and repeat its interaction map, viewport, fixtures, and capture
-   points. Save final artifacts as `after-*`, compare them with `before-*`, and
-   distinguish intended changes from regressions. Do not replace a missing
-   baseline with a newly manufactured before-state.
-8. Capture concise, reproducible evidence and produce the verification packet
-   plus the PR confidence report.
+For bug baselines, recheck authorization before destructive, irreversible,
+credentialed, production-data, or externally consequential steps.
 
-## CI Parity Gate
+## Rules
 
-Inspect CI sources such as `.github/workflows`, reusable workflows, composite
-actions, `.gitlab-ci.yml`, `azure-pipelines.yml`, `Jenkinsfile`, CircleCI,
-Buildkite, task-runner configuration, package scripts, and repository docs.
+- A `pass` requires every applicable non-destructive local CI validation to pass.
+  Unrun, failed, or inferred checks are not passes.
+- Record deploy, publish, release, production migration, credentialed, and other
+  externally consequential CI steps as `CI-only`; do not run them without human
+  approval.
+- Local parity does not prove remote CI passed. Report its actual status or
+  `pending`.
+- Distinguish failures caused by the change from existing or environment
+  failures.
+- For conditional tools, make one availability check and one attempt, then use a
+  reachable fallback. Do not install tools or seek elevated access only for
+  optional evidence.
+- If a required check or visual comparison is unavailable, return
+  `inconclusive` or `blocked`. Otherwise report the gap and residual risk.
+- Sanitize logs and artifacts. Keep evidence outside the repository and upload
+  only `publish/` contents.
+- Say “no regressions observed in the verified scope,” never that regressions are
+  impossible.
 
-For the current change:
-
-1. Resolve triggers, path filters, dependencies, job matrices, and referenced
-   scripts to identify everything CI is expected to validate.
-2. Build a parity table before execution with one row per applicable job and
-   matrix variant.
-3. Run every non-destructive validation command locally. This includes builds,
-   unit and integration tests, type checks, lint, formatting checks, generated
-   code checks, migration validation, security scans, packaging, and container
-   builds when CI will run them.
-4. Record the exact command, environment or version, result, duration when
-   useful, and evidence for every row.
-5. Reconcile the completed table with the CI definitions after execution.
-
-Do not claim `pass` when an applicable CI validation check is unrun, failed, or
-only inferred. Return `inconclusive` or `blocked` and identify what is needed.
-
-Do not locally replay deploy, publish, release, production migration, credential,
-or other externally consequential CI steps merely for parity. Record them as
-CI-only. If such a step is required for the requested confidence decision, keep
-the verdict `inconclusive` or `blocked` unless the human explicitly defines a
-safe verification boundary.
-
-Passing locally demonstrates CI parity, not that the remote CI run has passed.
-State remote CI status as pending unless actual CI evidence is supplied.
-
-## Verification Rules
-
-- Treat unrun checks as unknown, not passed.
-- Distinguish changed-code failures from pre-existing or environment failures.
-- Treat CI parity checks as required, not optional. A `pass` verdict requires
-  every applicable non-destructive CI validation row to pass locally.
-- A skipped optional check does not fail verification; report its concrete
-  reason, evidence gap, fallback, and residual risk.
-- If an inaccessible check is required to establish an acceptance criterion,
-  return `inconclusive` or `blocked`, never `pass`.
-- For iOS simulator evidence, require macOS (`Darwin`) and reachable simulator
-  access. Otherwise skip it under the environment policy.
-- For user-visible changes, use `$capture-pr-evidence` to rehearse and capture
-  compact screenshots or video when the environment permits it. Preserve the
-  same framing and state coverage as the context-stage baseline so comparisons
-  can reveal regressions in behavior, timing, and important unchanged states.
-- Treat the context-stage `before-*` artifacts as immutable. Put only sanitized
-  publishable artifacts in `publish/`; keep session state and raw captures in
-  `private/` and `working/` outside the repository.
-- If visual comparison is required by an acceptance criterion but its baseline,
-  interaction map, or environment is unavailable, return `inconclusive` or
-  `blocked`. Otherwise report the skipped comparison and residual risk.
-- Sanitize evidence. Do not retain secrets, credentials, tokens, personal data,
-  or sensitive production data in logs, screenshots, commands, or artifacts.
-
-## PR Confidence Report
-
-Use [references/pr-confidence-report.md](references/pr-confidence-report.md) to
-produce a concise Markdown block that can be pasted into a pull request
-description. Base confidence claims on evidence; say “no regressions observed in
-the verified scope” instead of claiming regressions are impossible.
-
-Explain:
-
-- what changed and why
-- slices, systems, contracts, users, data, and operations affected
-- important behavior intentionally unchanged
-- acceptance criteria and user scenarios verified
-- visual before/after comparison and intentional differences, when applicable
-- complete CI parity results and actual remote CI status
-- bug reproduction before/after evidence, when applicable
-- regression risks considered and evidence that addresses each one
-- skipped or CI-only checks, evidence gaps, and residual risk
-
-## Output
-
-Return:
+## Return
 
 - verdict: `pass`, `fail`, `inconclusive`, or `blocked`
-- commands or methods run
-- user-level scenarios tested
-- results and evidence
-- visual evidence run, publishable artifacts, and before/after comparison, when
-  applicable
-- bug baseline before/after result, when applicable
-- failures and likely cause
-- skipped checks, reasons, fallbacks, evidence gaps, and residual risk
-- decisions or remaining evidence requiring human action
+- CI inventory, exact commands/methods, and results
+- user scenarios and acceptance criteria verified
+- before/after evidence and bug baseline result, when applicable
+- failures, skips, evidence gaps, residual risk, and human decisions
 - PR-ready confidence report
 
-## Stop Condition
+## Stop
 
-Stop when the verification packet and verdict are complete, or when required
-evidence is unavailable and the verdict is `inconclusive` or `blocked`. Return
-the packet to the human. Do not invoke review, merge, release, or another factory
-skill and do not start another lifecycle.
+Return the verification packet. Do not review, merge, release, or start another
+lifecycle.
