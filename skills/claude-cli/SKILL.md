@@ -1,13 +1,13 @@
 ---
 name: claude-cli
-description: "Use only when explicitly requested by another workflow or the human to execute one isolated non-interactive Claude CLI task in a specified repository, with an explicit prompt, model, effort, permission mode, and output contract; perform one preflight and one attempt without orchestration or fallback models."
-disable-model-invocation: true
+description: "Use only when explicitly requested by another workflow or the human to execute one isolated Claude CLI task in a specified repository with an explicit prompt, model, effort, permission mode, and output contract. Run Claude in an observable subagent, stream sanitized progress and answer text, and perform one preflight and one attempt without fallback models."
 ---
 
 # Claude CLI
 
-Execute exactly one Claude CLI task and return its result to the caller. Do not
-coordinate multiple tasks or merge results.
+Execute exactly one observable Claude CLI task and return its result. Keep the
+root responsive while Claude works; do not expose hidden reasoning or raw tool
+output.
 
 ## Input
 
@@ -16,73 +16,98 @@ Require:
 - repository or worktree path
 - complete task prompt and output contract
 - model and effort level
-- required permission mode and tool set
+- permission mode and tool set
 
-Default review invocations to `claude-fable-5[1m]`, high effort, plan permission
-mode, read-oriented tools, and no session persistence. Do not infer a different
+Default reviews to `claude-fable-5[1m]`, high effort, plan permission mode,
+`Read,Grep,Glob,Bash`, and no session persistence. Do not infer a different
 model or broaden permissions.
+
+## Host orchestration
+
+- If running in the root session, spawn one named subagent for this Claude task.
+  Give it the repository, complete prompt, execution contract, and an explicit
+  instruction to use this skill. The root relays its progress messages to the
+  human through commentary and remains responsive to steering.
+- If already running inside a dedicated factory or review subagent, execute
+  Claude there. Do not create another nested agent.
+- The Claude-owning subagent sends its parent a concise update at preflight,
+  each meaningful tool or phase transition, every 30 seconds while active, and
+  completion or failure. Attribute every update to its cell or task name.
+- Stream user-facing answer text when it arrives. Never stream thinking blocks,
+  hidden reasoning, raw protocol JSON, tool results, authentication details, or
+  secrets.
 
 ## Preflight
 
-Perform each check once:
+Perform each check once inside the Claude-owning subagent:
 
 1. Confirm `claude` is on `PATH`.
 2. Run `claude --version`.
-3. Run `claude auth status`.
+3. Run `claude auth status`, reporting only whether authentication succeeded.
 4. Confirm the repository path is readable.
 
 If a check fails because the CLI is missing, unauthenticated, sandboxed, or
 access-controlled, stop. Do not install Claude, change authentication, request
-elevated access, or substitute another model automatically.
+elevated access, or substitute another model.
 
-## Invocation
+## Observable invocation
 
-From the repository, pass the prompt through stdin and run one command shaped
-like:
+Run the bundled wrapper from the target repository and pass the complete prompt
+through stdin:
 
 ```text
-claude \
-  -p \
+python3 <skill-dir>/scripts/stream_claude.py \
+  --repository <repository> \
   --model 'claude-fable-5[1m]' \
   --effort high \
   --permission-mode plan \
-  --tools 'Read,Grep,Glob,Bash' \
-  --strict-mcp-config \
-  --no-chrome \
-  --no-session-persistence \
-  --output-format text
+  --tools 'Read,Grep,Glob,Bash'
 ```
 
-Capture stdout as the final task result and stderr as diagnostics.
+The wrapper invokes one `claude -p` process with `stream-json`, partial message
+events, strict MCP configuration, Chrome disabled, and no session persistence.
+It emits sanitized JSON lines:
 
-Never use `--dangerously-skip-permissions`, enable a fallback model, broaden the
-tool set, resume an unrelated session, or allow the CLI task to edit files
-unless the human explicitly supplies a different authorized contract.
+- `status`: initialization, heartbeat, and completion milestones
+- `tool`: a tool name and safe file/pattern context, never tool output
+- `text`: user-facing Claude response fragments
+- `result`: the complete final Claude response
+- `error`: sanitized diagnostics
 
-## Execution Rules
+Consume output continuously. Relay status/tool updates promptly. Text fragments
+may be coalesced into readable chunks before relaying, but do not wait for
+process completion. Use the `result` event as the authoritative final response.
+
+The wrapper terminates the attempt after five minutes without any Claude stream
+event. Heartbeats do not reset that timer. An active review may run longer than
+ten minutes while events continue.
+
+## Safety and execution rules
 
 - Make one ordinary CLI attempt after preflight.
-- Give the CLI the complete task; do not rely on hidden parent-agent reasoning.
-- Instruct the CLI not to spawn nested agents when independent execution is part
-  of the caller's contract.
-- Treat an empty response, nonzero exit, model error, or access failure as a
-  failed cell, not as a finding or successful result.
-- Sanitize prompts and outputs. Do not persist secrets, credentials, tokens,
-  personal data, or sensitive production data.
+- Give Claude the complete task; do not rely on hidden parent reasoning.
+- Instruct Claude not to spawn nested agents.
+- Never use `--dangerously-skip-permissions`, enable a fallback model, resume an
+  unrelated session, or permit edits unless the human explicitly authorizes a
+  different contract.
+- Treat an empty final response, nonzero exit, model error, access failure, or
+  stall cancellation as a failed task, not as a review finding.
+- Sanitize prompts, progress, and results. Do not persist secrets, credentials,
+  tokens, personal data, or sensitive production data.
 
 ## Output
 
 Return:
 
 - status: `completed`, `failed`, or `unavailable`
-- CLI and model used
+- CLI version and model used
 - repository and task scope
 - final Claude response when completed
-- exit or access failure when not completed
+- exit, stall, or access failure when not completed
 - evidence gaps and residual risk
 
-## Stop Condition
+## Stop condition
 
 Stop after one completed or failed invocation, or after a failed preflight.
-Return the single-task result to the caller. Do not retry, invoke Codex, merge
-results, start another lifecycle, or perform the requested task outside Claude.
+Return the single-task result. Do not retry, invoke Codex, merge results, start
+another lifecycle, or perform the requested task outside Claude.

@@ -33,8 +33,40 @@ data, security, and context violations. Regression reviewers seek losses in
 compatibility, edge cases, tests, migrations, performance, observability,
 rollback, and behavior intended to remain unchanged.
 
+Interpret “ensure no regressions” as the regression-reviewer role.
+
+Do not silently substitute another model. If a requested model is unavailable,
+mark that cell failed.
+
+## Matrix Subagents
+
+Use the host runtime's subagent mechanism. Spawn exactly one subagent for each
+matrix cell. Request all four concurrently when capacity permits; if the host
+has fewer child-agent slots, queue remaining cells and start them as soon as a
+slot is free. Never collapse two cells into one subagent.
+
+Each subagent must receive:
+
+- exactly one matrix cell identifier and review role
+- the same sanitized review scope and human-supplied context
+- the repository or worktree path
+- the cell output contract below
+- an explicit instruction to use exactly one CLI skill
+- an instruction to send its parent attributed progress at preflight, meaningful
+  tool or phase changes, 30-second heartbeats, and completion or failure; the
+  parent relays these updates to the human while the matrix remains active
+
+Use these assignments:
+
+| Cell | Subagent instruction |
+|---|---|
+| Codex × bug finder | Use `$codex-cli`; run one `gpt-5.6-sol` high-reasoning review |
+| Claude × bug finder | Use `$claude-cli`; run one `claude-fable-5[1m]` high-effort review |
+| Codex × regression reviewer | Use `$codex-cli`; run one `gpt-5.6-sol` high-reasoning review |
+| Claude × regression reviewer | Use `$claude-cli`; run one `claude-fable-5[1m]` high-effort review |
+
 Give every subagent the same sanitized scope and context, its one cell, the
-repository path, and this instruction:
+repository path, the cell output contract below, and this instruction:
 
 ```text
 Use the assigned CLI skill for exactly one independent review cell. Return the
