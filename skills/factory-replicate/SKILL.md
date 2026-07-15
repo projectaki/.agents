@@ -1,7 +1,6 @@
 ---
 name: factory-replicate
 description: "Use only when the human explicitly starts the replication lifecycle for a reported bug. Reproduce the unchanged failure, minimize the steps, capture a safe pre-fix baseline, and report confidence without diagnosing or fixing it."
-disable-model-invocation: true
 ---
 
 # Factory Replicate
@@ -22,8 +21,7 @@ steps, evidence, and safety limits. Reject non-bug work or report missing input.
 4. Record the exact environment, inputs, steps, result, frequency, and evidence.
 5. Minimize reliable steps and identify the observed boundary. Label unproven
    causes as hypotheses.
-6. Follow `$capture-pr-evidence` for new screenshots or video.
-7. Sanitize evidence and keep temporary artifacts outside tracked files.
+6. Sanitize evidence and keep temporary artifacts outside tracked files.
 
 Spawn one `bug-reproducer` subagent. For visible behavior, also spawn one
 `user-simulator`. If repository policy or the runtime prevents spawning,

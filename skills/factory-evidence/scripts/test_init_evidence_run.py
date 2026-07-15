@@ -35,6 +35,7 @@ class InitEvidenceRunTest(unittest.TestCase):
                 self.assertTrue((run / "working").is_dir())
                 self.assertTrue((run / "publish" / "screenshots").is_dir())
                 self.assertTrue((run / "publish" / "videos").is_dir())
+                self.assertTrue((run / "publish" / "results").is_dir())
                 self.assertEqual((run / "private").stat().st_mode & 0o777, 0o700)
 
     def run_initializer(self, environment: dict[str, str]) -> Path:

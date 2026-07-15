@@ -1,6 +1,6 @@
 interface:
   display_name: "Factory Verify"
-  short_description: "Verify CI parity and regression confidence"
-  default_prompt: "Use $factory-verify to run all applicable CI validation checks and produce a PR-ready regression-confidence report."
+  short_description: "Prove acceptance criteria before PR creation"
+  default_prompt: "Use $factory-verify to prove the acceptance criteria and produce a PR-description-ready confidence report."
 policy:
   allow_implicit_invocation: false

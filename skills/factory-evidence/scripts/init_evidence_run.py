@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create a durable, secret-safe local workspace for PR evidence."""
+"""Create a durable, secret-safe local workspace for regression evidence."""
 
 from __future__ import annotations
 
@@ -53,7 +53,13 @@ def main() -> None:
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     root = args.base.expanduser().resolve() / project / thread / timestamp
 
-    for relative in ("private", "working", "publish/screenshots", "publish/videos"):
+    for relative in (
+        "private",
+        "working",
+        "publish/screenshots",
+        "publish/videos",
+        "publish/results",
+    ):
         (root / relative).mkdir(parents=True, exist_ok=False)
 
     os.chmod(root / "private", 0o700)
