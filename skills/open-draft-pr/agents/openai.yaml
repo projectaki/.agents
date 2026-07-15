@@ -1,0 +1,4 @@
+interface:
+  display_name: "Open Draft PR"
+  short_description: "Create focused, review-ready draft PRs"
+  default_prompt: "Use $open-draft-pr to open a focused, review-ready draft PR."
