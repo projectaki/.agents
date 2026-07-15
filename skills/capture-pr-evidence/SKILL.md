@@ -1,6 +1,6 @@
 ---
 name: capture-pr-evidence
-description: "Capture concise, temporary UI evidence for pull requests: meaningful screenshots, compact walkthroughs, and comparable before/after states. Use for UI context, bug reproduction, regression checks, and feature verification without storing evidence or private sessions in the repository."
+description: "Capture concise, durable local UI evidence for pull requests: meaningful screenshots, compact walkthroughs, and comparable before/after states. Use for UI context, bug reproduction, regression checks, and feature verification without storing evidence or private sessions in the repository."
 ---
 
 # Capture PR Evidence
@@ -10,7 +10,10 @@ Create visual evidence a reviewer can understand and compare quickly.
 ## Safety
 
 - Keep the entire run outside the repository under
-  `${TMPDIR:-/tmp}/codex-pr-evidence/<project>/<run>/`.
+  `$HOME/evidence/<project>/<thread-name>/<timestamp>/`. Reuse the same
+  descriptive thread name for every run belonging to one agent task. The
+  initializer uses a microsecond-resolution UTC timestamp so repeated captures
+  receive distinct paths within that thread.
 - Keep credentials, cookies, tokens, and browser state in `private/` with
   owner-only permissions. Never record or upload secret values.
 - Keep discovery notes, tool state, logs, snapshots, and failed captures in
@@ -24,12 +27,13 @@ Create visual evidence a reviewer can understand and compare quickly.
 Run from the project:
 
 ```bash
-python3 ~/.agents/skills/capture-pr-evidence/scripts/init_evidence_run.py
+python3 ~/.agents/skills/capture-pr-evidence/scripts/init_evidence_run.py \
+  --thread <thread-name>
 ```
 
 The script creates `private/`, `working/`, `publish/screenshots/`, and
-`publish/videos/`. Use one run for the complete comparison, naming artifacts
-`before-*` and `after-*`.
+`publish/videos/`. Use the current agent task's name for `--thread`; use one run
+for the complete comparison, naming artifacts `before-*` and `after-*`.
 
 ## Capture
 
