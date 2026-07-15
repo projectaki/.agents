@@ -1,6 +1,6 @@
 ---
 name: factory-plan
-description: "Use only when the human explicitly starts the planning lifecycle and supplies context for a change. Convert all supplied context into a detailed, implementation-ready plan for an implementor agent without editing files, reviewing a plan, or delegating to subagents."
+description: "Use only when the human explicitly starts the planning lifecycle and supplies context for a change. Convert all supplied context into a detailed, implementation-ready plan for an implementor agent without editing files or implementing the change."
 ---
 
 # Factory Plan
@@ -15,8 +15,8 @@ Convert the supplied context into the smallest complete implementation plan.
 4. Include targeted tests and verification for every behavior change.
 5. Record relevant assumptions, risks, dependencies, and blockers.
 
-Do not edit files, implement the change, review the plan, or spawn subagents. Do
-not add speculative refactors or requirements not supported by the context.
+Do not edit files or implement the change. Do not add speculative refactors or
+requirements not supported by the context.
 
 ## Output
 
