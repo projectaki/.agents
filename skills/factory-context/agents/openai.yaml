@@ -1,6 +1,6 @@
 interface:
   display_name: "Factory Intake Context"
-  short_description: "Clarify task and gather context"
-  default_prompt: "Use $factory-context to clarify a task and gather implementation context."
+  short_description: "Gather complete evidence before planning"
+  default_prompt: "Use $factory-context to gather the issue, codebase, and documentation context needed before planning."
 policy:
   allow_implicit_invocation: false

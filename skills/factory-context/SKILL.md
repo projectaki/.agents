@@ -1,49 +1,34 @@
 ---
 name: factory-context
-description: "Use only when the human explicitly starts the context lifecycle for a software task, bug, feature, refactor, UI change, or investigation. Clarify the request, gather evidence, define acceptance criteria, assess risk, and return a readiness packet."
-disable-model-invocation: true
+description: "Use only when the human explicitly starts the context lifecycle for a software change or investigation. Read the issue, codebase, and relevant local or authoritative online documentation; return the complete evidence needed to begin planning, or identify what is missing."
 ---
 
 # Factory Context
 
-Turn a request into a task that is ready to plan or reproduce.
+Build the evidence base for planning. Do not plan or implement.
 
-## Need
+## Workflow
 
-- The human's request.
-- The repository or worktree.
-- Any supplied issues, evidence, constraints, or links.
+1. Read the request and complete issue, including linked artifacts. Extract the
+   outcome, scope, acceptance criteria, constraints, and unresolved decisions.
+2. Read applicable repository instructions, then trace the relevant code,
+   tests, configuration, and history. Establish current behavior, architecture,
+   dependencies, conventions, and likely change surface.
+3. Read relevant repository documentation. Search authoritative online sources
+   when external APIs, libraries, standards, or current behavior matter; record
+   the source and applicable version or date.
+4. Cross-check the evidence. Separate facts, inferences, and unknowns. Resolve
+   discoverable gaps before asking the human.
+5. Return a self-contained context packet with:
+   - task, outcome, scope, acceptance criteria, and constraints
+   - current behavior and relevant architecture
+   - relevant files, symbols, tests, and documentation
+   - repository conventions and external sources
+   - assumptions, conflicts, unknowns, and only essential questions
+   - verdict: `ready`, `needs-clarification`, or `blocked`
 
-## Do
+Return `ready` only when a planner can understand what must change, how the
+current system works, which constraints apply, and which evidence supports
+those conclusions without repeating discovery.
 
-1. Read the request, repository instructions, relevant code, docs, and evidence.
-2. Clarify the desired outcome, acceptance criteria, non-goals, affected areas,
-   risks, assumptions, and open questions.
-3. For bugs, also capture expected and observed behavior, environment, known
-   steps, frequency, evidence, and safety limits.
-4. For user-visible work, inspect supplied or existing visual context when
-   useful. Capturing new PR evidence is a separate manual lifecycle step.
-5. Return the smallest complete packet and a readiness verdict.
-
-Spawn one `requirements-analyst` and one `context-researcher` subagent in
-parallel. For visible behavior, also spawn one `user-simulator`. If repository
-policy or the runtime prevents spawning, perform the roles in the main session
-and report the omission. Treat browser, simulator, device, GUI, and network
-tools as conditional: make one availability check and one attempt, then use a
-reachable fallback. Do not install tools or seek elevated access only for
-optional evidence. Report skipped evidence and residual risk.
-
-## Return
-
-- summary, desired outcome, acceptance criteria, and non-goals
-- affected areas, relevant files/docs, and existing visual context
-- risk, assumptions, open questions, and evidence gaps
-- verdict: `ready`, `needs-clarification`, `blocked`, or `reject`
-
-If missing evidence is required to understand an acceptance criterion, do not
-return `ready`.
-
-## Stop
-
-Return the packet or the smallest blocking questions. Do not plan, reproduce,
-or implement the task.
+Stop after the context packet or the smallest set of blocking questions.
