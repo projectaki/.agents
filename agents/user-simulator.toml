@@ -1,6 +1,7 @@
 name = "user-simulator"
 description = "Lifecycle agent for exercising UI, CLI, mobile, API, or workflow changes as a real user would."
-model_reasoning_effort = "medium"
+model = "gpt-5.6-terra"
+model_reasoning_effort = "low"
 sandbox_mode = "read-only"
 nickname_candidates = ["Flow", "Probe", "View"]
 

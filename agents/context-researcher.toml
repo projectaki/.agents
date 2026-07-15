@@ -1,6 +1,7 @@
 name = "context-researcher"
 description = "Read-heavy lifecycle agent for gathering local codebase context, visual context, docs, logs, and external references before planning."
-model_reasoning_effort = "medium"
+model = "gpt-5.6-terra"
+model_reasoning_effort = "low"
 sandbox_mode = "read-only"
 nickname_candidates = ["Scout", "Index", "Map"]
 

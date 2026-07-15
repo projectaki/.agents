@@ -21,9 +21,8 @@ Turn a request into a task that is ready to plan or reproduce.
    risks, assumptions, and open questions.
 3. For bugs, also capture expected and observed behavior, environment, known
    steps, frequency, evidence, and safety limits.
-4. For user-visible work, gather visual context when useful. Follow
-   `$capture-pr-evidence` for new screenshots or video and include its handoff in
-   the context packet.
+4. For user-visible work, inspect supplied or existing visual context when
+   useful. Capturing new PR evidence is a separate manual lifecycle step.
 5. Return the smallest complete packet and a readiness verdict.
 
 Spawn one `requirements-analyst` and one `context-researcher` subagent in
@@ -37,7 +36,7 @@ optional evidence. Report skipped evidence and residual risk.
 ## Return
 
 - summary, desired outcome, acceptance criteria, and non-goals
-- affected areas, relevant files/docs, and visual evidence
+- affected areas, relevant files/docs, and existing visual context
 - risk, assumptions, open questions, and evidence gaps
 - verdict: `ready`, `needs-clarification`, `blocked`, or `reject`
 

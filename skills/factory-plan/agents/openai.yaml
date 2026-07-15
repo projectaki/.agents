@@ -1,6 +1,6 @@
 interface:
   display_name: "Factory Plan"
-  short_description: "Create a scoped implementation plan"
-  default_prompt: "Use $factory-plan to create a scoped implementation and verification plan."
+  short_description: "Turn context into an implementation-ready plan"
+  default_prompt: "Use $factory-plan to turn the supplied context into a detailed plan for an implementor agent."
 policy:
   allow_implicit_invocation: false
