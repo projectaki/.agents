@@ -1,108 +1,31 @@
 ---
 name: factory-review
-description: "Use only when the human explicitly starts the review lifecycle with a repository and review scope. Run the required four-cell Codex/Claude bug and regression review matrix, then return one numbered merged report without fixing findings."
-disable-model-invocation: true
+description: "Use only when the human explicitly starts the review lifecycle and supplies a subject or context to review. Review exactly the requested plan, code, change, design, decision, documentation, evidence, or lifecycle packet without modifying it."
 ---
 
 # Factory Review
 
-Run four independent reviews and merge their evidence.
+Evaluate the supplied subject without changing it.
 
-## Need
+## Workflow
 
-The repository or worktree, review scope, and available context such as packets,
-plans, diffs, verification evidence, or risk decisions. Use a supplied base,
-commit, diff, or file set; otherwise inspect all current changes. Ask one small
-question if the target remains ambiguous.
+1. Read the complete subject, context, review focus, criteria, and applicable
+   repository instructions.
+2. Inspect supporting sources or repository state only as needed to test its
+   claims. If no focus is supplied, assess relevant correctness, completeness,
+   consistency, feasibility, risk, and regression concerns.
+3. Report only actionable findings supported by evidence. Separate defects from
+   questions and unverified risk; do not invent requirements.
 
-Minimize and sanitize context before sending it to review CLIs.
+## Output
 
-## Matrix
+Return:
 
-Spawn exactly one subagent for each cell, concurrently when capacity permits:
+- scope and criteria reviewed
+- verdict: `approve`, `approve-with-findings`, `reject`, or `blocked`
+- numbered findings with severity, location, evidence, impact, smallest safe
+  recommendation, and confidence
+- questions, evidence gaps, and residual risk
 
-| Cell | CLI and model | Role |
-|---|---|---|
-| Codex bug | `$codex-cli`, `gpt-5.6-sol`, high reasoning | Bug finder |
-| Claude bug | `$claude-cli`, `claude-fable-5[1m]`, high effort | Bug finder |
-| Codex regression | `$codex-cli`, `gpt-5.6-sol`, high reasoning | Regression reviewer |
-| Claude regression | `$claude-cli`, `claude-fable-5[1m]`, high effort | Regression reviewer |
-
-Bug finders seek demonstrable correctness, invariant, error-path, concurrency,
-data, security, and context violations. Regression reviewers seek losses in
-compatibility, edge cases, tests, migrations, performance, observability,
-rollback, and behavior intended to remain unchanged.
-
-Interpret “ensure no regressions” as the regression-reviewer role.
-
-Do not silently substitute another model. If a requested model is unavailable,
-mark that cell failed.
-
-## Matrix Subagents
-
-Use the host runtime's subagent mechanism. Spawn exactly one subagent for each
-matrix cell. Request all four concurrently when capacity permits; if the host
-has fewer child-agent slots, queue remaining cells and start them as soon as a
-slot is free. Never collapse two cells into one subagent.
-
-Each subagent must receive:
-
-- exactly one matrix cell identifier and review role
-- the same sanitized review scope and human-supplied context
-- the repository or worktree path
-- the cell output contract below
-- an explicit instruction to use exactly one CLI skill
-- an instruction to send its parent attributed progress at preflight, meaningful
-  tool or phase changes, 30-second heartbeats, and completion or failure; the
-  parent relays these updates to the human while the matrix remains active
-
-Use these assignments:
-
-| Cell | Subagent instruction |
-|---|---|
-| Codex × bug finder | Use `$codex-cli`; run one `gpt-5.6-sol` high-reasoning review |
-| Claude × bug finder | Use `$claude-cli`; run one `claude-fable-5[1m]` high-effort review |
-| Codex × regression reviewer | Use `$codex-cli`; run one `gpt-5.6-sol` high-reasoning review |
-| Claude × regression reviewer | Use `$claude-cli`; run one `claude-fable-5[1m]` high-effort review |
-
-Give every subagent the same sanitized scope and context, its one cell, the
-repository path, the cell output contract below, and this instruction:
-
-```text
-Use the assigned CLI skill for exactly one independent review cell. Return the
-CLI result. Do not review directly, use another CLI, spawn agents, edit files,
-merge findings, or inspect another cell.
-```
-
-Require each cell to report only supported findings with severity `P0`–`P3`,
-title, precise location, evidence and trigger, impact, smallest safe
-recommendation, and confidence. A no-findings result must state what was
-inspected and what remains uncertain.
-
-Do not substitute models, retry a failed cell, install CLIs, change auth, seek
-elevated access, or replace a cell in the main session. Any missing cell makes
-the matrix `incomplete` and prevents `approve`.
-
-## Merge
-
-1. Record every cell's status.
-2. Discard unsupported claims and merge findings with the same root cause;
-   preserve contributing cells and disagreements.
-3. Keep distinct failure modes separate.
-4. Order by severity and assign one ID per finding: `R001`, `R002`, …
-5. Sanitize the report and remove or secure temporary outputs.
-
-## Return
-
-- scope and context reviewed
-- four-cell status table
-- verdict: `approve`, `approve-with-findings`, `reject`, or `incomplete`
-- numbered findings with severity, location, evidence, impact, recommendation,
-  confidence, and contributing cells
-- disagreements, discarded claims, missing evidence, residual risk, and human
-  follow-up
-
-## Stop
-
-Return the merged report after every cell completes or fails once. Do not fix
-findings or start another lifecycle.
+A no-findings result must state what was inspected and what remains uncertain.
+Stop after the review. Do not edit the subject or start another lifecycle.

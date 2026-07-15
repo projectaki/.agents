@@ -1,6 +1,6 @@
 interface:
   display_name: "Factory Review"
-  short_description: "Run a multi-model review matrix"
-  default_prompt: "Use $factory-review to run the Codex and Claude review matrix and return one numbered merged report."
+  short_description: "Review any supplied lifecycle subject"
+  default_prompt: "Use $factory-review to review the supplied subject against its stated criteria."
 policy:
   allow_implicit_invocation: false

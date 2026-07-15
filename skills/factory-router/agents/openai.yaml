@@ -1,0 +1,6 @@
+interface:
+  display_name: "Factory Lifecycle Router"
+  short_description: "Choose the next factory lifecycle stage"
+  default_prompt: "Use $factory-router to choose the next lifecycle stage from the current task context."
+policy:
+  allow_implicit_invocation: false

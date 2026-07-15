@@ -1,42 +1,32 @@
 ---
 name: factory-learn
-description: "Use only when the human explicitly starts the learning lifecycle with a task outcome, failure, review rejection, incident, feedback item, or repeated mistake. Store only durable, actionable project knowledge."
-disable-model-invocation: true
+description: "Use only when the human explicitly starts the learning lifecycle with a task outcome, failure, review rejection, incident, feedback item, or repeated mistake. Read the evidence and propose durable, actionable project knowledge without writing or changing anything."
 ---
 
 # Factory Learn
 
-Preserve knowledge that should change future work.
+Identify knowledge worth preserving. Remain read-only.
 
-## Need
+## Workflow
 
-A human-selected outcome, failure, finding, incident, feedback item, or repeated
-mistake, plus relevant task packets or repository docs.
+1. Read the supplied outcome and supporting evidence. Inspect existing project
+   guidance only as needed to detect duplication or conflicts.
+2. Propose a learning only when it would prevent a repeated mistake, preserve a
+   decision or explicit preference, change safety or verification behavior, or
+   explain a durable repository-specific constraint.
+3. Keep every proposal factual, actionable, concise, and free of secrets,
+   sensitive logs, transient environment failures, and speculation.
 
-## Do
+## Output
 
-1. Review the evidence and decide whether the learning is durable.
-2. Store it in the smallest suitable place:
-   - project `AGENTS.md` for concise repository conventions or pitfalls
-   - docs for workflow, architecture, or operational knowledge
-   - a decision record for a durable choice
-   - a follow-up task for important unfinished work
-3. Keep it factual, actionable, concise, and free of duplicated global rules.
+Return:
 
-Store a learning only when it prevents a repeated mistake, records a decision,
-changes safety or verification policy, explains a non-obvious repository
-constraint, or captures an explicit human preference. Store environment or
-access failures only when repository-specific and likely to recur. Never store
-secrets, sensitive logs, or speculation.
+- verdict: `propose-learning` or `no-learning`
+- evidence and rationale
+- recommended destination, such as `AGENTS.md`, project documentation, a
+  decision record, or a follow-up task
+- exact proposed content or follow-up wording
+- duplicates, conflicts, stale guidance, and decisions required from the user
 
-## Return
-
-- whether durable memory was needed
-- files changed
-- follow-ups created or recommended
-- stale memory or unresolved process gaps noticed
-
-## Stop
-
-Return the learning packet, including when no change is justified. Do not start
-another lifecycle; follow-up remains a human decision.
+Do not edit files, create follow-ups, send messages, or perform external
+actions. The user decides whether and where to preserve each proposal.

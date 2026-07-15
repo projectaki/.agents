@@ -1,6 +1,6 @@
 interface:
   display_name: "Factory Learn"
-  short_description: "Capture durable task learnings"
-  default_prompt: "Use $factory-learn to capture durable learnings from a completed task."
+  short_description: "Propose durable task learnings"
+  default_prompt: "Use $factory-learn to identify and propose durable learnings without writing them."
 policy:
   allow_implicit_invocation: false
