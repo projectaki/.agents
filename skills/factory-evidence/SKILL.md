@@ -1,6 +1,6 @@
 ---
 name: factory-evidence
-description: "Use when the human explicitly requests evidence collection or when factory-verify invokes it with a regression-scope packet. Execute manual UI, API, CLI, worker, or other regression scenarios; capture sanitized evidence; and return scenario-level results without modifying product code."
+description: "Use when the human explicitly requests evidence collection or when factory-verify invokes it with a regression-scope packet. Execute its manual UI, API, CLI, worker, or other regression test cases; record observed results; capture sanitized evidence; and return case-level results for verification and the draft PR without modifying product code."
 ---
 
 # Factory Evidence
@@ -29,21 +29,29 @@ proof.
      --thread <thread-name>
    ```
 
-3. Execute every reachable scenario in packet order using its stated fixtures
-   and environment. Record exact deviations.
+3. Create a results ledger containing every manual test ID and title from the
+   scope packet, initially marked `not-run`. Execute every reachable case in
+   packet order using its stated fixtures and environment. Do not rename,
+   combine, omit, or silently add cases; record exact deviations and report new
+   scope gaps separately.
 4. For UI flows, rehearse before recording and capture only stable states that
    prove the expected behavior. For APIs and other surfaces, save sanitized
    commands, status, assertions, and relevant output. Keep troubleshooting and
    sensitive raw material unpublished.
-5. Mark each scenario `pass`, `fail`, `blocked`, or `not-run`. A pass requires an
-   observed expected result; inaccessible or inferred behavior is not a pass.
-6. Review every artifact and create `publish/manifest.md` mapping scenario IDs
-   to results and evidence. Report newly discovered scope gaps without silently
-   expanding the packet.
+5. Mark each case `pass`, `fail`, `blocked`, or `not-run`. Record the actual
+   observed result even when it matches the expectation. A pass requires direct
+   observation of every expected result and case-specific proof; inaccessible,
+   partially exercised, or inferred behavior is not a pass.
+6. Review every artifact and create `publish/manifest.md` with one row per test
+   ID: surface, test-case title, result, observed result, and sanitized evidence.
+   Use the same IDs and order as the scope packet, account explicitly for
+   blocked and not-run cases, and label artifacts with their test ID.
 
 ## Output
 
-Return the run path, environment, scenario results, evidence locations,
-deviations, failures, blockers, skipped scenarios, scope gaps, cleanup status,
-and residual risk. Do not edit product code or start another lifecycle. Upload
-only sanitized `publish/` contents and delete the run after use or abandonment.
+Return the run path, environment, complete manual-test results ledger, evidence
+locations, deviations, failures, blockers, not-run cases, scope gaps, cleanup
+status, and residual risk. Make the ledger directly reusable by
+`$factory-verify` and `$open-draft-pr`. Do not edit product code or start another
+lifecycle. Upload only sanitized `publish/` contents and delete the run after
+use or abandonment.

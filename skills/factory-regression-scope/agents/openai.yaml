@@ -1,6 +1,6 @@
 interface:
   display_name: "Factory Regression Scope"
-  short_description: "Map PR changes to manual regression flows"
-  default_prompt: "Use $factory-regression-scope to identify every manual regression flow affected by the current PR."
+  short_description: "Turn PR risk into a manual test plan"
+  default_prompt: "Use $factory-regression-scope to produce the manual regression test cases for the current PR."
 policy:
   allow_implicit_invocation: false

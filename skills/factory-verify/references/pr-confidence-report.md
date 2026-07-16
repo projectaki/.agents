@@ -12,14 +12,15 @@
 |---|---|---|
 | <criterion> | Pass/Fail/Unverified | <implementation and observed proof> |
 
-## Regression evidence
+## Manual regression tests
 
-| ID | Surface | Scenario | Result | Evidence |
+| ID | Surface | Test case | Result | Evidence |
 |---|---|---|---|---|
-| <scope ID> | <UI/API/CLI/worker/other> | <flow or command> | Pass/Fail/Blocked/Not run | <artifact or observation> |
+| <scope ID> | <UI/API/CLI/worker/other> | <scope title> | Pass/Fail/Blocked/Not run | <observed result and artifact> |
 
-Account for every regression-scope scenario. Include visual comparisons when
-applicable and state when no material manual scenario was found.
+Preserve the regression-scope IDs, titles, and order. Account for every manual
+test case exactly once. Include visual comparisons when applicable and state
+when no material manual test case was found.
 
 ## Automated checks
 

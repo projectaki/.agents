@@ -20,18 +20,20 @@ or contradictory required input makes the verdict `inconclusive` or `blocked`.
    integration, or CI suites; CI will run after PR creation.
 2. Invoke `$factory-regression-scope` on the complete change set, then invoke
    `$factory-evidence` with its packet. Skip evidence execution only when the
-   scope proves no material manual scenario exists.
+   scope proves no material manual test case exists.
 3. Reconcile acceptance criteria, implementation evidence, review findings,
-   prior test results, regression scenarios, and observed evidence. Treat
-   missing, stale, failed, blocked, or inferred required evidence as unverified.
+   prior test results, the complete manual-test inventory, and observed
+   evidence. Preserve every scope ID and account for each case exactly once.
+   Treat missing, stale, failed, blocked, or inferred required evidence as
+   unverified.
 4. Return the verification packet and the PR-ready report from
    [references/pr-confidence-report.md](references/pr-confidence-report.md).
 
 ## Verdict
 
-- `pass`: every acceptance criterion is supported, required manual scenarios
+- `pass`: every acceptance criterion is supported, required manual test cases
   pass, and no blocking finding or known regression remains.
-- `fail`: an acceptance criterion or regression scenario demonstrably fails.
+- `fail`: an acceptance criterion or manual regression test demonstrably fails.
 - `inconclusive`: required evidence or prior test results are missing or stale.
 - `blocked`: verification cannot proceed safely or access a required condition.
 
