@@ -67,6 +67,27 @@ class StreamCodexTests(unittest.TestCase):
         self.assertNotIn("do-not-leak", rendered)
         self.assertNotIn("secret-session", rendered)
 
+    def test_result_only_emits_only_final_result(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            fake = fake_codex(Path(tmp), r'''
+                import json
+                events = [
+                    {"type": "turn.started"},
+                    {"type": "item.started", "item": {"type": "command_execution", "command": "rg TODO"}},
+                    {"type": "item.completed", "item": {"type": "agent_message", "text": "Candidate plan."}},
+                    {"type": "turn.completed"},
+                ]
+                for event in events:
+                    print(json.dumps(event), flush=True)
+            ''')
+            completed, events = run_wrapper(fake, "--delivery", "result-only")
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(
+            events,
+            [{"type": "result", "status": "completed", "response": "Candidate plan."}],
+        )
+
     def test_stops_after_no_codex_event(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             fake = fake_codex(Path(tmp), r'''

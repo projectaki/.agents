@@ -22,7 +22,16 @@ def fake_claude(directory: Path, body: str) -> Path:
     return executable
 
 
-def run_wrapper(fake: Path, *extra: str) -> tuple[subprocess.CompletedProcess[str], list[dict]]:
+def run_wrapper(
+    fake: Path,
+    *extra: str,
+    environment: dict[str, str] | None = None,
+) -> tuple[subprocess.CompletedProcess[str], list[dict]]:
+    child_environment = os.environ.copy()
+    child_environment.pop("CLAUDECODE", None)
+    if environment:
+        child_environment.update(environment)
+
     completed = subprocess.run(
         [
             "python3", str(SCRIPT),
@@ -38,6 +47,7 @@ def run_wrapper(fake: Path, *extra: str) -> tuple[subprocess.CompletedProcess[st
         text=True,
         capture_output=True,
         timeout=10,
+        env=child_environment,
     )
     events = [json.loads(line) for line in completed.stdout.splitlines()]
     return completed, events
@@ -70,6 +80,36 @@ class StreamClaudeTests(unittest.TestCase):
         self.assertNotIn("private reasoning", rendered)
         self.assertNotIn("sensitive tool output", rendered)
         self.assertNotIn("SECRET", rendered)
+
+    def test_result_only_emits_only_final_result(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            fake = fake_claude(Path(tmp), r'''
+                import json
+                events = [
+                    {"type": "system", "subtype": "init"},
+                    {"type": "stream_event", "event": {"type": "content_block_start", "content_block": {"type": "tool_use", "name": "Read", "input": {"file_path": "/repo/app.ts"}}}},
+                    {"type": "stream_event", "event": {"type": "content_block_delta", "delta": {"type": "text_delta", "text": "Candidate plan."}}},
+                    {"type": "result", "subtype": "success", "result": "Candidate plan."},
+                ]
+                for event in events:
+                    print(json.dumps(event), flush=True)
+            ''')
+            completed, events = run_wrapper(fake, "--delivery", "result-only")
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(
+            events,
+            [{"type": "result", "status": "completed", "response": "Candidate plan."}],
+        )
+
+    def test_rejects_nested_claude_code_invocation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            fake = fake_claude(Path(tmp), "raise AssertionError('must not execute')")
+            completed, events = run_wrapper(fake, environment={"CLAUDECODE": ""})
+
+        self.assertEqual(completed.returncode, 2)
+        self.assertEqual(events[0]["type"], "error")
+        self.assertIn("native Claude subagent", events[0]["message"])
 
     def test_stops_after_no_claude_event(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

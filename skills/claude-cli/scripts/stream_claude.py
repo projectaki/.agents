@@ -41,15 +41,20 @@ def text_from_content(content: Any) -> str:
 
 
 class EventParser:
-    def __init__(self) -> None:
+    def __init__(self, delivery: str) -> None:
+        self.observable = delivery == "observable"
         self.saw_text_delta = False
         self.final_result = ""
         self.error = ""
 
+    def emit_progress(self, kind: str, **payload: Any) -> None:
+        if self.observable:
+            emit(kind, **payload)
+
     def parse(self, event: dict[str, Any]) -> None:
         event_type = event.get("type")
         if event_type == "system" and event.get("subtype") == "init":
-            emit("status", message="Claude initialized")
+            self.emit_progress("status", message="Claude initialized")
             return
 
         if event_type == "stream_event":
@@ -60,14 +65,14 @@ class EventParser:
             if inner_type == "content_block_start":
                 block = inner.get("content_block")
                 if isinstance(block, dict) and block.get("type") == "tool_use":
-                    emit("tool", name=str(block.get("name", "unknown")), context=safe_context(block.get("input")))
+                    self.emit_progress("tool", name=str(block.get("name", "unknown")), context=safe_context(block.get("input")))
             elif inner_type == "content_block_delta":
                 delta = inner.get("delta")
                 if isinstance(delta, dict) and delta.get("type") == "text_delta":
                     text = delta.get("text")
                     if isinstance(text, str) and text:
                         self.saw_text_delta = True
-                        emit("text", text=text)
+                        self.emit_progress("text", text=text)
             return
 
         if event_type == "assistant":
@@ -77,10 +82,10 @@ class EventParser:
             if not self.saw_text_delta:
                 text = text_from_content(message.get("content"))
                 if text:
-                    emit("text", text=text)
+                    self.emit_progress("text", text=text)
             for block in message.get("content", []):
                 if isinstance(block, dict) and block.get("type") == "tool_use":
-                    emit("tool", name=str(block.get("name", "unknown")), context=safe_context(block.get("input")))
+                    self.emit_progress("tool", name=str(block.get("name", "unknown")), context=safe_context(block.get("input")))
             return
 
         if event_type == "result":
@@ -98,6 +103,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--effort", choices=("low", "medium", "high", "xhigh", "max"), required=True)
     parser.add_argument("--permission-mode", required=True)
     parser.add_argument("--tools", required=True)
+    parser.add_argument("--delivery", choices=("observable", "result-only"), default="observable")
     parser.add_argument("--stall-seconds", type=int, default=300)
     parser.add_argument("--heartbeat-seconds", type=int, default=30)
     parser.add_argument("--claude-bin", default="claude", help=argparse.SUPPRESS)
@@ -116,6 +122,10 @@ def terminate(process: subprocess.Popen[str]) -> None:
 
 def main() -> int:
     args = parse_args()
+    if "CLAUDECODE" in os.environ:
+        emit("error", message="Nested Claude Code invocation is unsupported; use a native Claude subagent")
+        return 2
+
     repository = args.repository.expanduser().resolve()
     if not repository.is_dir() or not os.access(repository, os.R_OK):
         emit("error", message="Repository is not readable")
@@ -141,7 +151,8 @@ def main() -> int:
         "--verbose",
     ]
 
-    emit("status", message="Starting Claude", model=args.model)
+    if args.delivery == "observable":
+        emit("status", message="Starting Claude", model=args.model)
     try:
         process = subprocess.Popen(
             command,
@@ -163,7 +174,7 @@ def main() -> int:
     selector = selectors.DefaultSelector()
     selector.register(process.stdout, selectors.EVENT_READ, "stdout")
     selector.register(process.stderr, selectors.EVENT_READ, "stderr")
-    parser = EventParser()
+    parser = EventParser(args.delivery)
     last_event = time.monotonic()
     last_heartbeat = last_event
     diagnostics: list[str] = []
@@ -177,7 +188,8 @@ def main() -> int:
                 return 124
 
             if process.poll() is None and now - last_heartbeat >= args.heartbeat_seconds:
-                emit("status", message="Claude is still working", idle_seconds=int(now - last_event))
+                if args.delivery == "observable":
+                    emit("status", message="Claude is still working", idle_seconds=int(now - last_event))
                 last_heartbeat = now
 
             for key, _ in selector.select(timeout=1):
@@ -211,7 +223,8 @@ def main() -> int:
         return 1
 
     emit("result", status="completed", response=parser.final_result)
-    emit("status", message="Claude completed")
+    if args.delivery == "observable":
+        emit("status", message="Claude completed")
     return 0
 
 

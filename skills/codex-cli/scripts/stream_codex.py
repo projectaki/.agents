@@ -20,23 +20,28 @@ def emit(kind: str, **payload: Any) -> None:
 
 
 class EventParser:
-    def __init__(self) -> None:
+    def __init__(self, delivery: str) -> None:
+        self.observable = delivery == "observable"
         self.final_result = ""
         self.error = ""
+
+    def emit_progress(self, kind: str, **payload: Any) -> None:
+        if self.observable:
+            emit(kind, **payload)
 
     def parse(self, event: dict[str, Any]) -> None:
         event_type = event.get("type")
         if event_type == "thread.started":
-            emit("status", message="Codex initialized")
+            self.emit_progress("status", message="Codex initialized")
             return
         if event_type == "turn.started":
-            emit("status", message="Codex is working")
+            self.emit_progress("status", message="Codex is working")
             return
         if event_type in ("item.started", "item.completed"):
             self._parse_item(event_type, event.get("item"))
             return
         if event_type == "turn.completed":
-            emit("status", message="Codex turn completed")
+            self.emit_progress("status", message="Codex turn completed")
             return
         if event_type in ("turn.failed", "error"):
             self.error = "Codex reported an error"
@@ -49,13 +54,13 @@ class EventParser:
             text = item.get("text")
             if isinstance(text, str) and text:
                 self.final_result = text
-                emit("text", text=text)
+                self.emit_progress("text", text=text)
             return
         if item_type == "reasoning":
             return
         if isinstance(item_type, str) and item_type:
             phase = "started" if event_type == "item.started" else "completed"
-            emit("tool", name=item_type, phase=phase)
+            self.emit_progress("tool", name=item_type, phase=phase)
 
 
 def parse_args() -> argparse.Namespace:
@@ -64,6 +69,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--model", required=True)
     parser.add_argument("--reasoning-effort", choices=("low", "medium", "high", "xhigh"), required=True)
     parser.add_argument("--sandbox", choices=("read-only", "workspace-write", "danger-full-access"), required=True)
+    parser.add_argument("--delivery", choices=("observable", "result-only"), default="observable")
     parser.add_argument("--stall-seconds", type=int, default=300)
     parser.add_argument("--heartbeat-seconds", type=int, default=30)
     parser.add_argument("--codex-bin", default="codex", help=argparse.SUPPRESS)
@@ -105,7 +111,8 @@ def main() -> int:
         "-",
     ]
 
-    emit("status", message="Starting Codex", model=args.model)
+    if args.delivery == "observable":
+        emit("status", message="Starting Codex", model=args.model)
     try:
         process = subprocess.Popen(
             command,
@@ -127,7 +134,7 @@ def main() -> int:
     selector = selectors.DefaultSelector()
     selector.register(process.stdout, selectors.EVENT_READ, "stdout")
     selector.register(process.stderr, selectors.EVENT_READ, "stderr")
-    parser = EventParser()
+    parser = EventParser(args.delivery)
     last_event = time.monotonic()
     last_heartbeat = last_event
 
@@ -139,7 +146,8 @@ def main() -> int:
                 emit("error", message=f"Codex stalled: no stream event for {args.stall_seconds} seconds")
                 return 124
             if process.poll() is None and now - last_heartbeat >= args.heartbeat_seconds:
-                emit("status", message="Codex is still working", idle_seconds=int(now - last_event))
+                if args.delivery == "observable":
+                    emit("status", message="Codex is still working", idle_seconds=int(now - last_event))
                 last_heartbeat = now
 
             for key, _ in selector.select(timeout=1):
@@ -170,7 +178,8 @@ def main() -> int:
         return 1
 
     emit("result", status="completed", response=parser.final_result)
-    emit("status", message="Codex completed")
+    if args.delivery == "observable":
+        emit("status", message="Codex completed")
     return 0
 
 

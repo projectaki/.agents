@@ -17,10 +17,11 @@ Require:
 - complete task prompt and output contract
 - model and effort level
 - permission mode and tool set
+- delivery mode: `observable` or `result-only`
 
 Default reviews to `claude-fable-5[1m]`, high effort, plan permission mode,
-`Read,Grep,Glob,Bash`, and no session persistence. Do not infer a different
-model or broaden permissions.
+`Read,Grep,Glob,Bash`, no session persistence, and `observable` delivery. Do not
+infer a different model or broaden permissions.
 
 ## Host orchestration
 
@@ -30,12 +31,13 @@ model or broaden permissions.
   human through commentary and remains responsive to steering.
 - If already running inside a dedicated factory or review subagent, execute
   Claude there. Do not create another nested agent.
-- The Claude-owning subagent sends its parent a concise update at preflight,
-  each meaningful tool or phase transition, every 30 seconds while active, and
-  completion or failure. Attribute every update to its cell or task name.
-- Stream user-facing answer text when it arrives, coalescing only for
-  readability. Do not wait for completion before reporting observable progress.
-  Never stream thinking blocks, hidden reasoning, raw protocol JSON, tool
+- With `observable` delivery, the Claude-owning subagent sends its parent a
+  concise update at preflight, each meaningful tool or phase transition, every
+  30 seconds while active, and completion or failure. Stream user-facing answer
+  text when it arrives, coalescing only for readability.
+- With `result-only` delivery, send no progress, heartbeat, tool, or text events
+  to the parent. Return only the authoritative result or sanitized failure.
+- Never stream thinking blocks, hidden reasoning, raw protocol JSON, tool
   results, authentication details, or secrets.
 
 ## Preflight
@@ -46,6 +48,8 @@ Perform each check once inside the Claude-owning subagent:
 2. Run `claude --version`.
 3. Run `claude auth status`, reporting only whether authentication succeeded.
 4. Confirm the repository path is readable.
+5. Confirm the process is not already running inside Claude Code. If
+   `CLAUDECODE` is set, stop and require a native Claude subagent instead.
 
 If a check fails because the CLI is missing, unauthenticated, sandboxed, or
 access-controlled, stop. Do not install Claude, change authentication, request
@@ -62,7 +66,8 @@ python3 <skill-dir>/scripts/stream_claude.py \
   --model 'claude-fable-5[1m]' \
   --effort high \
   --permission-mode plan \
-  --tools 'Read,Grep,Glob,Bash'
+  --tools 'Read,Grep,Glob,Bash' \
+  --delivery observable
 ```
 
 The wrapper invokes one `claude -p` process with `stream-json`, partial message
@@ -75,9 +80,10 @@ It emits sanitized JSON lines:
 - `result`: the complete final Claude response
 - `error`: sanitized diagnostics
 
-Consume output continuously. Relay status/tool updates promptly. Text fragments
-may be coalesced into readable chunks before relaying, but do not wait for
-process completion. Use the `result` event as the authoritative final response.
+With `observable` delivery, consume output continuously and relay status/tool
+updates promptly. Text fragments may be coalesced into readable chunks. With
+`result-only` delivery, consume all intermediate events locally and expose only
+`result` or `error`. Use the `result` event as the authoritative final response.
 
 The wrapper terminates the attempt after five minutes without any Claude stream
 event. Heartbeats do not reset that timer. An active review may run longer than
