@@ -26,16 +26,18 @@ scope.
    expired, reauthenticate outside the recording, save the refreshed state in
    `_auth/states/`, and set its mode to `0600`. Never copy auth material into
    the run, workflow script, command output, or video.
-4. Confirm `playwright-cli` is on `PATH`. Discover the workflow without
+4. Use `$mssql-local` when local MSSQL test data must be created or cleaned up
+   for the workflow.
+5. Confirm `playwright-cli` is on `PATH`. Discover the workflow without
    recording in a unique named session. Restore auth before navigation.
    Snapshot before using element refs and again after navigation or material UI
    changes. Capture the semantic Playwright code emitted by the CLI. Close the
    discovery session when done.
-5. Write `workflows/<workflow-id>.js` as an `async page => { ... }` function for
+6. Write `workflows/<workflow-id>.js` as an `async page => { ... }` function for
    `playwright-cli run-code --filename`. Use semantic locators and explicit
    observable checks that throw on failure. Avoid fixed sleeps, fragile CSS
    selectors, incidental navigation, and hidden dependencies.
-6. Use the bundled runner with a unique session name to execute the script
+7. Use the bundled runner with a unique session name to execute the script
    without video until it passes from the required initial state:
 
    ```bash
@@ -49,7 +51,7 @@ scope.
    Omit `--state` only when the auth instructions say the workflow needs no
    authentication. A flaky, partial, inferred, retried, or inaccessible
    workflow does not pass.
-7. Prepare the same initial state, then use the runner to record the exact
+8. Prepare the same initial state, then use the runner to record the exact
    passing script once:
 
    ```bash
@@ -63,7 +65,7 @@ scope.
 
    The runner stops recording, closes only its own session, and removes a
    partial video on failure or interruption. Never use `close-all` or `kill-all`.
-8. Review the video for the complete workflow, expected result, compactness, and
+9. Review the video for the complete workflow, expected result, compactness, and
    sensitive data. Keep it only when the workflow passed. Confirm the discovery,
    check, and recording sessions are closed.
 
