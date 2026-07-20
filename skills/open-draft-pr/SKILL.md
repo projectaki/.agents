@@ -5,7 +5,7 @@ description: Create or update a GitHub draft pull request with the team's review
 
 # Open Draft PR
 
-Create a draft PR that tells reviewers what changed, which discovered requirements are now satisfied, which test scenarios were added, which manual regression cases were exercised, and why affected user behavior is unlikely to regress.
+Create a draft PR that tells reviewers what changed, which discovered requirements are now satisfied, which manual regression cases were exercised, and why affected user behavior is unlikely to regress.
 
 ## Workflow
 
@@ -36,16 +36,6 @@ Create a draft PR that tells reviewers what changed, which discovered requiremen
 - Describe outcomes, not a file-by-file implementation inventory.
 - Do not invent acceptance criteria to make the section appear complete.
 
-### Test cases added
-
-- Split the section into `Frontend` and `Backend` subsections. Keep both headings; write `None` when a side has no added tests.
-- Inspect the base-to-head test diff and include one bullet for every test case added by the PR.
-- Translate test names and assertions into concise, user-readable scenarios describing the starting condition, action, and expected outcome.
-- Expand parameterized tests into separate bullets when each input represents a distinct user role, permission, state, or business scenario.
-- Include newly added unit, integration, component, service, and end-to-end cases. Exclude pre-existing tests changed only for formatting, fixture compilation, or setup compatibility.
-- Do not include pass counts, CI results, filenames, method names, or implementation details unless needed to understand the scenario.
-- Cross-check the final bullet count against the added executable cases so none are omitted or duplicated.
-
 ### No-regression confidence
 
 - Identify the existing user behaviors and product areas touched by the change.
@@ -55,7 +45,7 @@ Create a draft PR that tells reviewers what changed, which discovered requiremen
 - When every case succeeded, introduce the table with `All manual regression test cases completed successfully:`. Otherwise summarize the incomplete or failing verification accurately.
 - Write from the user's perspective. Mention automated tests only as supporting rationale, never as a pass-count matrix.
 - Include the concise conclusion `No regressions were observed in the verified scope.` only when supported by verification.
-- Do not add a general `Verification` section or list CI jobs; reviewers can see CI separately. The `Test cases added` section describes coverage intent, not execution status.
+- Do not add a general `Verification` section, enumerate test cases added by the PR, or list CI jobs; reviewers can inspect the test diff and CI separately.
 - Write `None — the traced change set produced no material manual regression cases.` only when the regression-scope packet explicitly reached that conclusion.
 
 ### Evidence
