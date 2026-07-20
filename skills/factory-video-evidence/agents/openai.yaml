@@ -1,6 +1,6 @@
 interface:
   display_name: "Factory Video Evidence"
-  short_description: "Record compact videos of passing UI workflows"
-  default_prompt: "Use $factory-video-evidence to turn the supplied UI workflows into deterministic playwright-cli scripts and compact review videos."
+  short_description: "Record one supplied UI workflow as video"
+  default_prompt: "Use $factory-video-evidence with the project auth directory to add one supplied UI workflow script and compact review video to the existing evidence run."
 policy:
   allow_implicit_invocation: false
