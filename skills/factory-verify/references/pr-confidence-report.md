@@ -12,15 +12,14 @@
 |---|---|---|
 | <criterion> | Pass/Fail/Unverified | <implementation and observed proof> |
 
-## Manual regression tests
+## UI workflow evidence
 
-| ID | Surface | Test case | Result | Evidence |
-|---|---|---|---|---|
-| <scope ID> | <UI/API/CLI/worker/other> | <scope title> | Pass/Fail/Blocked/Not run | <observed result and artifact> |
+| ID | Workflow | Result | Video |
+|---|---|---|---|
+| <workflow ID> | <workflow title> | Pass/Fail/Blocked/Not run | <published video or reason absent> |
 
-Preserve the regression-scope IDs, titles, and order. Account for every manual
-test case exactly once. Include visual comparisons when applicable and state
-when no material manual test case was found.
+Preserve the regression-scope IDs, titles, and order. Account for every UI
+workflow exactly once. State when no material UI workflow was found.
 
 ## Automated checks
 

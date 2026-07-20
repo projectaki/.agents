@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Create a durable, secret-safe local workspace for regression evidence."""
+"""Create a local workspace for UI workflow scripts and published videos."""
 
 from __future__ import annotations
 
 import argparse
-import os
 import re
 import subprocess
 from datetime import datetime, timezone
@@ -53,16 +52,9 @@ def main() -> None:
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     root = args.base.expanduser().resolve() / project / thread / timestamp
 
-    for relative in (
-        "private",
-        "working",
-        "publish/screenshots",
-        "publish/videos",
-        "publish/results",
-    ):
+    for relative in ("workflows", "publish"):
         (root / relative).mkdir(parents=True, exist_ok=False)
 
-    os.chmod(root / "private", 0o700)
     print(root)
 
 

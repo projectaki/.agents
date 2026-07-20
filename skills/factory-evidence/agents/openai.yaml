@@ -1,6 +1,0 @@
-interface:
-  display_name: "Factory Evidence"
-  short_description: "Run manual test cases and capture proof"
-  default_prompt: "Use $factory-evidence to execute every supplied manual regression test case and capture sanitized evidence."
-policy:
-  allow_implicit_invocation: false

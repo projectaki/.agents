@@ -10,9 +10,9 @@
 
 <!-- Existing user behaviors and touched areas, plus why each remains safe. -->
 
-All manual regression test cases completed successfully:
+All UI regression workflows completed successfully:
 
-| ID | Manual test case | Result |
+| ID | UI workflow | Result |
 |---|---|---|
 | <!-- Scope ID --> | <!-- Scope title --> | Successful |
 

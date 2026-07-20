@@ -5,7 +5,7 @@ description: Create or update a GitHub draft pull request with the team's review
 
 # Open Draft PR
 
-Create a draft PR that tells reviewers what changed, which discovered requirements are now satisfied, which manual regression cases were exercised, and why affected user behavior is unlikely to regress.
+Create a draft PR that tells reviewers what changed, which discovered requirements are now satisfied, which UI regression workflows were recorded, and why affected user behavior is unlikely to regress.
 
 ## Workflow
 
@@ -40,17 +40,17 @@ Create a draft PR that tells reviewers what changed, which discovered requiremen
 
 - Identify the existing user behaviors and product areas touched by the change.
 - Explain why each remains safe: exercised acceptance flow, preserved contract, unchanged path, compatibility layer, focused automated coverage, or equivalent evidence.
-- Include one row for every manual test case in the latest regression-scope packet, preserving its ID, title, order, and final result.
+- Include one row for every UI workflow in the latest regression-scope packet, preserving its ID, title, order, and final result.
 - Render an evidence-backed `pass` as `Successful`. Preserve `Failed`, `Blocked`, and `Not run` results exactly; never describe incomplete, missing, or inferred verification as successful.
-- When every case succeeded, introduce the table with `All manual regression test cases completed successfully:`. Otherwise summarize the incomplete or failing verification accurately.
+- When every workflow succeeded, introduce the table with `All UI regression workflows completed successfully:`. Otherwise summarize the incomplete or failing verification accurately.
 - Write from the user's perspective. Mention automated tests only as supporting rationale, never as a pass-count matrix.
 - Include the concise conclusion `No regressions were observed in the verified scope.` only when supported by verification.
 - Do not add a general `Verification` section, enumerate test cases added by the PR, or list CI jobs; reviewers can inspect the test diff and CI separately.
-- Write `None — the traced change set produced no material manual regression cases.` only when the regression-scope packet explicitly reached that conclusion.
+- Write `None — the traced change set produced no material UI regression workflows.` only when the regression-scope packet explicitly reached that conclusion.
 
 ### Evidence
 
-- Leave this section empty for the human to paste sanitized evidence below the completed manual-test results.
+- Leave this section empty for the human to paste sanitized workflow videos below the completed results.
 - Never describe upload failures, authentication limitations, local artifact paths, or evidence tooling in the PR body.
 
 ### Known gaps

@@ -9,10 +9,10 @@ import unittest
 from pathlib import Path
 
 
-SCRIPT = Path(__file__).with_name("init_evidence_run.py")
+SCRIPT = Path(__file__).with_name("init_video_evidence_run.py")
 
 
-class InitEvidenceRunTest(unittest.TestCase):
+class InitVideoEvidenceRunTest(unittest.TestCase):
     def test_creates_unique_runs_under_current_users_home(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_home:
             environment = os.environ.copy()
@@ -31,12 +31,11 @@ class InitEvidenceRunTest(unittest.TestCase):
             self.assertRegex(first_run.name, r"^\d{8}T\d{12}Z$")
 
             for run in (first_run, second_run):
-                self.assertTrue((run / "private").is_dir())
-                self.assertTrue((run / "working").is_dir())
-                self.assertTrue((run / "publish" / "screenshots").is_dir())
-                self.assertTrue((run / "publish" / "videos").is_dir())
-                self.assertTrue((run / "publish" / "results").is_dir())
-                self.assertEqual((run / "private").stat().st_mode & 0o777, 0o700)
+                self.assertEqual(
+                    sorted(path.name for path in run.iterdir()),
+                    ["publish", "workflows"],
+                )
+                self.assertEqual(list((run / "publish").iterdir()), [])
 
     def run_initializer(self, environment: dict[str, str]) -> Path:
         result = subprocess.run(

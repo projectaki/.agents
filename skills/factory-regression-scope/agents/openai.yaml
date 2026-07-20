@@ -1,6 +1,6 @@
 interface:
   display_name: "Factory Regression Scope"
-  short_description: "Turn PR risk into a manual test plan"
-  default_prompt: "Use $factory-regression-scope to produce the manual regression test cases for the current PR."
+  short_description: "Turn PR risk into compact UI workflows"
+  default_prompt: "Use $factory-regression-scope to produce compact UI regression workflows for the current PR."
 policy:
   allow_implicit_invocation: false

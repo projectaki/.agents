@@ -1,6 +1,6 @@
 ---
 name: factory-verify
-description: "Use only when the human explicitly starts final verification for a completed implementation before creating a pull request. Prove every acceptance criterion, assess regression confidence through manual evidence, and return PR-description-ready results without rerunning unit, integration, or CI test suites."
+description: "Use only when the human explicitly starts final verification for a completed implementation before creating a pull request. Prove every acceptance criterion, assess regression confidence through UI workflow videos and existing automated results, and return PR-description-ready results without rerunning unit, integration, or CI test suites."
 ---
 
 # Factory Verify
@@ -19,11 +19,11 @@ or contradictory required input makes the verdict `inconclusive` or `blocked`.
    test results already recorded by `$factory-implement`. Do not rerun unit,
    integration, or CI suites; CI will run after PR creation.
 2. Invoke `$factory-regression-scope` on the complete change set, then invoke
-   `$factory-evidence` with its packet. Skip evidence execution only when the
-   scope proves no material manual test case exists.
+   `$factory-video-evidence` with its UI workflows. Skip video evidence only
+   when the scope proves no material UI workflow exists.
 3. Reconcile acceptance criteria, implementation evidence, review findings,
-   prior test results, the complete manual-test inventory, and observed
-   evidence. Preserve every scope ID and account for each case exactly once.
+   prior test results, the complete UI-workflow inventory, and observed
+   evidence. Preserve every workflow ID and account for each exactly once.
    Treat missing, stale, failed, blocked, or inferred required evidence as
    unverified.
 4. Return the verification packet and the PR-ready report from
@@ -31,9 +31,9 @@ or contradictory required input makes the verdict `inconclusive` or `blocked`.
 
 ## Verdict
 
-- `pass`: every acceptance criterion is supported, required manual test cases
-  pass, and no blocking finding or known regression remains.
-- `fail`: an acceptance criterion or manual regression test demonstrably fails.
+- `pass`: every acceptance criterion is supported, required UI workflows pass,
+  and no blocking finding or known regression remains.
+- `fail`: an acceptance criterion or UI regression workflow demonstrably fails.
 - `inconclusive`: required evidence or prior test results are missing or stale.
 - `blocked`: verification cannot proceed safely or access a required condition.
 
