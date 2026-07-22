@@ -118,15 +118,6 @@
       "installedAt": "2026-06-13T18:01:41.435Z",
       "updatedAt": "2026-06-13T18:01:41.435Z"
     },
-    "upgrading-expo": {
-      "source": "expo/skills",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/expo/skills.git",
-      "skillPath": "plugins/expo/skills/upgrading-expo/SKILL.md",
-      "skillFolderHash": "ef0d9ec0ee3245b366c69f1acd948edf46623ebb",
-      "installedAt": "2026-06-13T18:01:41.436Z",
-      "updatedAt": "2026-06-13T18:01:41.436Z"
-    },
     "use-dom": {
       "source": "expo/skills",
       "sourceType": "github",
