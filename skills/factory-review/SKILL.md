@@ -19,7 +19,7 @@ Spawn exactly two subagents concurrently:
 
 - `codex-reviewer`: use `$codex-cli` once with `gpt-5.6-sol`, high reasoning,
   and the read-only sandbox.
-- `claude-reviewer`: use `$claude-cli` once with `claude-fable-5[1m]`, high
+- `claude-reviewer`: use `$claude-cli` once with `claude-opus-4-8`, high
   effort, plan permission mode, and read-only tools.
 
 Give both the same sanitized input, repository, review criteria, and output
