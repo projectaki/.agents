@@ -26,8 +26,9 @@ scope.
    expired, reauthenticate outside the recording, save the refreshed state in
    `_auth/states/`, and set its mode to `0600`. Never copy auth material into
    the run, workflow script, command output, or video.
-4. Use `$mssql-local` when local MSSQL test data must be created or cleaned up
-   for the workflow.
+4. Use the project's existing test-data setup and cleanup mechanism when the
+   workflow requires local data. Follow project instructions for the configured
+   database rather than assuming a database engine or command-line client.
 5. Confirm `playwright-cli` is on `PATH`. Discover the workflow without
    recording in a unique named session. Restore auth before navigation.
    Snapshot before using element refs and again after navigation or material UI
