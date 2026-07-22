@@ -1,4 +1,0 @@
-interface:
-  display_name: "MSSQL Local"
-  short_description: "Safely query and modify local SQL Server"
-  default_prompt: "Use $mssql-local to inspect my local SQL Server database and safely make the requested changes."
