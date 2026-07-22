@@ -61,19 +61,27 @@ scope.
      --url <start-url> \
      --script workflows/<workflow-id>.js \
      --state <auth-directory>/states/<profile>.json \
-     --video publish/<workflow-id>-<short-name>.webm
+     --video publish/<workflow-id>-<short-name>.webm \
+     --test-case '<workflow-id>: <short description>'
    ```
 
-   The runner stops recording, closes only its own session, and removes a
-   partial video on failure or interruption. Never use `close-all` or `kill-all`.
-9. Review the video for the complete workflow, expected result, compactness, and
-   sensitive data. Keep it only when the workflow passed. Confirm the discovery,
+   `--test-case` is optional. When supplied, the runner injects a non-interactive
+   HTML label in the top-left corner before recording. Its translucent background
+   keeps the underlying UI visible, and the label is restored after navigation.
+   Use test-case text that contains no secrets or other sensitive data.
+
+   The runner stops recording and closes only its own session. It keeps the video
+   at the requested path when the workflow fails or is interrupted so the failure
+   can be reviewed. Never use `close-all` or `kill-all`.
+9. Review every video for the complete workflow, expected result, compactness,
+   and sensitive data. For a failed recording, report the failure and retained
+   video path; the reviewer can inspect and delete it. Confirm the discovery,
    check, and recording sessions are closed.
 
 ## Output
 
 Return the shared run path, auth profile used without secret values, workflow
 ID, result (`pass`, `fail`, `blocked`, or `not-run`), observed result, script
-path, published video path when passed, cleanup status, deviations, and residual
-risk. Say only that no regression was observed in this workflow; video evidence
-complements automated tests.
+path, video path when recording started, cleanup status, deviations, and residual
+risk. Say only that no regression was observed in a passing workflow; video
+evidence complements automated tests.
