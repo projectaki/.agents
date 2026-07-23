@@ -1,48 +1,54 @@
 ---
 name: factory-regression-scope
-description: "Use when the human explicitly requests regression scoping or when factory-verify invokes it for a completed implementation. Inspect the full change set, trace affected behavior, and produce compact UI regression workflows for reviewer-facing video evidence without running them."
+description: "Use when the human explicitly starts post-implementation regression scoping for a completed change before factory-verify. Inspect the exact final change set, trace affected behavior, and produce a prioritized regression-risk and evidence-gap packet without running checks."
 ---
 
 # Factory Regression Scope
 
-Turn a change set into focused UI workflows for `$factory-video-evidence` and
-the draft PR. Remain read-only.
+Determine what the completed implementation could have regressed. Remain
+read-only.
+
+## Input
+
+Require the exact base, head, and complete diff. Read the task, acceptance
+criteria, approved plan, implementation packet, repository instructions,
+relevant tests, and pre-development test-scope packet when supplied. If the
+change set is incomplete or ambiguous, return the precise blocker.
 
 ## Workflow
 
-1. Establish the exact base, head, and complete diff. Read the task, plan,
-   implementation context, repository instructions, and relevant tests.
-2. Inventory every changed file, symbol, behavior, configuration, schema, flag,
-   and shared dependency. Trace callers, consumers, routes, endpoints, jobs,
-   state, permissions, and data boundaries beyond the edited files.
-3. Derive direct and plausible adjacent regressions. Separate reviewer-visible
-   UI behavior from risks better covered by automated tests.
-4. Convert each material UI risk into an independently executable workflow with
-   one clear purpose and observable outcome. Specify the shortest path that
-   still proves the behavior. Split roles, states, and failure paths only when
-   they need different setup, actions, or proof.
-5. Deduplicate and prioritize workflows by impact and likelihood. Exclude
-   behavior already proven by automation unless reviewers benefit from seeing
-   the user-facing result.
+1. Inventory every changed file, symbol, behavior, configuration, schema, flag,
+   and shared dependency.
+2. Trace callers, consumers, routes, endpoints, jobs, state, permissions, data
+   boundaries, and user-visible behavior beyond the edited files.
+3. Derive direct and plausible adjacent regression risks. Preserve matching
+   pre-development risk IDs and assign stable IDs to newly discovered risks.
+4. Map each risk to current-head evidence. Classify evidence as sufficient,
+   missing, stale, failed, or inaccessible.
+5. Recommend the cheapest reliable next evidence for every gap, in this order:
+   unit, integration, contract, component, deterministic end-to-end, manual
+   observation, then video.
+6. Recommend video only when a reviewer must assess a visual or transient
+   property that deterministic assertions or recorded results cannot prove.
+   Include the reason automation is insufficient and a complete, shortest-path
+   UI workflow for each video-required risk.
 
 ## Output
 
 Return one regression-scope packet containing:
 
-- base, head, change summary, and assumptions
+- exact base, head, diff fingerprint, change summary, and assumptions
 - changed files and symbols mapped to affected behavior and consumers
-- an ordered UI-workflow summary with stable ID, priority, title, and risk
-  covered
-- one complete specification per workflow ID: rationale, preconditions,
-  environment and fixtures, numbered UI actions, expected result, cleanup, and
-  any approval prerequisite
-- initial status `not-run` for every workflow; only
-  `$factory-video-evidence` records the observed result
-- a coverage map from reviewer-visible affected behavior to workflow IDs
-- non-UI risks, automated coverage, intentionally excluded areas, unknowns,
-  and blockers
+- ordered risk register with ID, source (`planned` or `new`), priority, failure
+  mode, impact, and affected surfaces
+- current evidence and status mapped to every risk ID
+- smallest recommended next evidence for each gap, including candidate test
+  target or command when known
+- differences from the pre-development test scope
+- complete workflows only for risks marked `video-required`, including
+  rationale, preconditions, environment, fixtures, actions, expected result,
+  cleanup, and approval prerequisites
+- intentionally excluded areas, unknowns, and blockers
 
-Keep IDs and titles concise for video filenames, the verification report, and
-the draft PR. Do not execute workflows, modify files, or claim unaffected
-behavior without tracing it. If the full change set is unavailable, return the
-precise blocker.
+Do not execute checks or workflows, modify files, create evidence, or treat the
+absence of a video as a gap when automated evidence is sufficient.

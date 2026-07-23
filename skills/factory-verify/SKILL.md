@@ -1,6 +1,6 @@
 ---
 name: factory-verify
-description: "Use only when the human explicitly starts final verification for a completed implementation before creating a pull request. Prove every acceptance criterion, assess regression confidence from supplied UI workflow evidence and existing automated results, and return PR-description-ready results without running evidence workflows or test suites."
+description: "Use only when the human explicitly starts final verification for a completed implementation with a current factory-regression-scope packet. Evaluate acceptance criteria and scoped risks against current evidence, run only targeted fast existing checks when needed, and return a PR-ready confidence report without modifying implementation."
 ---
 
 # Factory Verify
@@ -10,37 +10,41 @@ Produce the final pre-PR confidence report. Do not modify the implementation.
 ## Input
 
 Read the task, acceptance criteria, context, approved plan, implementation
-packet, current diff, review result, bug baseline, regression-scope packet, and
-available video-evidence results when applicable. Missing or contradictory
-required input makes the verdict `inconclusive` or `blocked`.
+packet, current diff, review result, bug baseline, current
+`$factory-regression-scope` packet, and available manual or video evidence when
+applicable. The packet's base, head, and diff fingerprint must match the final
+change set. Missing, stale, or contradictory required input makes the verdict
+`inconclusive` or `blocked`.
 
 ## Workflow
 
-1. Map every acceptance criterion to implementation evidence and the automated
-   test results already recorded by `$factory-implement`. Do not rerun unit,
-   integration, or CI suites; CI will run after PR creation.
-2. Invoke `$factory-regression-scope` on the complete change set. Reuse only
-   supplied video-evidence results that match its workflow IDs and current
-   change set. Do not invoke `$factory-video-evidence` or execute UI workflows.
-3. Reconcile acceptance criteria, implementation evidence, review findings,
-   prior test results, the complete UI-workflow inventory, and observed
-   evidence. Preserve every workflow ID and account for each exactly once.
-   Treat missing, stale, failed, blocked, or inferred required evidence as
-   unverified.
-4. Return the verification packet and the PR-ready report from
+1. Map every acceptance criterion and regression risk ID to implementation
+   evidence, review findings, and automated results for the same head.
+2. When an existing targeted unit, integration, contract, component, type,
+   lint, build, or deterministic end-to-end check is missing or stale, run the
+   smallest fast command that resolves the gap. Do not run broad suites when a
+   focused command suffices, install unavailable tools, or create tests.
+3. Accept manual or video evidence only for risks explicitly requiring
+   observation. Reuse video results only when their risk ID and change set
+   match. Do not invoke `$factory-video-evidence` or execute evidence workflows.
+4. Treat missing, stale, failed, blocked, inaccessible, or inferred required
+   evidence as unverified. A missing video is not a gap when automation proves
+   the risk.
+5. Return the verification packet and the PR-ready report from
    [references/pr-confidence-report.md](references/pr-confidence-report.md).
 
 ## Verdict
 
-- `pass`: every acceptance criterion is supported, required UI workflows pass,
-  and no blocking finding or known regression remains.
-- `fail`: an acceptance criterion or UI regression workflow demonstrably fails.
-- `inconclusive`: required evidence or prior test results are missing or stale.
+- `pass`: every acceptance criterion and material regression risk is supported
+  by current evidence, and no blocking finding or known regression remains.
+- `fail`: an acceptance criterion, automated check, or required observed
+  workflow demonstrably fails.
+- `inconclusive`: required evidence is missing, stale, or inaccessible.
 - `blocked`: verification cannot proceed safely or access a required condition.
 
-Report automated checks as supplied by implementation and remote CI as
-`pending`; never imply they were rerun. Say “no regressions observed in the
-verified scope,” never that regressions are impossible.
+Distinguish supplied results from checks run during verification and report
+remote CI as `pending`. Say “no regressions observed in the verified scope,”
+never that regressions are impossible.
 
 Stop after the PR-ready verification report. Do not fix findings, create the
 PR, merge, release, or start another lifecycle.

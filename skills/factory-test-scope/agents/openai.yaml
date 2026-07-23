@@ -1,0 +1,6 @@
+interface:
+  display_name: "Factory Test Scope"
+  short_description: "Plan fast test coverage before implementation"
+  default_prompt: "Use $factory-test-scope to identify regression risks and automated test coverage before implementation."
+policy:
+  allow_implicit_invocation: false

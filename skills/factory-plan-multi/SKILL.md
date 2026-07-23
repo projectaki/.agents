@@ -1,6 +1,6 @@
 ---
 name: factory-plan-multi
-description: "Use only when the human explicitly requests multi-agent planning for a software change and supplies planning context. Isolate independent Codex and Claude planning in nested workers, synthesize their evidence inside a coordinator subagent, and return one implementation-ready plan without modifying the repository."
+description: "Use only when the human explicitly requests multi-agent planning for a software change and supplies planning context plus a completed factory-test-scope packet. Isolate independent Codex and Claude planning in nested workers, synthesize their evidence, and return one implementation-ready plan without modifying the repository."
 ---
 
 # Factory Plan Multi
@@ -12,7 +12,8 @@ thread.
 ## Input
 
 Require the requested change, repository or worktree, supplied context,
-acceptance criteria, constraints, and applicable instructions. If a missing
+acceptance criteria, constraints, applicable instructions, and a current
+`$factory-test-scope` packet. If the packet is missing or stale, or a missing
 decision materially changes the implementation, return the specific blocker.
 
 ## Main-thread workflow

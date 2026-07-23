@@ -1,6 +1,6 @@
 interface:
   display_name: "Factory Verify"
   short_description: "Prove acceptance criteria before PR creation"
-  default_prompt: "Use $factory-verify to prove the acceptance criteria and produce a PR-description-ready confidence report."
+  default_prompt: "Use $factory-verify with the current regression-scope packet to produce a PR-ready confidence report."
 policy:
   allow_implicit_invocation: false

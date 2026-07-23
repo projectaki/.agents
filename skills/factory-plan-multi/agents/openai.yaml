@@ -1,7 +1,7 @@
 interface:
   display_name: "Factory Plan Multi"
   short_description: "Synthesize plans from Codex and Claude"
-  default_prompt: "Use $factory-plan-multi to create one implementation-ready plan from independent Codex and Claude planners."
+  default_prompt: "Use $factory-plan-multi with the supplied test-scope packet to create one implementation-ready plan from independent Codex and Claude planners."
 
 policy:
   allow_implicit_invocation: false

@@ -1,7 +1,6 @@
 ---
 name: factory-implement
 description: "Use only when the human explicitly starts the implementation lifecycle with an approved plan, scoped repository or worktree, acceptance criteria, and required decisions. Implement that scope, add targeted tests, and return an implementation packet."
-disable-model-invocation: true
 ---
 
 # Factory Implement
@@ -18,8 +17,8 @@ missing, stop before editing.
 
 1. Confirm approval and inspect git status. Preserve existing user changes.
 2. Implement only the approved scope using repository patterns.
-3. Add or update the smallest useful tests. For a deterministic bug, add a
-   regression test when practical.
+3. Add or update the smallest useful tests mapped to the plan's risk IDs. For a
+   deterministic bug, add a regression test when practical.
 4. Run reachable targeted checks.
 5. Return the implementation packet and remaining verification work.
 
@@ -35,9 +34,10 @@ and one attempt; do not install tools or seek elevated access solely to run them
 ## Return
 
 - files and behavior changed
-- tests added or updated
-- commands run and results
+- tests added or updated, mapped to risk IDs
+- commands run, results, and the exact head or diff they cover
 - skipped checks, fallbacks, and residual risk
+- risk IDs without automated coverage and the reason
 - plan deviations, unresolved risks, and human decisions
 
 ## Stop

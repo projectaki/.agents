@@ -11,6 +11,7 @@ Create one immutable planner brief containing:
 - requested outcome, scope, and acceptance criteria
 - repository or worktree path
 - supplied context and artifacts
+- the current pre-development test-scope packet
 - applicable repository instructions and constraints
 - current unknowns and decisions already made
 - the candidate-plan output contract below
@@ -26,7 +27,8 @@ Require each worker to return only a self-contained candidate plan with:
 - current behavior and relevant architecture supported by repository evidence
 - ordered implementation steps with expected files, symbols, and logic changes
 - error handling, edge cases, migrations, and observability where relevant
-- unit, integration, and manual verification with expected outcomes
+- test-scope risk IDs mapped to targeted automated tests and expected outcomes
+- explicitly justified non-automated evidence exceptions
 - assumptions, risks, dependencies, blockers, and rollback notes where relevant
 
 Each worker must remain read-only, make one planning attempt, avoid nested

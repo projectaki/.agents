@@ -1,6 +1,6 @@
 interface:
   display_name: "Factory Regression Scope"
-  short_description: "Turn PR risk into compact UI workflows"
-  default_prompt: "Use $factory-regression-scope to produce compact UI regression workflows for the current PR."
+  short_description: "Map a final diff to regression risks"
+  default_prompt: "Use $factory-regression-scope to map the completed change set to regression risks and evidence gaps."
 policy:
   allow_implicit_invocation: false

@@ -1,6 +1,6 @@
 ---
 name: factory-video-evidence
-description: "Create one compact reviewer-facing video from one supplied UI workflow inside an existing shared evidence run, using project-level auth configuration and a deterministic playwright-cli script. Use for UI regression evidence before a pull request."
+description: "Create one compact reviewer-facing video from one supplied video-required UI workflow inside an existing shared evidence run. Use only when regression scope explains why automated assertions are insufficient or when the human explicitly requires video evidence."
 ---
 
 # Factory Video Evidence
@@ -11,10 +11,12 @@ scope.
 
 ## Workflow
 
-1. Require exactly one UI workflow, an existing evidence-run path, and its
-   project `_auth` directory. Require the workflow to have a stable ID, start
-   URL, preconditions, actions, and observable expected result. Return missing
-   or non-UI coverage to the caller.
+1. Require exactly one `video-required` UI workflow, the reason automated
+   evidence is insufficient, an existing evidence-run path, and its project
+   `_auth` directory. Require the workflow to have a stable risk ID, start URL,
+   preconditions, actions, and observable expected result. Accept a direct
+   human requirement as the reason. Return missing or automatable coverage to
+   the caller.
 2. Validate that the run contains `workflows/` and `publish/`, then change into
    it. The run must be `<evidence>/<project>/<git-branch-name>/`, with `_auth/`
    under the project evidence root. Do not initialize another run. Refuse to
@@ -81,7 +83,7 @@ scope.
 ## Output
 
 Return the shared run path, auth profile used without secret values, workflow
-ID, result (`pass`, `fail`, `blocked`, or `not-run`), observed result, script
-path, video path when recording started, cleanup status, deviations, and residual
-risk. Say only that no regression was observed in a passing workflow; video
-evidence complements automated tests.
+risk ID, reason video was required, result (`pass`, `fail`, `blocked`, or
+`not-run`), observed result, script path, video path when recording started,
+cleanup status, deviations, and residual risk. Say only that no regression was
+observed in a passing workflow; video evidence complements automated tests.
