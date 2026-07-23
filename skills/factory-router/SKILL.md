@@ -16,7 +16,7 @@ Choose the next top-level lifecycle. Do not perform lifecycle work.
 3. Choose from `factory-context`, `factory-replicate`, `factory-test-scope`,
    `factory-plan`, `factory-implement`, `factory-review`,
    `factory-regression-scope`, `factory-video-evidence`, `factory-verify`,
-   `factory-learn`, or `complete`.
+   `factory-draft-pr`, `factory-learn`, or `complete`.
 4. Select the earliest unmet lifecycle outcome required by the current state.
    Skip outcomes already established, route invalidated work back to the stage
    that must replace it, and resolve explicit uncertainty before advancing.
