@@ -192,3 +192,9 @@ When multiple implementations are possible, prefer the one that:
 # Subagents
 
 Only spawn subagents when specifically asked to. If you think it makes sense to spawn one without a specific request, ask for human approval.
+
+---
+
+# Cross-agent Communication
+
+Search `~/.agents-workspace/<project_name>/<branch_name>/*.md` when looking at handoffs.

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Factory Handoff"
+  short_description: "Save thread context for the next agent"
+  default_prompt: "Use $factory-handoff to save this thread context for the next agent."
