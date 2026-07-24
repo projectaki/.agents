@@ -1,0 +1,1392 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Visual companion to the Agent Thread Orchestrator Protocol.">
+  <title>Agent Thread Orchestrator — State Machine</title>
+  <style>
+    :root {
+      --paper: #f3f0e7;
+      --paper-deep: #e7e1d3;
+      --ink: #17201e;
+      --muted: #5f6a65;
+      --line: #b7b5aa;
+      --teal: #0b716d;
+      --teal-soft: #d2e6e1;
+      --amber: #b75b18;
+      --amber-soft: #f1dbc7;
+      --blue: #315f91;
+      --blue-soft: #d8e2ee;
+      --green: #2f7049;
+      --green-soft: #d9e7da;
+      --rose: #963f51;
+      --rose-soft: #ecd8dc;
+      --shadow: 0 14px 38px rgba(23, 32, 30, 0.08);
+      --radius: 18px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(rgba(23, 32, 30, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(23, 32, 30, 0.035) 1px, transparent 1px),
+        var(--paper);
+      background-size: 24px 24px;
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      line-height: 1.58;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0 0 auto;
+      height: 6px;
+      z-index: 10;
+      background: linear-gradient(90deg, var(--teal) 0 38%, var(--amber) 38% 62%, var(--blue) 62% 86%, var(--green) 86%);
+    }
+
+    a {
+      color: var(--teal);
+      text-underline-offset: 3px;
+    }
+
+    code,
+    .eyebrow,
+    .state-id,
+    th,
+    .tag,
+    .legend {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    }
+
+    .shell {
+      width: min(1460px, calc(100% - 36px));
+      margin: 0 auto;
+    }
+
+    .masthead {
+      min-height: 62vh;
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.6fr);
+      align-items: end;
+      gap: 64px;
+      padding: 96px 0 64px;
+      border-bottom: 2px solid var(--ink);
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 22px;
+      color: var(--teal);
+      font-size: 0.75rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 36px;
+      height: 3px;
+      background: currentColor;
+    }
+
+    h1,
+    h2,
+    h3 {
+      font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+      font-weight: 600;
+      letter-spacing: -0.025em;
+    }
+
+    h1 {
+      max-width: 900px;
+      margin: 0;
+      font-size: clamp(3.8rem, 8vw, 8.6rem);
+      line-height: 0.86;
+    }
+
+    h1 span {
+      display: block;
+      color: var(--teal);
+      font-style: italic;
+      font-weight: 400;
+    }
+
+    .lede {
+      max-width: 810px;
+      margin: 32px 0 0;
+      color: var(--muted);
+      font-size: clamp(1.05rem, 1.8vw, 1.45rem);
+    }
+
+    .source-card {
+      align-self: center;
+      padding: 26px;
+      border: 1px solid var(--line);
+      border-top: 5px solid var(--ink);
+      background: rgba(255, 255, 255, 0.38);
+      box-shadow: var(--shadow);
+    }
+
+    .source-card strong {
+      display: block;
+      margin-bottom: 8px;
+      font-family: "Iowan Old Style", Georgia, serif;
+      font-size: 1.45rem;
+    }
+
+    .source-card p {
+      margin: 0 0 18px;
+      color: var(--muted);
+    }
+
+    .source-card a {
+      display: inline-block;
+      padding: 9px 13px;
+      color: var(--paper);
+      background: var(--ink);
+      text-decoration: none;
+      font-size: 0.82rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+    }
+
+    nav {
+      position: sticky;
+      top: 6px;
+      z-index: 9;
+      border-bottom: 1px solid var(--line);
+      background: rgba(243, 240, 231, 0.93);
+      backdrop-filter: blur(14px);
+    }
+
+    nav .shell {
+      display: flex;
+      gap: 24px;
+      overflow-x: auto;
+      padding-block: 14px;
+    }
+
+    nav a {
+      flex: 0 0 auto;
+      color: var(--ink);
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0.07em;
+      text-decoration: none;
+      text-transform: uppercase;
+    }
+
+    nav a:hover {
+      color: var(--teal);
+    }
+
+    main section {
+      padding: 84px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: 170px minmax(0, 1fr);
+      gap: 36px;
+      margin-bottom: 38px;
+    }
+
+    .section-no {
+      color: var(--teal);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    h2 {
+      margin: -10px 0 8px;
+      font-size: clamp(2.6rem, 5vw, 5.2rem);
+      line-height: 1;
+    }
+
+    .section-intro {
+      max-width: 830px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 1.08rem;
+    }
+
+    .principles {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.32);
+    }
+
+    .principle {
+      min-height: 210px;
+      padding: 28px;
+      border-right: 1px solid var(--line);
+    }
+
+    .principle:last-child {
+      border-right: 0;
+    }
+
+    .principle .number {
+      color: var(--amber);
+      font-family: "Iowan Old Style", Georgia, serif;
+      font-size: 2.2rem;
+      font-style: italic;
+    }
+
+    .principle h3 {
+      margin: 30px 0 10px;
+      font-size: 1.35rem;
+    }
+
+    .principle p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .diagram-panel {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.52);
+      box-shadow: var(--shadow);
+    }
+
+    .diagram-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 17px 22px;
+      border-bottom: 1px solid var(--line);
+      background: var(--ink);
+      color: var(--paper);
+    }
+
+    .diagram-title strong {
+      font-size: 0.86rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .diagram-title span {
+      color: #bfc8c4;
+      font-size: 0.78rem;
+    }
+
+    .diagram-scroll {
+      overflow-x: auto;
+      padding: 18px;
+    }
+
+    .pipeline-svg {
+      display: block;
+      width: 100%;
+      min-width: 1180px;
+      height: auto;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 18px;
+      padding: 16px 22px 20px;
+      color: var(--muted);
+      font-size: 0.73rem;
+    }
+
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .legend i {
+      width: 12px;
+      height: 12px;
+      border: 2px solid currentColor;
+      border-radius: 50%;
+    }
+
+    .branch-notes {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 18px;
+    }
+
+    .branch {
+      padding: 20px;
+      border-left: 4px solid var(--teal);
+      background: rgba(255, 255, 255, 0.42);
+    }
+
+    .branch:nth-child(2) {
+      border-color: var(--blue);
+    }
+
+    .branch:nth-child(3) {
+      border-color: var(--amber);
+    }
+
+    .branch strong {
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .branch p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .state-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    details.state {
+      min-height: 190px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.38);
+      transition: transform 160ms ease, box-shadow 160ms ease;
+    }
+
+    details.state:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow);
+    }
+
+    details.state[open] {
+      grid-column: span 2;
+      background: rgba(255, 255, 255, 0.62);
+    }
+
+    details.state summary {
+      min-height: 188px;
+      padding: 22px;
+      cursor: pointer;
+      list-style: none;
+    }
+
+    details.state summary::-webkit-details-marker {
+      display: none;
+    }
+
+    details.state summary::after {
+      content: "+";
+      float: right;
+      color: var(--teal);
+      font-size: 1.4rem;
+    }
+
+    details.state[open] summary {
+      min-height: auto;
+      border-bottom: 1px solid var(--line);
+    }
+
+    details.state[open] summary::after {
+      content: "−";
+    }
+
+    .state-id {
+      color: var(--teal);
+      font-size: 0.7rem;
+      font-weight: 800;
+      letter-spacing: 0.11em;
+    }
+
+    .state h3 {
+      margin: 34px 0 8px;
+      font-size: 1.55rem;
+    }
+
+    .state summary p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .state-body {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 22px;
+      padding: 22px;
+      font-size: 0.9rem;
+    }
+
+    .state-body h4 {
+      margin: 0 0 6px;
+      color: var(--amber);
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .state-body p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .tables {
+      display: grid;
+      gap: 24px;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.45);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.86rem;
+    }
+
+    caption {
+      padding: 18px;
+      color: var(--ink);
+      font-family: "Iowan Old Style", Georgia, serif;
+      font-size: 1.5rem;
+      font-weight: 600;
+      text-align: left;
+    }
+
+    th,
+    td {
+      padding: 13px 15px;
+      border-top: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--muted);
+      background: rgba(23, 32, 30, 0.045);
+      font-size: 0.68rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    td code {
+      color: var(--teal);
+      font-size: 0.78rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .matrix th,
+    .matrix td {
+      text-align: center;
+    }
+
+    .matrix th:first-child,
+    .matrix td:first-child {
+      position: sticky;
+      left: 0;
+      z-index: 1;
+      min-width: 170px;
+      text-align: left;
+      background: var(--paper);
+    }
+
+    .yes {
+      color: var(--teal);
+      font-size: 1.15rem;
+      font-weight: 900;
+    }
+
+    .router-layout {
+      display: grid;
+      grid-template-columns: 0.8fr 1.2fr;
+      gap: 28px;
+    }
+
+    .router-stack {
+      display: grid;
+      gap: 10px;
+      counter-reset: route;
+    }
+
+    .route-rule {
+      position: relative;
+      padding: 19px 20px 19px 64px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.44);
+      counter-increment: route;
+    }
+
+    .route-rule::before {
+      content: counter(route, decimal-leading-zero);
+      position: absolute;
+      left: 18px;
+      top: 18px;
+      color: var(--amber);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-weight: 900;
+    }
+
+    .route-rule strong {
+      display: block;
+      margin-bottom: 3px;
+    }
+
+    .route-rule p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .signal-board {
+      padding: 26px;
+      color: var(--paper);
+      background: var(--ink);
+      box-shadow: var(--shadow);
+    }
+
+    .signal-board h3 {
+      margin: 0 0 22px;
+      font-size: 2rem;
+    }
+
+    .signal {
+      display: grid;
+      grid-template-columns: 110px 1fr;
+      gap: 15px;
+      padding: 14px 0;
+      border-top: 1px solid #3d4744;
+    }
+
+    .signal strong {
+      color: #93d5cd;
+      font-size: 0.82rem;
+    }
+
+    .signal span {
+      color: #c9cfcc;
+      font-size: 0.88rem;
+    }
+
+    .tier {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    .tier div {
+      padding: 16px;
+      border: 1px solid #4a5551;
+    }
+
+    .tier code {
+      color: #f3b780;
+    }
+
+    .planning-flow {
+      display: grid;
+      grid-template-columns: 1fr 54px 1fr 54px 1fr;
+      align-items: center;
+      gap: 8px;
+      margin-top: 28px;
+      padding: 26px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.42);
+    }
+
+    .flow-box {
+      min-height: 110px;
+      display: grid;
+      place-items: center;
+      padding: 18px;
+      border: 2px solid var(--teal);
+      text-align: center;
+    }
+
+    .flow-box.candidates {
+      gap: 8px;
+      border-color: var(--amber);
+    }
+
+    .flow-box.candidates span {
+      display: block;
+      width: 100%;
+      padding: 7px;
+      background: var(--amber-soft);
+    }
+
+    .flow-arrow {
+      color: var(--muted);
+      font-size: 2rem;
+      text-align: center;
+    }
+
+    .artifact-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .artifact {
+      min-height: 230px;
+      padding: 26px;
+      border-top: 6px solid var(--teal);
+      background: rgba(255, 255, 255, 0.48);
+      box-shadow: var(--shadow);
+    }
+
+    .artifact:nth-child(2) {
+      border-color: var(--amber);
+    }
+
+    .artifact:nth-child(3) {
+      border-color: var(--blue);
+    }
+
+    .artifact h3 {
+      margin: 28px 0 10px;
+      font-size: 1.55rem;
+    }
+
+    .artifact p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.91rem;
+    }
+
+    .artifact .tag {
+      color: var(--muted);
+      font-size: 0.7rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .recovery {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0;
+      counter-reset: recover;
+    }
+
+    .recovery-step {
+      position: relative;
+      min-height: 180px;
+      padding: 26px;
+      border: 1px solid var(--line);
+      border-right: 0;
+      background: rgba(255, 255, 255, 0.44);
+      counter-increment: recover;
+    }
+
+    .recovery-step:last-child {
+      border-right: 1px solid var(--line);
+    }
+
+    .recovery-step::before {
+      content: counter(recover);
+      display: block;
+      margin-bottom: 24px;
+      color: var(--teal);
+      font-family: "Iowan Old Style", Georgia, serif;
+      font-size: 2.1rem;
+      font-style: italic;
+    }
+
+    .recovery-step strong {
+      display: block;
+      margin-bottom: 7px;
+    }
+
+    .recovery-step p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .completion {
+      display: grid;
+      grid-template-columns: minmax(0, 0.75fr) minmax(0, 1.25fr);
+      gap: 44px;
+      align-items: start;
+    }
+
+    .completion-mark {
+      display: grid;
+      place-items: center;
+      aspect-ratio: 1;
+      border-radius: 50%;
+      color: var(--green);
+      background: var(--green-soft);
+      border: 2px solid var(--green);
+      font-family: "Iowan Old Style", Georgia, serif;
+      font-size: clamp(2.4rem, 6vw, 6rem);
+      font-style: italic;
+      text-align: center;
+      transform: rotate(-4deg);
+    }
+
+    .checklist {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .checklist li {
+      position: relative;
+      padding: 15px 0 15px 42px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .checklist li::before {
+      content: "✓";
+      position: absolute;
+      left: 4px;
+      color: var(--green);
+      font-size: 1.2rem;
+      font-weight: 900;
+    }
+
+    footer {
+      padding: 50px 0 70px;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+
+    footer .shell {
+      display: flex;
+      justify-content: space-between;
+      gap: 30px;
+    }
+
+    @media (max-width: 980px) {
+      .masthead,
+      .section-head,
+      .router-layout,
+      .completion {
+        grid-template-columns: 1fr;
+      }
+
+      .masthead {
+        min-height: auto;
+        gap: 36px;
+      }
+
+      .principles,
+      .state-grid,
+      .artifact-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .principle:nth-child(2) {
+        border-right: 0;
+      }
+
+      .principle:nth-child(-n + 2) {
+        border-bottom: 1px solid var(--line);
+      }
+
+      .branch-notes {
+        grid-template-columns: 1fr;
+      }
+
+      .recovery {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .recovery-step:nth-child(2) {
+        border-right: 1px solid var(--line);
+      }
+
+      .recovery-step:nth-child(-n + 2) {
+        border-bottom: 0;
+      }
+    }
+
+    @media (max-width: 680px) {
+      .shell {
+        width: min(100% - 24px, 1460px);
+      }
+
+      .masthead {
+        padding-top: 72px;
+      }
+
+      h1 {
+        font-size: clamp(3rem, 17vw, 5rem);
+      }
+
+      main section {
+        padding: 58px 0;
+      }
+
+      .principles,
+      .state-grid,
+      .artifact-grid,
+      .recovery,
+      .tier,
+      .state-body {
+        grid-template-columns: 1fr;
+      }
+
+      .principle {
+        min-height: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .principle:last-child {
+        border-bottom: 0;
+      }
+
+      details.state[open] {
+        grid-column: auto;
+      }
+
+      .planning-flow {
+        grid-template-columns: 1fr;
+      }
+
+      .flow-arrow {
+        transform: rotate(90deg);
+      }
+
+      .recovery-step {
+        min-height: auto;
+        border-right: 1px solid var(--line);
+        border-bottom: 0;
+      }
+
+      .recovery-step:last-child {
+        border-bottom: 1px solid var(--line);
+      }
+
+      footer .shell {
+        flex-direction: column;
+      }
+    }
+
+    @media print {
+      :root {
+        --paper: #fff;
+      }
+
+      body {
+        background: #fff;
+      }
+
+      nav {
+        display: none;
+      }
+
+      main section {
+        break-inside: avoid;
+      }
+
+      .diagram-panel,
+      .source-card,
+      .artifact {
+        box-shadow: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="shell masthead">
+    <div>
+      <div class="eyebrow">Protocol map · v1</div>
+      <h1>Agent Thread <span>Orchestrator</span></h1>
+      <p class="lede">
+        One task. One canonical lifecycle. Disposable specialist actors. A single
+        orchestrator reads the evidence, invokes the router, and commits every transition.
+      </p>
+    </div>
+    <aside class="source-card">
+      <strong>The Markdown is normative.</strong>
+      <p>
+        This page is a dependency-free visual companion. Where wording differs,
+        the protocol document is the source of truth.
+      </p>
+      <a href="./ORCHESTRATOR.md">Open ORCHESTRATOR.md →</a>
+    </aside>
+  </header>
+
+  <nav aria-label="Page sections">
+    <div class="shell">
+      <a href="#model">Model</a>
+      <a href="#machine">State machine</a>
+      <a href="#states">Lifecycles</a>
+      <a href="#transitions">Transitions</a>
+      <a href="#router">Router</a>
+      <a href="#planning">Planning</a>
+      <a href="#artifacts">Visual artifacts</a>
+      <a href="#recovery">Recovery</a>
+      <a href="#completion">Completion</a>
+    </div>
+  </nav>
+
+  <main>
+    <section id="model">
+      <div class="shell">
+        <div class="section-head">
+          <div class="section-no">01 · Core model</div>
+          <div>
+            <h2>One control plane.</h2>
+            <p class="section-intro">
+              Workers produce evidence. The orchestrator alone interprets that evidence
+              through the router and commits a permitted edge in the task state machine.
+            </p>
+          </div>
+        </div>
+        <div class="principles">
+          <article class="principle">
+            <div class="number">I</div>
+            <h3>Single canonical state</h3>
+            <p>The root task occupies exactly one lifecycle at a time.</p>
+          </article>
+          <article class="principle">
+            <div class="number">II</div>
+            <h3>Exclusive authority</h3>
+            <p>Only the orchestrator may commit a lifecycle transition.</p>
+          </article>
+          <article class="principle">
+            <div class="number">III</div>
+            <h3>Closed edges</h3>
+            <p>The router chooses from an explicit allowlist. It never invents an edge.</p>
+          </article>
+          <article class="principle">
+            <div class="number">IV</div>
+            <h3>Persistent evidence</h3>
+            <p>Actors are disposable; canonical artifacts and state survive restarts.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="machine">
+      <div class="shell">
+        <div class="section-head">
+          <div class="section-no">02 · Primary flow</div>
+          <div>
+            <h2>The canonical path.</h2>
+            <p class="section-intro">
+              A normal code-changing task moves left to right. Explicit branches handle
+              plan review, no-change work, suspension, cancellation, and targeted rollback.
+            </p>
+          </div>
+        </div>
+
+        <div class="diagram-panel">
+          <div class="diagram-title">
+            <strong>Code-changing task</strong>
+            <span>Scroll horizontally on narrow screens</span>
+          </div>
+          <div class="diagram-scroll">
+            <svg class="pipeline-svg" viewBox="0 0 1520 410" role="img" aria-labelledby="pipeline-title pipeline-desc">
+              <title id="pipeline-title">Primary orchestrator lifecycle</title>
+              <desc id="pipeline-desc">Intake flows through context, analysis, planning, implementation, review, verification, delivery, and completion. Planning may bypass implementation for no-change tasks.</desc>
+              <defs>
+                <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#5f6a65"></path>
+                </marker>
+                <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#315f91"></path>
+                </marker>
+              </defs>
+
+              <path d="M173 205H204 M355 205H386 M537 205H568 M719 205H750 M901 205H932 M1083 205H1114 M1265 205H1296"
+                stroke="#5f6a65" stroke-width="2.2" fill="none" marker-end="url(#arrow)"></path>
+
+              <path d="M644 160 C670 38, 1084 38, 1190 160"
+                stroke="#315f91" stroke-width="2.4" stroke-dasharray="7 7" fill="none" marker-end="url(#arrow-blue)"></path>
+              <rect x="820" y="46" width="180" height="34" rx="17" fill="#d8e2ee"></rect>
+              <text x="910" y="68" text-anchor="middle" fill="#315f91" font-family="SFMono-Regular, Consolas, monospace" font-size="13" font-weight="700">NO CHANGE REQUIRED</text>
+
+              <g transform="translate(22 160)">
+                <rect width="151" height="90" rx="11" fill="#d2e6e1" stroke="#0b716d" stroke-width="2"></rect>
+                <text x="75.5" y="39" text-anchor="middle" fill="#0b716d" font-family="SFMono-Regular, Consolas, monospace" font-size="14" font-weight="800">INTAKE</text>
+                <text x="75.5" y="62" text-anchor="middle" fill="#5f6a65" font-family="Avenir Next, Segoe UI, sans-serif" font-size="12">task contract</text>
+              </g>
+              <g transform="translate(204 160)">
+                <rect width="151" height="90" rx="11" fill="#d2e6e1" stroke="#0b716d" stroke-width="2"></rect>
+                <text x="75.5" y="36" text-anchor="middle" fill="#0b716d" font-family="SFMono-Regular, Consolas, monospace" font-size="12.5" font-weight="800">CONTEXT</text>
+                <text x="75.5" y="55" text-anchor="middle" fill="#0b716d" font-family="SFMono-Regular, Consolas, monospace" font-size="12.5" font-weight="800">GATHERING</text>
+                <text x="75.5" y="74" text-anchor="middle" fill="#5f6a65" font-family="Avenir Next, Segoe UI, sans-serif" font-size="12">evidence</text>
+              </g>
+              <g transform="translate(386 160)">
+                <rect width="151" height="90" rx="11" fill="#d2e6e1" stroke="#0b716d" stroke-width="2"></rect>
+                <text x="75.5" y="39" text-anchor="middle" fill="#0b716d" font-family="SFMono-Regular, Consolas, monospace" font-size="14" font-weight="800">ANALYSIS</text>
+                <text x="75.5" y="62" text-anchor="middle" fill="#5f6a65" font-family="Avenir Next, Segoe UI, sans-serif" font-size="12">impact + risk</text>
+              </g>
+              <g transform="translate(568 160)">
+                <rect width="151" height="90" rx="11" fill="#d2e6e1" stroke="#0b716d" stroke-width="2"></rect>
+                <text x="75.5" y="39" text-anchor="middle" fill="#0b716d" font-family="SFMono-Regular, Consolas, monospace" font-size="14" font-weight="800">PLANNING</text>
+                <text x="75.5" y="62" text-anchor="middle" fill="#5f6a65" font-family="Avenir Next, Segoe UI, sans-serif" font-size="12">canonical plan</text>
+              </g>
+              <g transform="translate(750 160)">
+                <rect width="151" height="90" rx="11" fill="#f1dbc7" stroke="#b75b18" stroke-width="2"></rect>
+                <text x="75.5" y="39" text-anchor="middle" fill="#b75b18" font-family="SFMono-Regular, Consolas, monospace" font-size="13" font-weight="800">IMPLEMENTATION</text>
+                <text x="75.5" y="62" text-anchor="middle" fill="#5f6a65" font-family="Avenir Next, Segoe UI, sans-serif" font-size="12">single-threaded</text>
+              </g>
+              <g transform="translate(932 160)">
+                <rect width="151" height="90" rx="11" fill="#d8e2ee" stroke="#315f91" stroke-width="2"></rect>
+                <text x="75.5" y="39" text-anchor="middle" fill="#315f91" font-family="SFMono-Regular, Consolas, monospace" font-size="14" font-weight="800">REVIEW</text>
+                <text x="75.5" y="62" text-anchor="middle" fill="#5f6a65" font-family="Avenir Next, Segoe UI, sans-serif" font-size="12">independent</text>
+              </g>
+              <g transform="translate(1114 160)">
+                <rect width="151" height="90" rx="11" fill="#d8e2ee" stroke="#315f91" stroke-width="2"></rect>
+                <text x="75.5" y="39" text-anchor="middle" fill="#315f91" font-family="SFMono-Regular, Consolas, monospace" font-size="14" font-weight="800">VERIFICATION</text>
+                <text x="75.5" y="62" text-anchor="middle" fill="#5f6a65" font-family="Avenir Next, Segoe UI, sans-serif" font-size="12">evidence</text>
+              </g>
+              <g transform="translate(1296 160)">
+                <rect width="151" height="90" rx="11" fill="#f1dbc7" stroke="#b75b18" stroke-width="2"></rect>
+                <text x="75.5" y="39" text-anchor="middle" fill="#b75b18" font-family="SFMono-Regular, Consolas, monospace" font-size="14" font-weight="800">DELIVERY</text>
+                <text x="75.5" y="62" text-anchor="middle" fill="#5f6a65" font-family="Avenir Next, Segoe UI, sans-serif" font-size="12">pull request</text>
+              </g>
+
+              <path d="M1371 250V291" stroke="#5f6a65" stroke-width="2.2" marker-end="url(#arrow)"></path>
+              <g transform="translate(1296 302)">
+                <rect width="151" height="68" rx="34" fill="#d9e7da" stroke="#2f7049" stroke-width="2"></rect>
+                <text x="75.5" y="42" text-anchor="middle" fill="#2f7049" font-family="SFMono-Regular, Consolas, monospace" font-size="14" font-weight="800">COMPLETED</text>
+              </g>
+
+              <g transform="translate(22 302)">
+                <rect width="190" height="68" rx="10" fill="#ecd8dc" stroke="#963f51" stroke-width="2"></rect>
+                <text x="95" y="29" text-anchor="middle" fill="#963f51" font-family="SFMono-Regular, Consolas, monospace" font-size="13" font-weight="800">AWAITING_INPUT</text>
+                <text x="95" y="49" text-anchor="middle" fill="#5f6a65" font-family="Avenir Next, Segoe UI, sans-serif" font-size="11.5">global suspend / resume</text>
+              </g>
+              <g transform="translate(230 302)">
+                <rect width="151" height="68" rx="34" fill="#ecd8dc" stroke="#963f51" stroke-width="2"></rect>
+                <text x="75.5" y="42" text-anchor="middle" fill="#963f51" font-family="SFMono-Regular, Consolas, monospace" font-size="14" font-weight="800">CANCELLED</text>
+              </g>
+            </svg>
+          </div>
+          <div class="legend" aria-label="Diagram legend">
+            <span style="color:var(--teal)"><i></i>Reasoning lifecycle</span>
+            <span style="color:var(--amber)"><i></i>Mutation lifecycle</span>
+            <span style="color:var(--blue)"><i></i>Assurance lifecycle</span>
+            <span style="color:var(--green)"><i></i>Successful terminal</span>
+            <span style="color:var(--rose)"><i></i>Suspended or cancelled</span>
+          </div>
+        </div>
+
+        <div class="branch-notes">
+          <article class="branch">
+            <strong>Plan review branch</strong>
+            <p>Low-confidence canonical plans go from planning to review before implementation or no-change verification.</p>
+          </article>
+          <article class="branch">
+            <strong>No-change branch</strong>
+            <p>Advisory or diagnostic work moves from planning directly to verification, then completes without delivery.</p>
+          </article>
+          <article class="branch">
+            <strong>Backward routing</strong>
+            <p>Findings return to the earliest lifecycle that owns the invalid assumption or artifact.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="states">
+      <div class="shell">
+        <div class="section-head">
+          <div class="section-no">03 · Lifecycles</div>
+          <div>
+            <h2>Eleven deliberate states.</h2>
+            <p class="section-intro">
+              Expand a state to see its contract. Router, blocked, rework, failed, and actor
+              execution statuses are intentionally not lifecycle nodes.
+            </p>
+          </div>
+        </div>
+        <div class="state-grid">
+          <details class="state">
+            <summary><span class="state-id">01 / REQUIRED</span><h3>Intake</h3><p>Normalize the request into an actionable task contract.</p></summary>
+            <div class="state-body"><div><h4>Entry</h4><p>Dependency-ready task assigned, or contract changed.</p></div><div><h4>Output</h4><p>Objective, acceptance criteria, scope, constraints, authority, and deliverable.</p></div></div>
+          </details>
+          <details class="state">
+            <summary><span class="state-id">02 / REQUIRED</span><h3>Context gathering</h3><p>Ground the task in relevant system evidence.</p></summary>
+            <div class="state-body"><div><h4>Entry</h4><p>Current task contract exists.</p></div><div><h4>Output</h4><p>Referenced files, behavior, history, instructions, dependencies, and unknowns.</p></div></div>
+          </details>
+          <details class="state">
+            <summary><span class="state-id">03 / REQUIRED</span><h3>Analysis</h3><p>Model impact, regression scope, blast radius, and risk.</p></summary>
+            <div class="state-body"><div><h4>Entry</h4><p>Grounded context package exists.</p></div><div><h4>Output</h4><p>Impact report, system graph, change-surface matrix, and verification map.</p></div></div>
+          </details>
+          <details class="state">
+            <summary><span class="state-id">04 / REQUIRED</span><h3>Planning</h3><p>Create exactly one canonical execution plan.</p></summary>
+            <div class="state-body"><div><h4>Entry</h4><p>Current impact analysis exists.</p></div><div><h4>Output</h4><p>Ordered approach, affected areas, criteria mapping, mitigations, and checks.</p></div></div>
+          </details>
+          <details class="state">
+            <summary><span class="state-id">05 / CONDITIONAL</span><h3>Implementation</h3><p>One implementer executes the canonical plan.</p></summary>
+            <div class="state-body"><div><h4>Entry</h4><p>Current plan exists and changes are required.</p></div><div><h4>Output</h4><p>Change set, tests, deviations, discoveries, and local checks.</p></div></div>
+          </details>
+          <details class="state">
+            <summary><span class="state-id">06 / PARAMETERIZED</span><h3>Review</h3><p>Independently review a plan or implementation.</p></summary>
+            <div class="state-body"><div><h4>Entry</h4><p>Reviewable target and revision exist.</p></div><div><h4>Output</h4><p>All findings, coverage, impact reconciliation, confidence, and outcome.</p></div></div>
+          </details>
+          <details class="state">
+            <summary><span class="state-id">07 / REQUIRED</span><h3>Verification</h3><p>Prove acceptance and regression expectations.</p></summary>
+            <div class="state-body"><div><h4>Entry</h4><p>Review passed, or no implementation was required.</p></div><div><h4>Output</h4><p>Checks, results, evidence, exceptions, and completed verification map.</p></div></div>
+          </details>
+          <details class="state">
+            <summary><span class="state-id">08 / CONDITIONAL</span><h3>Delivery</h3><p>Publish the verified revision as a pull request.</p></summary>
+            <div class="state-body"><div><h4>Entry</h4><p>Final change passed local verification.</p></div><div><h4>Output</h4><p>Branch, commit, PR, description evidence, limitations, and revision match.</p></div></div>
+          </details>
+          <details class="state">
+            <summary><span class="state-id">09 / SUSPENDED</span><h3>Awaiting input</h3><p>Pause for authority, credentials, approval, or information.</p></summary>
+            <div class="state-body"><div><h4>Entry</h4><p>Safe progress requires unavailable input.</p></div><div><h4>Resume</h4><p>New input triggers router reevaluation; prior work is not blindly resumed.</p></div></div>
+          </details>
+          <details class="state">
+            <summary><span class="state-id">10 / TERMINAL</span><h3>Completed</h3><p>Every applicable gate passed for the current revision.</p></summary>
+            <div class="state-body"><div><h4>Entry</h4><p>Completion invariants all hold.</p></div><div><h4>Exit</h4><p>None. Terminal states have no outgoing edges.</p></div></div>
+          </details>
+          <details class="state">
+            <summary><span class="state-id">11 / TERMINAL</span><h3>Cancelled</h3><p>An authorized actor explicitly stopped the task.</p></summary>
+            <div class="state-body"><div><h4>Entry</h4><p>Explicit authorized cancellation event.</p></div><div><h4>Exit</h4><p>None. Failure or uncertainty never implies cancellation.</p></div></div>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <section id="transitions">
+      <div class="shell">
+        <div class="section-head">
+          <div class="section-no">04 · Closed edges</div>
+          <div>
+            <h2>Every route is declared.</h2>
+            <p class="section-intro">
+              The forward table, rollback matrix, and global edge template together form
+              the complete v1 transition set. A blank cell means the edge is forbidden.
+            </p>
+          </div>
+        </div>
+
+        <div class="tables">
+          <div class="table-wrap">
+            <table>
+              <caption>Forward edges</caption>
+              <thead><tr><th>From</th><th>To</th><th>Guard</th></tr></thead>
+              <tbody>
+                <tr><td><code>INTAKE</code></td><td><code>CONTEXT_GATHERING</code></td><td>Task contract ready</td></tr>
+                <tr><td><code>CONTEXT_GATHERING</code></td><td><code>ANALYSIS</code></td><td>Evidence sufficient</td></tr>
+                <tr><td><code>ANALYSIS</code></td><td><code>PLANNING</code></td><td>Impact understood</td></tr>
+                <tr><td><code>PLANNING</code></td><td><code>REVIEW</code></td><td>Canonical-plan confidence remains low</td></tr>
+                <tr><td><code>PLANNING</code></td><td><code>IMPLEMENTATION</code></td><td>Change required</td></tr>
+                <tr><td><code>PLANNING</code></td><td><code>VERIFICATION</code></td><td>No change required</td></tr>
+                <tr><td><code>REVIEW(plan)</code></td><td><code>IMPLEMENTATION</code></td><td>Plan approved; change required</td></tr>
+                <tr><td><code>REVIEW(plan)</code></td><td><code>VERIFICATION</code></td><td>Plan approved; no change required</td></tr>
+                <tr><td><code>IMPLEMENTATION</code></td><td><code>REVIEW</code></td><td>Implementation ready</td></tr>
+                <tr><td><code>REVIEW(implementation)</code></td><td><code>VERIFICATION</code></td><td>Implementation approved</td></tr>
+                <tr><td><code>VERIFICATION</code></td><td><code>DELIVERY</code></td><td>Passed; PR required</td></tr>
+                <tr><td><code>VERIFICATION</code></td><td><code>COMPLETED</code></td><td>Passed; no delivery required</td></tr>
+                <tr><td><code>DELIVERY</code></td><td><code>COMPLETED</code></td><td>PR exists for exact verified revision</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="table-wrap">
+            <table class="matrix">
+              <caption>Backward edges by owning lifecycle</caption>
+              <thead>
+                <tr>
+                  <th>Current state</th>
+                  <th>Intake</th>
+                  <th>Context</th>
+                  <th>Analysis</th>
+                  <th>Planning</th>
+                  <th>Implementation</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td><code>CONTEXT_GATHERING</code></td><td class="yes">✓</td><td></td><td></td><td></td><td></td></tr>
+                <tr><td><code>ANALYSIS</code></td><td class="yes">✓</td><td class="yes">✓</td><td></td><td></td><td></td></tr>
+                <tr><td><code>PLANNING</code></td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td></td><td></td></tr>
+                <tr><td><code>IMPLEMENTATION</code></td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td></td></tr>
+                <tr><td><code>REVIEW</code></td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+                <tr><td><code>VERIFICATION</code></td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+                <tr><td><code>DELIVERY</code></td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <caption>Global edge template</caption>
+              <thead><tr><th>From</th><th>To</th><th>Guard</th></tr></thead>
+              <tbody>
+                <tr><td><code>ACTIVE_LIFECYCLE</code></td><td><code>SAME_LIFECYCLE</code></td><td>Changed-condition retry within attempt limit</td></tr>
+                <tr><td><code>ACTIVE_LIFECYCLE</code></td><td><code>AWAITING_INPUT</code></td><td>Required safe-progress input unavailable</td></tr>
+                <tr><td><code>AWAITING_INPUT</code></td><td><code>ACTIVE_LIFECYCLE</code></td><td>Input arrived; router reevaluated ownership</td></tr>
+                <tr><td><code>NON_TERMINAL</code></td><td><code>CANCELLED</code></td><td>Explicit authorized cancellation</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="router">
+      <div class="shell">
+        <div class="section-head">
+          <div class="section-no">05 · Router</div>
+          <div>
+            <h2>Rules first. Judgment second.</h2>
+            <p class="section-intro">
+              The router evaluates persisted evidence after an actor result, interruption,
+              new input, cancellation, or restart recovery. It never transitions mid-run.
+            </p>
+          </div>
+        </div>
+        <div class="router-layout">
+          <div class="router-stack">
+            <article class="route-rule"><strong>Hard invariants</strong><p>Protect safety, authority, freshness, and terminal-state rules.</p></article>
+            <article class="route-rule"><strong>Allowed edges</strong><p>Enumerate only declared outgoing transitions.</p></article>
+            <article class="route-rule"><strong>Guards and policy</strong><p>Evaluate lifecycle gates, task policy, and retry limits.</p></article>
+            <article class="route-rule"><strong>Reasoning fallback</strong><p>Use one high-reasoning evaluation only when rules do not select one edge.</p></article>
+            <article class="route-rule"><strong>Human input</strong><p>Enter awaiting input when material ambiguity remains.</p></article>
+          </div>
+          <aside class="signal-board">
+            <h3>Four routing signals</h3>
+            <div class="signal"><strong>Risk</strong><span>low · medium · high — consequence and blast radius</span></div>
+            <div class="signal"><strong>Confidence</strong><span>low · medium · high — evidence strength and completeness</span></div>
+            <div class="signal"><strong>Scope</strong><span>local · cross-system — structural reach</span></div>
+            <div class="signal"><strong>Attempts</strong><span>consecutive failures for the same issue and lifecycle</span></div>
+            <div class="tier">
+              <div><code>standard</code><br><small>Default tier</small></div>
+              <div><code>high_reasoning</code><br><small>High risk, low confidence, cross-system, retry, or synthesis</small></div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <section id="planning">
+      <div class="shell">
+        <div class="section-head">
+          <div class="section-no">06 · Planning policy</div>
+          <div>
+            <h2>Parallel thought. One plan.</h2>
+            <p class="section-intro">
+              Implementation stays single-threaded. Planning fans out only for high risk,
+              low confidence, or a previously failed canonical plan.
+            </p>
+          </div>
+        </div>
+        <div class="planning-flow" role="img" aria-label="Two isolated planners feed a high-reasoning synthesizer that produces one canonical plan.">
+          <div class="flow-box"><strong>Shared approved<br>evidence package</strong></div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-box candidates"><span>Isolated planner A</span><span>Isolated planner B</span></div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-box"><strong>High-reasoning synthesis<br>↓<br>one canonical plan</strong></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="artifacts">
+      <div class="shell">
+        <div class="section-head">
+          <div class="section-no">07 · System view</div>
+          <div>
+            <h2>Review the whole effect.</h2>
+            <p class="section-intro">
+              Analysis predicts system impact. Review reconciles it with the actual change.
+              Verification attaches final evidence. Even trivial tasks produce minimal forms.
+            </p>
+          </div>
+        </div>
+        <div class="artifact-grid">
+          <article class="artifact">
+            <span class="tag">Required visual 01</span>
+            <h3>System impact graph</h3>
+            <p>Changed areas, callers, downstream dependencies, data stores, external systems, and boundaries.</p>
+          </article>
+          <article class="artifact">
+            <span class="tag">Required visual 02</span>
+            <h3>Change-surface matrix</h3>
+            <p>Affected area × impact type × risk × expected modification × regression concern.</p>
+          </article>
+          <article class="artifact">
+            <span class="tag">Required visual 03</span>
+            <h3>Verification map</h3>
+            <p>Acceptance criteria and identified risks mapped directly to checks and final evidence.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="recovery">
+      <div class="shell">
+        <div class="section-head">
+          <div class="section-no">08 · Persistence</div>
+          <div>
+            <h2>Restart from evidence.</h2>
+            <p class="section-intro">
+              The task record holds the canonical lifecycle, artifacts, invocation, attempts,
+              last route, and transition history. Large artifacts are referenced, not embedded.
+            </p>
+          </div>
+        </div>
+        <div class="recovery">
+          <article class="recovery-step"><strong>Persist result</strong><p>Store the actor envelope before interpreting it.</p></article>
+          <article class="recovery-step"><strong>Evaluate router</strong><p>Apply invariants, allowed edges, guards, and policy.</p></article>
+          <article class="recovery-step"><strong>Commit transition</strong><p>Atomically store the route and new lifecycle.</p></article>
+          <article class="recovery-step"><strong>Dispatch actor</strong><p>Create the next disposable invocation only after commit.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="completion">
+      <div class="shell">
+        <div class="section-head">
+          <div class="section-no">09 · Terminal gate</div>
+          <div>
+            <h2>Completion is proven.</h2>
+            <p class="section-intro">
+              A PR alone is not completion. Every applicable artifact and assurance gate must
+              match the current task revision.
+            </p>
+          </div>
+        </div>
+        <div class="completion">
+          <div class="completion-mark">Complete</div>
+          <ul class="checklist">
+            <li>Current task contract and acceptance criteria are satisfied.</li>
+            <li>No required canonical artifact is missing or stale.</li>
+            <li>Applicable independent implementation review passed.</li>
+            <li>Authoritative verification passed for the final revision.</li>
+            <li>When delivery is required, the PR references that exact revision.</li>
+            <li>No unresolved blocker or required approval remains.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="shell">
+      <span>Agent Thread Orchestrator Protocol · visual companion</span>
+      <span>Self-contained HTML · no external assets · no build step</span>
+    </div>
+  </footer>
+</body>
+</html>
