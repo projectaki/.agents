@@ -183,6 +183,8 @@ If canonical-plan confidence remains `low`, route to `REVIEW` with `review_targe
 
 **Actor work:** A reviewer independent from the implementer inspects the full target and reports all findings in one result.
 
+Each reviewer invocation is one bounded use of `factory-review`. The orchestrator owns reviewer count, model-tier selection, isolation, and dispatch. Use one reviewer by default. When the current impact report requires multiple review perspectives, dispatch independent reviewers with the same canonical inputs; reviewers must not inspect one another's results. The orchestrator alone reconciles their results into the canonical review result and routes from the combined evidence.
+
 **Required output — review result:**
 
 - review target and revision
@@ -411,7 +413,7 @@ Use `high_reasoning` when any of these is true:
 - scope is `cross-system`
 - parallel plans are being synthesized
 
-Otherwise use `standard`. Concrete model names are configured outside this protocol.
+Otherwise use `standard`. Concrete models and runtime worker profiles are defined in `MODEL_TIERS.md` and resolved only at the actor-dispatch boundary.
 
 Escalation is proactive for high-risk or uncertain work and reactive after failure. A failed or inconclusive actor result must follow a permitted transition whose guard matches the evidence, or enter `AWAITING_INPUT`; the orchestrator must not reinvoke the same lifecycle.
 
@@ -447,6 +449,11 @@ Every actor invocation returns:
 invocation_id: stable identifier
 role: actor role
 lifecycle: lifecycle worked
+model_tier: standard | high_reasoning
+runtime: codex | claude
+worker_profile: runtime worker profile
+resolved_model: concrete model identifier
+resolved_effort: runtime effort value
 outcome: succeeded | failed | blocked | inconclusive
 confidence: low | medium | high
 summary: concise result

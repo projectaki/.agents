@@ -5,7 +5,7 @@ description: Run the primary agent thread as the sole SDLC orchestrator for impl
 
 # Orchestrator
 
-Read [ORCHESTRATOR.md](references/ORCHESTRATOR.md) completely before making any lifecycle or routing decision.
+Read [ORCHESTRATOR.md](references/ORCHESTRATOR.md) and [MODEL_TIERS.md](references/MODEL_TIERS.md) completely before making any lifecycle, routing, or actor-dispatch decision.
 
 Treat the reference as the normative execution protocol. If another instruction conflicts with it, follow the higher-priority instruction and record the conflict before routing.
 
@@ -29,7 +29,11 @@ Treat the reference as the normative execution protocol. If another instruction 
 - Use one implementer. Parallelize only planning when the protocol's guard requires it.
 - Do not declare completion until every applicable completion invariant passes.
 
-Use the runtime's native mechanisms for actor delegation, model selection, filesystem access, Git, and pull-request delivery. Actor roles and the `standard` and `high_reasoning` tiers are abstract protocol concepts, not vendor-specific tool or model names.
+Use the runtime's native mechanisms for actor delegation, filesystem access, Git, and pull-request delivery.
+
+- Keep lifecycle roles provider-neutral. Resolve `standard` and `high_reasoning` through `MODEL_TIERS.md` only at the actor-dispatch boundary.
+- Include the bounded lifecycle role and mutation authority in every tier-worker assignment.
+- Persist both the selected abstract tier and its resolved runtime, worker profile, concrete model, and effort.
 
 ## Reload
 
