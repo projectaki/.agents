@@ -1,0 +1,4 @@
+interface:
+  display_name: "Orchestrator"
+  short_description: "Orchestrate implementation tasks through PR delivery"
+  default_prompt: "Use $orchestrator to coordinate this implementation task through code change, review, verification, and PR delivery."

@@ -927,7 +927,7 @@
         This page is a dependency-free visual companion. Where wording differs,
         the protocol document is the source of truth.
       </p>
-      <a href="./ORCHESTRATOR.md">Open ORCHESTRATOR.md →</a>
+      <a href="./skills/orchestrator/references/ORCHESTRATOR.md">Open ORCHESTRATOR.md →</a>
     </aside>
   </header>
 
@@ -990,8 +990,8 @@
           <div>
             <h2>The canonical path.</h2>
             <p class="section-intro">
-              A normal code-changing task moves left to right. Explicit branches handle
-              plan review, no-change work, suspension, cancellation, and targeted rollback.
+              Every task requires implementation and delivery. Explicit branches handle
+              plan review, suspension, cancellation, and targeted rollback.
             </p>
           </div>
         </div>
@@ -1004,23 +1004,15 @@
           <div class="diagram-scroll">
             <svg class="pipeline-svg" viewBox="0 0 1520 410" role="img" aria-labelledby="pipeline-title pipeline-desc">
               <title id="pipeline-title">Primary orchestrator lifecycle</title>
-              <desc id="pipeline-desc">Intake flows through context, analysis, planning, implementation, review, verification, delivery, and completion. Planning may bypass implementation for no-change tasks.</desc>
+              <desc id="pipeline-desc">Intake flows through context, analysis, planning, implementation, review, verification, delivery, and completion.</desc>
               <defs>
                 <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
                   <path d="M 0 0 L 10 5 L 0 10 z" fill="#5f6a65"></path>
-                </marker>
-                <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#315f91"></path>
                 </marker>
               </defs>
 
               <path d="M173 205H204 M355 205H386 M537 205H568 M719 205H750 M901 205H932 M1083 205H1114 M1265 205H1296"
                 stroke="#5f6a65" stroke-width="2.2" fill="none" marker-end="url(#arrow)"></path>
-
-              <path d="M644 160 C670 38, 1084 38, 1190 160"
-                stroke="#315f91" stroke-width="2.4" stroke-dasharray="7 7" fill="none" marker-end="url(#arrow-blue)"></path>
-              <rect x="820" y="46" width="180" height="34" rx="17" fill="#d8e2ee"></rect>
-              <text x="910" y="68" text-anchor="middle" fill="#315f91" font-family="SFMono-Regular, Consolas, monospace" font-size="13" font-weight="700">NO CHANGE REQUIRED</text>
 
               <g transform="translate(22 160)">
                 <rect width="151" height="90" rx="11" fill="#d2e6e1" stroke="#0b716d" stroke-width="2"></rect>
@@ -1093,11 +1085,11 @@
         <div class="branch-notes">
           <article class="branch">
             <strong>Plan review branch</strong>
-            <p>Low-confidence canonical plans go from planning to review before implementation or no-change verification.</p>
+            <p>Low-confidence canonical plans go from planning to review before implementation.</p>
           </article>
           <article class="branch">
-            <strong>No-change branch</strong>
-            <p>Advisory or diagnostic work moves from planning directly to verification, then completes without delivery.</p>
+            <strong>Human approval gate</strong>
+            <p>Every proposed lifecycle transition waits for explicit approval before state commit and actor dispatch.</p>
           </article>
           <article class="branch">
             <strong>Backward routing</strong>
@@ -1137,8 +1129,8 @@
             <div class="state-body"><div><h4>Entry</h4><p>Current impact analysis exists.</p></div><div><h4>Output</h4><p>Ordered approach, affected areas, criteria mapping, mitigations, and checks.</p></div></div>
           </details>
           <details class="state">
-            <summary><span class="state-id">05 / CONDITIONAL</span><h3>Implementation</h3><p>One implementer executes the canonical plan.</p></summary>
-            <div class="state-body"><div><h4>Entry</h4><p>Current plan exists and changes are required.</p></div><div><h4>Output</h4><p>Change set, tests, deviations, discoveries, and local checks.</p></div></div>
+            <summary><span class="state-id">05 / REQUIRED</span><h3>Implementation</h3><p>One implementer executes the canonical plan.</p></summary>
+            <div class="state-body"><div><h4>Entry</h4><p>Current canonical plan exists.</p></div><div><h4>Output</h4><p>Change set, tests, deviations, discoveries, and local checks.</p></div></div>
           </details>
           <details class="state">
             <summary><span class="state-id">06 / PARAMETERIZED</span><h3>Review</h3><p>Independently review a plan or implementation.</p></summary>
@@ -1146,10 +1138,10 @@
           </details>
           <details class="state">
             <summary><span class="state-id">07 / REQUIRED</span><h3>Verification</h3><p>Prove acceptance and regression expectations.</p></summary>
-            <div class="state-body"><div><h4>Entry</h4><p>Review passed, or no implementation was required.</p></div><div><h4>Output</h4><p>Checks, results, evidence, exceptions, and completed verification map.</p></div></div>
+            <div class="state-body"><div><h4>Entry</h4><p>Implementation review passed.</p></div><div><h4>Output</h4><p>Checks, results, evidence, exceptions, and completed verification map.</p></div></div>
           </details>
           <details class="state">
-            <summary><span class="state-id">08 / CONDITIONAL</span><h3>Delivery</h3><p>Publish the verified revision as a pull request.</p></summary>
+            <summary><span class="state-id">08 / REQUIRED</span><h3>Delivery</h3><p>Publish the verified revision as a pull request.</p></summary>
             <div class="state-body"><div><h4>Entry</h4><p>Final change passed local verification.</p></div><div><h4>Output</h4><p>Branch, commit, PR, description evidence, limitations, and revision match.</p></div></div>
           </details>
           <details class="state">
@@ -1191,14 +1183,11 @@
                 <tr><td><code>CONTEXT_GATHERING</code></td><td><code>ANALYSIS</code></td><td>Evidence sufficient</td></tr>
                 <tr><td><code>ANALYSIS</code></td><td><code>PLANNING</code></td><td>Impact understood</td></tr>
                 <tr><td><code>PLANNING</code></td><td><code>REVIEW</code></td><td>Canonical-plan confidence remains low</td></tr>
-                <tr><td><code>PLANNING</code></td><td><code>IMPLEMENTATION</code></td><td>Change required</td></tr>
-                <tr><td><code>PLANNING</code></td><td><code>VERIFICATION</code></td><td>No change required</td></tr>
-                <tr><td><code>REVIEW(plan)</code></td><td><code>IMPLEMENTATION</code></td><td>Plan approved; change required</td></tr>
-                <tr><td><code>REVIEW(plan)</code></td><td><code>VERIFICATION</code></td><td>Plan approved; no change required</td></tr>
+                <tr><td><code>PLANNING</code></td><td><code>IMPLEMENTATION</code></td><td>Plan ready</td></tr>
+                <tr><td><code>REVIEW(plan)</code></td><td><code>IMPLEMENTATION</code></td><td>Plan approved</td></tr>
                 <tr><td><code>IMPLEMENTATION</code></td><td><code>REVIEW</code></td><td>Implementation ready</td></tr>
                 <tr><td><code>REVIEW(implementation)</code></td><td><code>VERIFICATION</code></td><td>Implementation approved</td></tr>
-                <tr><td><code>VERIFICATION</code></td><td><code>DELIVERY</code></td><td>Passed; PR required</td></tr>
-                <tr><td><code>VERIFICATION</code></td><td><code>COMPLETED</code></td><td>Passed; no delivery required</td></tr>
+                <tr><td><code>VERIFICATION</code></td><td><code>DELIVERY</code></td><td>Verification passed</td></tr>
                 <tr><td><code>DELIVERY</code></td><td><code>COMPLETED</code></td><td>PR exists for exact verified revision</td></tr>
               </tbody>
             </table>
@@ -1234,7 +1223,6 @@
               <caption>Global edge template</caption>
               <thead><tr><th>From</th><th>To</th><th>Guard</th></tr></thead>
               <tbody>
-                <tr><td><code>ACTIVE_LIFECYCLE</code></td><td><code>SAME_LIFECYCLE</code></td><td>Changed-condition retry within attempt limit</td></tr>
                 <tr><td><code>ACTIVE_LIFECYCLE</code></td><td><code>AWAITING_INPUT</code></td><td>Required safe-progress input unavailable</td></tr>
                 <tr><td><code>AWAITING_INPUT</code></td><td><code>ACTIVE_LIFECYCLE</code></td><td>Input arrived; router reevaluated ownership</td></tr>
                 <tr><td><code>NON_TERMINAL</code></td><td><code>CANCELLED</code></td><td>Explicit authorized cancellation</td></tr>
@@ -1261,19 +1249,18 @@
           <div class="router-stack">
             <article class="route-rule"><strong>Hard invariants</strong><p>Protect safety, authority, freshness, and terminal-state rules.</p></article>
             <article class="route-rule"><strong>Allowed edges</strong><p>Enumerate only declared outgoing transitions.</p></article>
-            <article class="route-rule"><strong>Guards and policy</strong><p>Evaluate lifecycle gates, task policy, and retry limits.</p></article>
+            <article class="route-rule"><strong>Guards and policy</strong><p>Evaluate lifecycle gates, task policy, and the human approval gate.</p></article>
             <article class="route-rule"><strong>Reasoning fallback</strong><p>Use one high-reasoning evaluation only when rules do not select one edge.</p></article>
             <article class="route-rule"><strong>Human input</strong><p>Enter awaiting input when material ambiguity remains.</p></article>
           </div>
           <aside class="signal-board">
-            <h3>Four routing signals</h3>
+            <h3>Three routing signals</h3>
             <div class="signal"><strong>Risk</strong><span>low · medium · high — consequence and blast radius</span></div>
             <div class="signal"><strong>Confidence</strong><span>low · medium · high — evidence strength and completeness</span></div>
             <div class="signal"><strong>Scope</strong><span>local · cross-system — structural reach</span></div>
-            <div class="signal"><strong>Attempts</strong><span>consecutive failures for the same issue and lifecycle</span></div>
             <div class="tier">
               <div><code>standard</code><br><small>Default tier</small></div>
-              <div><code>high_reasoning</code><br><small>High risk, low confidence, cross-system, retry, or synthesis</small></div>
+              <div><code>high_reasoning</code><br><small>High risk, low confidence, cross-system, or synthesis</small></div>
             </div>
           </aside>
         </div>
@@ -1341,7 +1328,7 @@
           <div>
             <h2>Restart from evidence.</h2>
             <p class="section-intro">
-              The task record holds the canonical lifecycle, artifacts, invocation, attempts,
+              The task record holds the canonical lifecycle, artifacts, active invocation,
               last route, and transition history. Large artifacts are referenced, not embedded.
             </p>
           </div>
@@ -1374,7 +1361,7 @@
             <li>No required canonical artifact is missing or stale.</li>
             <li>Applicable independent implementation review passed.</li>
             <li>Authoritative verification passed for the final revision.</li>
-            <li>When delivery is required, the PR references that exact revision.</li>
+            <li>The PR references the exact reviewed and verified revision.</li>
             <li>No unresolved blocker or required approval remains.</li>
           </ul>
         </div>

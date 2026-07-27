@@ -4,9 +4,9 @@
 
 This document is the normative runtime protocol for one orchestrator agent thread handling one dependency-ready task.
 
-The upstream task queue, cross-task scheduling, merge queue, remote CI, and merging are outside this version's scope. The task queue may run many orchestrator threads in parallel, but each thread owns exactly one task-state-machine instance and uses a single implementer.
+This protocol applies only to implementation tasks that require a code change and delivery through a pull request. Tasks that do not require implementation must use a different workflow.
 
-`orchestrator.html` is a visual companion. If it disagrees with this document, this document wins.
+The upstream task queue, cross-task scheduling, merge queue, remote CI, and merging are outside this version's scope. The task queue may run many orchestrator threads in parallel, but each thread owns exactly one task-state-machine instance and uses a single implementer.
 
 ## Core model
 
@@ -18,6 +18,7 @@ The system combines a state machine with a simple actor model:
 - Worker actors perform bounded lifecycle work and return structured results. They cannot change lifecycle state, spawn actors, or delegate work.
 - Parallel work is allowed only for independent planners. Implementation is single-threaded.
 - Actor invocations are disposable. Canonical artifacts and task state are persistent.
+- Every lifecycle result produces a verified `$factory-handoff` checkpoint before the router selects the next lifecycle.
 
 ## Authority boundaries
 
@@ -36,7 +37,7 @@ The system combines a state machine with a simple actor model:
 
 The reviewer and verifier must be fresh invocations independent from the implementer. They receive canonical task artifacts and the actual change, not the implementer's private reasoning.
 
-## Lifecycle inventory
+## Lifecycle nodes
 
 | Lifecycle | Purpose | Required canonical output |
 | --- | --- | --- |
@@ -52,7 +53,7 @@ The reviewer and verifier must be fresh invocations independent from the impleme
 | `COMPLETED` | Record successful terminal completion | Terminal result |
 | `CANCELLED` | Record authorized terminal cancellation | Cancellation result |
 
-`ROUTER`, `BLOCKED`, `REWORK`, and `FAILED` are not lifecycles. Blocking is a reason to enter `AWAITING_INPUT`; failures are events handled by routing; rework uses backward edges.
+`ROUTER`, `BLOCKED`, `REWORK`, and `FAILED` are not lifecycles. Blocking is a reason to enter `AWAITING_INPUT`; failures and rework are events handled through ordinary state-machine transitions.
 
 ## Lifecycle contract
 
@@ -62,8 +63,9 @@ Every active lifecycle defines:
 2. **Actor work** — the bounded work assigned by the orchestrator.
 3. **Required output** — the structured canonical artifact or result.
 4. **Exit gate** — evidence the router must confirm before selecting an outgoing edge.
+5. **Handoff gate** — the lifecycle result, exit-gate outcome, context, and artifacts are persisted at the deterministic handoff path.
 
-An actor saying it is finished never satisfies an exit gate by itself.
+An actor saying it is finished never satisfies an exit gate by itself. The handoff gate is mandatory whether the exit gate passes or fails, and the router must not select the next lifecycle until the handoff gate passes.
 
 ### `INTAKE`
 
@@ -98,7 +100,7 @@ An actor saying it is finished never satisfies an exit gate by itself.
 - unresolved unknowns
 - source references for every material claim
 
-**Exit gate:** Enough grounded evidence exists to assess impact. Otherwise retry with changed conditions, return to `INTAKE` for a contract problem, or enter `AWAITING_INPUT`.
+**Exit gate:** Enough grounded evidence exists to assess impact. Otherwise return to `INTAKE` for a contract problem or enter `AWAITING_INPUT`.
 
 ### `ANALYSIS`
 
@@ -159,7 +161,7 @@ If canonical-plan confidence remains `low`, route to `REVIEW` with `review_targe
 
 ### `IMPLEMENTATION`
 
-**Entry guard:** A current canonical plan exists and the task requires changes.
+**Entry guard:** A current canonical plan exists.
 
 **Actor work:** One implementer executes the plan within the approved scope.
 
@@ -173,7 +175,7 @@ If canonical-plan confidence remains `low`, route to `REVIEW` with `review_targe
 - local checks performed
 - remaining known issues
 
-**Exit gate:** The implementation is complete enough for independent review, and no discovery has invalidated an earlier canonical artifact. Material discoveries route backward to their owning lifecycle.
+**Exit gate:** The implementation is complete enough for independent review, and no discovery has invalidated an earlier canonical artifact. Material discoveries follow the matching allowed transition.
 
 ### `REVIEW`
 
@@ -192,13 +194,13 @@ If canonical-plan confidence remains `low`, route to `REVIEW` with `review_targe
 - uncertainties and missing evidence
 - outcome: `approved`, `changes_required`, or `inconclusive`
 
-After fixes, a fresh review inspects the full resulting change again. Repeated non-convergence uses the ordinary retry and escalation policy.
+After fixes, a fresh review inspects the full resulting change again. Continued non-convergence routes to the earliest responsible lifecycle or `AWAITING_INPUT`.
 
 **Exit gate:** The target is approved with adequate confidence and no unresolved blocking finding.
 
 ### `VERIFICATION`
 
-**Entry guard:** The applicable review gate passed, or the task requires no implementation.
+**Entry guard:** The implementation review gate passed.
 
 **Actor work:** A verifier independent from the implementer gathers authoritative evidence.
 
@@ -216,7 +218,7 @@ After fixes, a fresh review inspects the full resulting change again. Repeated n
 
 ### `DELIVERY`
 
-**Entry guard:** Verification passed for the final change and a PR is required.
+**Entry guard:** Verification passed for the final change.
 
 **Actor work:** Commit if needed, push, and create or update the PR without modifying implementation content.
 
@@ -245,42 +247,29 @@ When input arrives, the router reevaluates the task and chooses the appropriate 
 
 `COMPLETED` and `CANCELLED` have no outgoing edges.
 
-Cancellation requires an explicit authorized cancellation event. Actor failure, uncertainty, or exhausted retries must not imply cancellation.
+Cancellation requires an explicit authorized cancellation event. Actor failure or uncertainty must not imply cancellation.
 
 ## State machine
 
-### Primary flow
+Lifecycle states are nodes. Arrows are the complete set of allowed transitions, and each edge label is its guard. No transition not shown here is permitted.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> INTAKE
+    [*] --> INTAKE: task accepted
+
     INTAKE --> CONTEXT_GATHERING: task contract ready
     CONTEXT_GATHERING --> ANALYSIS: evidence sufficient
     ANALYSIS --> PLANNING: impact understood
 
     PLANNING --> REVIEW: plan confidence remains low
-    REVIEW --> IMPLEMENTATION: plan approved; change required
-    REVIEW --> VERIFICATION: plan approved; no change required
-
-    PLANNING --> IMPLEMENTATION: change required
-    PLANNING --> VERIFICATION: no change required
+    REVIEW --> IMPLEMENTATION: plan approved
+    PLANNING --> IMPLEMENTATION: plan ready
     IMPLEMENTATION --> REVIEW: implementation ready
     REVIEW --> VERIFICATION: implementation approved
 
-    VERIFICATION --> DELIVERY: verification passed; PR required
-    VERIFICATION --> COMPLETED: verification passed; no delivery
+    VERIFICATION --> DELIVERY: verification passed
     DELIVERY --> COMPLETED: PR created
 
-    COMPLETED --> [*]
-    CANCELLED --> [*]
-```
-
-`REVIEW` is parameterized by `review_target: plan | implementation`. The target and task type disambiguate its permitted forward edge.
-
-### Backward and retry edges
-
-```mermaid
-stateDiagram-v2
     CONTEXT_GATHERING --> INTAKE: task contract changed
 
     ANALYSIS --> CONTEXT_GATHERING: evidence missing or wrong
@@ -312,41 +301,42 @@ stateDiagram-v2
     DELIVERY --> ANALYSIS: impact or risk wrong
     DELIVERY --> CONTEXT_GATHERING: evidence missing or wrong
     DELIVERY --> INTAKE: task contract changed
+
+    INTAKE --> AWAITING_INPUT: input required
+    CONTEXT_GATHERING --> AWAITING_INPUT: input required
+    ANALYSIS --> AWAITING_INPUT: input required
+    PLANNING --> AWAITING_INPUT: input required
+    IMPLEMENTATION --> AWAITING_INPUT: input required
+    REVIEW --> AWAITING_INPUT: input required
+    VERIFICATION --> AWAITING_INPUT: input required
+    DELIVERY --> AWAITING_INPUT: input required
+
+    AWAITING_INPUT --> INTAKE: resume intake
+    AWAITING_INPUT --> CONTEXT_GATHERING: resume context gathering
+    AWAITING_INPUT --> ANALYSIS: resume analysis
+    AWAITING_INPUT --> PLANNING: resume planning
+    AWAITING_INPUT --> IMPLEMENTATION: resume implementation
+    AWAITING_INPUT --> REVIEW: resume review
+    AWAITING_INPUT --> VERIFICATION: resume verification
+    AWAITING_INPUT --> DELIVERY: resume delivery
+
+    INTAKE --> CANCELLED: authorized cancellation
+    CONTEXT_GATHERING --> CANCELLED: authorized cancellation
+    ANALYSIS --> CANCELLED: authorized cancellation
+    PLANNING --> CANCELLED: authorized cancellation
+    IMPLEMENTATION --> CANCELLED: authorized cancellation
+    REVIEW --> CANCELLED: authorized cancellation
+    VERIFICATION --> CANCELLED: authorized cancellation
+    DELIVERY --> CANCELLED: authorized cancellation
+    AWAITING_INPUT --> CANCELLED: authorized cancellation
+
+    COMPLETED --> [*]
+    CANCELLED --> [*]
 ```
 
-Every active work lifecycle also has a guarded self-transition named `retry`. It is allowed only when the prior attempt was unsuccessful or inconclusive, at least one execution condition changes, and the retry limit is not exceeded.
+`REVIEW` is parameterized by `review_target: plan | implementation`. An approved plan proceeds to `IMPLEMENTATION`; an approved implementation proceeds to `VERIFICATION`.
 
-### Global suspension and cancellation edges
-
-For every active lifecycle in:
-
-`INTAKE`, `CONTEXT_GATHERING`, `ANALYSIS`, `PLANNING`, `IMPLEMENTATION`, `REVIEW`, `VERIFICATION`, `DELIVERY`
-
-the following edges are permitted:
-
-```text
-ACTIVE_LIFECYCLE -> AWAITING_INPUT
-ACTIVE_LIFECYCLE -> CANCELLED
-AWAITING_INPUT -> ACTIVE_LIFECYCLE
-```
-
-`AWAITING_INPUT -> ACTIVE_LIFECYCLE` is permitted only after new input arrives and the router reevaluates which lifecycle owns the newly unblocked work. `AWAITING_INPUT -> CANCELLED` is also permitted on authorized cancellation.
-
-These templates are part of the closed transition set; no other edges are allowed.
-
-## Backward-edge ownership rule
-
-Route to the earliest lifecycle responsible for the invalid assumption or artifact:
-
-| Finding | Destination |
-| --- | --- |
-| Objective, acceptance criteria, scope, authority, or deliverable changed | `INTAKE` |
-| Required fact or evidence is missing, stale, or incorrect | `CONTEXT_GATHERING` |
-| Impact, regression scope, blast radius, risk, or verification need is incorrect | `ANALYSIS` |
-| The selected solution approach is invalid | `PLANNING` |
-| The implementation is defective | `IMPLEMENTATION` |
-
-When routing backward, mark dependent downstream artifacts `stale`. Regenerate only invalidated work, then pass all applicable downstream gates again.
+When a transition invalidates prior assumptions or artifacts, mark dependent downstream artifacts `stale`. Regenerate only invalidated work, then pass every applicable lifecycle gate again.
 
 ## Router
 
@@ -385,7 +375,6 @@ Use only these signals in v1:
 | Risk | `low`, `medium`, `high` | Consequence and blast radius |
 | Confidence | `low`, `medium`, `high` | Strength and completeness of evidence |
 | Scope | `local`, `cross-system` | Structural reach |
-| Attempt count | integer | Consecutive failures for the same issue in the same lifecycle |
 
 #### Risk
 
@@ -420,22 +409,11 @@ Use `high_reasoning` when any of these is true:
 - risk is `high`
 - confidence is `low`
 - scope is `cross-system`
-- the same unresolved issue already caused one failed attempt
 - parallel plans are being synthesized
 
 Otherwise use `standard`. Concrete model names are configured outside this protocol.
 
-Escalation is proactive for high-risk or uncertain work and reactive after failure. For the same unresolved issue, do not return to a lower tier without an explicit reason.
-
-### Retry policy
-
-Allow at most two consecutive failed attempts for the same issue in the same lifecycle:
-
-1. First attempt uses the tier selected by policy.
-2. Second attempt changes at least one condition and uses `high_reasoning`.
-3. After a second failure, route to an earlier responsible lifecycle or `AWAITING_INPUT`.
-
-A changed condition may be new evidence, corrected context, a different strategy, different tools, or a higher model tier. Blind retries are forbidden.
+Escalation is proactive for high-risk or uncertain work and reactive after failure. A failed or inconclusive actor result must follow a permitted transition whose guard matches the evidence, or enter `AWAITING_INPUT`; the orchestrator must not reinvoke the same lifecycle.
 
 ### Router result
 
@@ -489,13 +467,44 @@ Recommendations are evidence for the router. They are not transition commands.
 
 ## Persistence and recovery
 
-### Minimal task record
+Persistence between lifecycles is a **handoff**. Invoke `$factory-handoff` after every lifecycle actor result and before selecting the next lifecycle.
+
+### Deterministic storage
+
+`$factory-handoff` owns path resolution and the persistence format. Every task is stored under:
+
+```text
+$HOME/.agents-db/<project_slug>/<branch_slug>/
+├── state.md
+└── <lifecycle_slug>/
+    ├── handoff.md
+    ├── context.md
+    └── artifacts/
+        ├── images/
+        └── diagrams/
+```
+
+`state.md` is the canonical task record and latest-handoff pointer. Each lifecycle directory holds the context and artifacts required to understand that lifecycle without conversation history. When a lifecycle completes again, replace that lifecycle's canonical handoff with the newer revision.
+
+Only one orchestrated task may be active for a project and branch. If `state.md` already exists, resume it rather than initializing a different task at the same path. Replacing existing task state requires explicit human direction.
+
+Do not advance when the deterministic handoff path cannot be resolved, written, or validated.
+
+After committing entry into `AWAITING_INPUT`, `COMPLETED`, or `CANCELLED`, immediately persist that lifecycle's pause or terminal handoff. The task is not safely suspended or terminal until that checkpoint is verified.
+
+### Canonical task record
 
 ```yaml
+storage_root: absolute branch task root
+project_slug: deterministic project identifier
+branch_slug: deterministic branch identifier
 task_id: stable identifier
+status: lifecycle_active | lifecycle_checkpointed | transition_pending | terminal
 state: current lifecycle
+last_checkpointed_lifecycle: lifecycle | null
 revision: monotonic task revision
 task_contract: reference
+latest_handoff: relative path
 artifacts:
   context: reference
   analysis: reference
@@ -508,32 +517,43 @@ artifacts:
   verification: reference
   delivery: reference
 active_invocation: reference | null
-attempt_count: integer
+last_actor_result: reference | null
+pending_transition: reference | null
 last_route: reference
 transition_history: []
+git_head: commit | null
+worktree_dirty: boolean
 terminal_result: reference | null
 ```
 
-Large artifacts live separately and are referenced by the task record.
+Artifact references are relative to the lifecycle directory unless explicitly marked external.
 
 ### Transition ordering
 
 For restart safety:
 
 1. Persist the actor result.
-2. Evaluate the router.
-3. Atomically persist the routing decision and new lifecycle.
-4. Dispatch the next actor.
+2. Confirm the lifecycle exit gate.
+3. Invoke `$factory-handoff` in persist mode with the actor outcome and exit-gate result, then verify `state.md`, `handoff.md`, and referenced artifacts.
+4. Evaluate the router using the verified handoff.
+5. Persist the routing decision and new lifecycle.
+6. Dispatch the next actor.
 
-If restart occurs before step 3, reevaluate the persisted result. If it occurs after step 3, resume from the persisted lifecycle.
+The temporary human approval gate below modifies steps 5 and 6 but never permits routing before step 3 succeeds.
 
-### Interrupted actors
+### Resume and interrupted actors
 
-V1 does not reattach to actor runs:
+At orchestrator start, restart, or post-compaction recovery:
 
-- Persist state before and after every invocation.
-- On restart, mark a mid-run invocation `interrupted` and create a fresh attempt.
+- Invoke `$factory-handoff` in resume mode.
+- Read `state.md`, the latest lifecycle `handoff.md`, and the artifacts required for routing.
+- Reconcile the persisted project, branch, Git HEAD, and dirty-worktree state with the current workspace.
+- If status is `lifecycle_checkpointed`, route from the persisted actor outcome and exit-gate result.
+- If status is `transition_pending`, recover the pending human approval before dispatching work.
+- If status is `lifecycle_active` with an interrupted invocation, enter `AWAITING_INPUT`; do not automatically reinvoke it.
 - Before repeating commit, push, or PR creation, inspect whether the side effect already succeeded.
+
+The router, not the handoff skill, decides where execution continues.
 
 ## Completion invariants
 
@@ -541,47 +561,26 @@ The router may commit `COMPLETED` only when:
 
 - the current task contract and acceptance criteria are satisfied
 - no required canonical artifact is missing or stale
-- applicable implementation review passed
+- implementation review passed
 - authoritative verification passed
 - verification evidence matches the final revision
-- when delivery is required, the PR exists for that revision
+- the PR exists for that revision
 - no unresolved blocker or required approval remains
 
-For a normal code-changing task:
+## Temporary human approval gate
 
-```text
-INTAKE
-  -> CONTEXT_GATHERING
-  -> ANALYSIS
-  -> PLANNING
-  -> IMPLEMENTATION
-  -> REVIEW
-  -> VERIFICATION
-  -> DELIVERY
-  -> COMPLETED
-```
+Until this section is removed, human approval is required before starting every new lifecycle.
 
-For a no-change task:
+This temporary gate overrides the ordinary transition-ordering rules:
 
-```text
-INTAKE
-  -> CONTEXT_GATHERING
-  -> ANALYSIS
-  -> PLANNING
-  -> VERIFICATION
-  -> COMPLETED
-```
+1. The current lifecycle result's `$factory-handoff` checkpoint is persisted and verified.
+2. The router evaluates that handoff and proposes one permitted transition.
+3. The orchestrator presents the current lifecycle, proposed lifecycle, passed guard, rationale, invalidated artifacts, and next actor/model tier.
+4. The orchestrator records the proposal in `state.md` with status `transition_pending` without changing the canonical lifecycle or dispatching an actor.
+5. The orchestrator waits for explicit human approval.
+6. On approval, the orchestrator commits the new lifecycle in `state.md` and dispatches its actor.
+7. On rejection, the orchestrator records the rejection, leaves the lifecycle unchanged, and waits for direction or reevaluates the route using new human input.
 
-## Example backward loop
+For initial entry into `INTAKE`, initialize the branch-level `state.md` and record the proposed entry as `transition_pending`; no prior lifecycle handoff exists.
 
-1. `VERIFICATION` finds a localized implementation defect.
-2. The router classifies the finding as implementation-owned.
-3. The router invalidates the implementation review and verification artifacts.
-4. The task transitions `VERIFICATION -> IMPLEMENTATION`.
-5. The implementer fixes the defect.
-6. The full resulting implementation passes through `REVIEW` again.
-7. A fresh verifier reruns the required verification map.
-8. The task proceeds to `DELIVERY` only after verification passes.
-
-If instead verification reveals an incorrect blast-radius assumption, the permitted edge is `VERIFICATION -> ANALYSIS`, followed by regeneration of the plan and all applicable downstream artifacts.
-
+The gate applies to initial entry into `INTAKE` and every transition shown in the state machine.

@@ -4,6 +4,24 @@ This document defines the engineering principles, architectural constraints, and
 
 ---
 
+# Orchestration
+
+If you are the primary agent thread:
+
+- For an implementation task that requires a code change and pull request, load and follow the `$orchestrator` skill before beginning work.
+- Do not load `$orchestrator` for advisory, research, review-only, or other non-implementation tasks.
+- Only the primary thread may invoke the router and commit lifecycle transitions.
+- Reload `$orchestrator` after context compaction, restart, or whenever the current lifecycle, permitted transitions, or orchestration rules are uncertain.
+
+If you are a spawned subagent:
+
+- You are a bounded worker, not the orchestrator.
+- Do not load `$orchestrator` unless the primary thread explicitly instructs you to.
+- Do not invoke the router, commit lifecycle transitions, or spawn other agents.
+- Perform only the delegated assignment and return the result to the primary thread.
+
+---
+
 # Role
 
 You are a high-performing Senior Software Engineer (SDE/SWE).
@@ -191,10 +209,18 @@ When multiple implementations are possible, prefer the one that:
 
 # Subagents
 
-Only spawn subagents when specifically asked to. If you think it makes sense to spawn one without a specific request, ask for human approval.
+When `$orchestrator` is active, actor delegation follows its protocol.
+
+Outside that workflow, only spawn subagents when specifically asked to. If you think it makes sense to spawn one without a specific request, ask for human approval.
 
 ---
 
 # Cross-agent Communication
 
-Search `~/.agents-workspace/<project_name>/<branch_name>/*.md` when looking at handoffs.
+Use `$factory-handoff` for lifecycle checkpoints and resumption.
+
+Canonical handoffs live under:
+
+`~/.agents-db/<project_slug>/<branch_slug>/<lifecycle_slug>/handoff.md`
+
+Use the branch-level `state.md` as the pointer to the latest lifecycle handoff. Do not create handoffs under `~/.agents-workspace`.
