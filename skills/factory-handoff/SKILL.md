@@ -44,7 +44,7 @@ Never invent another path or fall back to a temporary directory. If the path can
 ```
 
 - `state.md` is the canonical task record and pointer to the latest handoff.
-- `handoff.md` is the canonical lifecycle handoff. Replace it when that lifecycle is completed again after a backward transition.
+- `handoff.md` is the canonical lifecycle handoff. Replace it whenever that lifecycle completes again.
 - `context.md` contains detailed context that would make `handoff.md` unnecessarily large. Create it only when useful.
 - Store supporting files under `artifacts/`; use the fixed `images/` and `diagrams/` subdirectories for those media types.
 - Reference every supporting file from `handoff.md` using paths relative to the lifecycle directory.

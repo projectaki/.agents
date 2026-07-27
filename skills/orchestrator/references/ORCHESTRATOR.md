@@ -18,7 +18,7 @@ The system combines a state machine with a simple actor model:
 - Worker actors perform bounded lifecycle work and return structured results. They cannot change lifecycle state, spawn actors, or delegate work.
 - Parallel work is allowed only for independent planners. Implementation is single-threaded.
 - Actor invocations are disposable. Canonical artifacts and task state are persistent.
-- Every lifecycle result produces a verified `$factory-handoff` checkpoint before the router selects the next lifecycle.
+- Every lifecycle result produces a verified `factory-handoff` checkpoint before the router selects the next lifecycle.
 
 ## Authority boundaries
 
@@ -467,11 +467,11 @@ Recommendations are evidence for the router. They are not transition commands.
 
 ## Persistence and recovery
 
-Persistence between lifecycles is a **handoff**. Invoke `$factory-handoff` after every lifecycle actor result and before selecting the next lifecycle.
+Persistence between lifecycles is a **handoff**. Invoke the `factory-handoff` skill after every lifecycle actor result and before selecting the next lifecycle.
 
 ### Deterministic storage
 
-`$factory-handoff` owns path resolution and the persistence format. Every task is stored under:
+The `factory-handoff` skill owns path resolution and the persistence format. Every task is stored under:
 
 ```text
 $HOME/.agents-db/<project_slug>/<branch_slug>/
@@ -534,7 +534,7 @@ For restart safety:
 
 1. Persist the actor result.
 2. Confirm the lifecycle exit gate.
-3. Invoke `$factory-handoff` in persist mode with the actor outcome and exit-gate result, then verify `state.md`, `handoff.md`, and referenced artifacts.
+3. Invoke the `factory-handoff` skill in persist mode with the actor outcome and exit-gate result, then verify `state.md`, `handoff.md`, and referenced artifacts.
 4. Evaluate the router using the verified handoff.
 5. Persist the routing decision and new lifecycle.
 6. Dispatch the next actor.
@@ -545,7 +545,7 @@ The temporary human approval gate below modifies steps 5 and 6 but never permits
 
 At orchestrator start, restart, or post-compaction recovery:
 
-- Invoke `$factory-handoff` in resume mode.
+- Invoke the `factory-handoff` skill in resume mode.
 - Read `state.md`, the latest lifecycle `handoff.md`, and the artifacts required for routing.
 - Reconcile the persisted project, branch, Git HEAD, and dirty-worktree state with the current workspace.
 - If status is `lifecycle_checkpointed`, route from the persisted actor outcome and exit-gate result.
@@ -573,7 +573,7 @@ Until this section is removed, human approval is required before starting every 
 
 This temporary gate overrides the ordinary transition-ordering rules:
 
-1. The current lifecycle result's `$factory-handoff` checkpoint is persisted and verified.
+1. The current lifecycle result's `factory-handoff` checkpoint is persisted and verified.
 2. The router evaluates that handoff and proposes one permitted transition.
 3. The orchestrator presents the current lifecycle, proposed lifecycle, passed guard, rationale, invalidated artifacts, and next actor/model tier.
 4. The orchestrator records the proposal in `state.md` with status `transition_pending` without changing the canonical lifecycle or dispatching an actor.

@@ -8,15 +8,15 @@ This document defines the engineering principles, architectural constraints, and
 
 If you are the primary agent thread:
 
-- For an implementation task that requires a code change and pull request, load and follow the `$orchestrator` skill before beginning work.
-- Do not load `$orchestrator` for advisory, research, review-only, or other non-implementation tasks.
+- For an implementation task that requires a code change and pull request, load and follow the `orchestrator` skill before beginning work.
+- Do not load the `orchestrator` skill for advisory, research, review-only, or other non-implementation tasks.
 - Only the primary thread may invoke the router and commit lifecycle transitions.
-- Reload `$orchestrator` after context compaction, restart, or whenever the current lifecycle, permitted transitions, or orchestration rules are uncertain.
+- Reload the `orchestrator` skill after context compaction, restart, or whenever the current lifecycle, permitted transitions, or orchestration rules are uncertain.
 
 If you are a spawned subagent:
 
 - You are a bounded worker, not the orchestrator.
-- Do not load `$orchestrator` unless the primary thread explicitly instructs you to.
+- Do not load the `orchestrator` skill unless the primary thread explicitly instructs you to.
 - Do not invoke the router, commit lifecycle transitions, or spawn other agents.
 - Perform only the delegated assignment and return the result to the primary thread.
 
@@ -209,7 +209,7 @@ When multiple implementations are possible, prefer the one that:
 
 # Subagents
 
-When `$orchestrator` is active, actor delegation follows its protocol.
+When the `orchestrator` skill is active, actor delegation follows its protocol.
 
 Outside that workflow, only spawn subagents when specifically asked to. If you think it makes sense to spawn one without a specific request, ask for human approval.
 
@@ -217,7 +217,7 @@ Outside that workflow, only spawn subagents when specifically asked to. If you t
 
 # Cross-agent Communication
 
-Use `$factory-handoff` for lifecycle checkpoints and resumption.
+Use the `factory-handoff` skill for lifecycle checkpoints and resumption.
 
 Canonical handoffs live under:
 

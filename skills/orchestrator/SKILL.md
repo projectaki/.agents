@@ -13,7 +13,7 @@ Treat the reference as the normative execution protocol. If another instruction 
 
 1. Determine whether this is the primary thread. If it is a spawned worker thread, do not assume orchestration authority; perform only the delegated assignment and return a structured result to the parent.
 2. Load the complete protocol reference.
-3. Invoke `$factory-handoff` in resume mode to locate or initialize the deterministic task root under `~/.agents-db`.
+3. Invoke the `factory-handoff` skill in resume mode to locate or initialize the deterministic task root under `~/.agents-db`.
 4. Reconcile the persisted lifecycle, task revision, canonical artifacts, active invocation, last actor result, and last routing decision.
 5. Continue only through an explicitly permitted transition.
 
@@ -23,11 +23,13 @@ Treat the reference as the normative execution protocol. If another instruction 
 - Retain exclusive authority to invoke the router and commit state transitions.
 - Delegate lifecycle work to bounded actors as required by the protocol.
 - Treat actor outputs as evidence and recommendations, never as transition commands.
-- After every lifecycle actor result, invoke `$factory-handoff` to persist the result and exit-gate outcome before routing.
+- After every lifecycle actor result, invoke the `factory-handoff` skill to persist the result and exit-gate outcome before routing.
 - Do not propose, approve, or commit the next lifecycle until the handoff checkpoint is verified.
 - Persist the selected transition before dispatching another actor.
 - Use one implementer. Parallelize only planning when the protocol's guard requires it.
 - Do not declare completion until every applicable completion invariant passes.
+
+Use the runtime's native mechanisms for actor delegation, model selection, filesystem access, Git, and pull-request delivery. Actor roles and the `standard` and `high_reasoning` tiers are abstract protocol concepts, not vendor-specific tool or model names.
 
 ## Reload
 
@@ -38,4 +40,4 @@ Reload the complete protocol reference:
 - when the current lifecycle or permitted outgoing edges are uncertain;
 - when the required actor result, canonical artifact, or routing rule is not confidently available.
 
-After reloading, invoke `$factory-handoff` in resume mode and reconcile its resume packet before taking further action. Do not reconstruct lifecycle state from memory when persisted evidence is available.
+After reloading, invoke the `factory-handoff` skill in resume mode and reconcile its resume packet before taking further action. Do not reconstruct lifecycle state from memory when persisted evidence is available.
