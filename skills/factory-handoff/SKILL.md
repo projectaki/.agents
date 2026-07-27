@@ -49,6 +49,19 @@ Never invent another path or fall back to a temporary directory. If the path can
 - Store supporting files under `artifacts/`; use the fixed `images/` and `diagrams/` subdirectories for those media types.
 - Reference every supporting file from `handoff.md` using paths relative to the lifecycle directory.
 
+The `ANALYSIS` lifecycle additionally requires:
+
+```text
+analysis/
+├── handoff.md
+├── analysis-report.md
+└── artifacts/
+    ├── images/
+    └── diagrams/
+```
+
+`analysis-report.md` is the canonical human entry point and contains all essential impact understanding. The ANALYSIS handoff links to it first and does not duplicate its contents. ANALYSIS supporting artifacts contain only raw evidence too large to embed and are linked from the relevant report entries.
+
 Do not use timestamps or ad hoc handoff names in canonical paths.
 
 The layout supports one active orchestrated task per project and branch. If `state.md` already exists, resume that task. Do not replace it with a different objective unless the human explicitly archives or clears the existing task state.
@@ -69,6 +82,7 @@ After an actor returns any lifecycle result and before the router selects the ne
    - risks, blockers, and unresolved questions;
    - inputs the router needs for its next decision.
 3. Write optional detailed material to `context.md` and supporting files to `artifacts/`.
+   For `ANALYSIS`, write and validate the required `analysis-report.md` before checkpointing.
 4. Update root `state.md` with:
    - project and branch slugs;
    - task objective;

@@ -43,7 +43,7 @@ The reviewer and verifier must be fresh invocations independent from the impleme
 | --- | --- | --- |
 | `INTAKE` | Normalize objective, scope, authority, and definition of done | Task contract |
 | `CONTEXT_GATHERING` | Ground the task in repository, documentation, history, and runtime evidence | Context evidence package |
-| `ANALYSIS` | Determine impact, regression scope, blast radius, risk, and verification needs | Impact report and visual impact artifacts |
+| `ANALYSIS` | Determine impact, regression scope, blast radius, risk, and verification needs | Canonical `analysis-report.md` |
 | `PLANNING` | Select and describe one executable approach | Canonical implementation plan |
 | `IMPLEMENTATION` | Execute the canonical plan with one implementer | Implementation result and change set |
 | `REVIEW` | Independently assess a plan or implementation | Review result |
@@ -108,28 +108,28 @@ An actor saying it is finished never satisfies an exit gate by itself. The hando
 
 **Actor work:** Analyze the proposed change in the context of the whole affected system.
 
-**Required output — impact report:**
+**Required output — canonical `analysis-report.md`:**
 
-- affected and potentially affected surfaces
-- callers, consumers, dependencies, and integration boundaries
-- regression scope and blast-radius rating
-- risk and scope classifications
-- required review and verification depth
-- unresolved uncertainties
+Produce one self-contained human entry point following `ANALYSIS_REPORT.md`. It contains:
 
-**Required visual artifacts:**
+- the attention-optimized orientation and reading guide;
+- every hotspot, affected and potentially affected surface, caller, consumer, dependency, integration boundary, risk, and uncertainty;
+- risk, confidence, scope, and blast-radius classifications;
+- complete system-impact views with explicit visual semantics;
+- the complete impact inventory and verification coverage;
+- retained, removed, uncertain, and out-of-scope boundaries;
+- required planning, review, and verification depth;
+- evidence references for every material claim.
 
-1. **System impact graph** — changed area, upstream callers, downstream dependencies, data stores, external systems, and affected boundaries.
-2. **Change-surface matrix** — affected area, impact type, risk, expected modification, and regression concern.
-3. **Verification map** — acceptance criteria and risks mapped to the checks that will prove them.
+Attention optimization means progressive disclosure and logical grouping, never truncation. There is no numerical cap on report entries or diagram nodes. An overview may aggregate detail only when the same report expands every aggregate into complete detailed maps or inventory entries.
 
-Trivial tasks may use a one-node graph or one-row table. A manually requested richer visual should be produced even when the default would be minimal.
+Supporting artifacts are optional and contain only raw evidence too large to embed. Essential understanding must remain in `analysis-report.md`.
 
-**Exit gate:** The impact, risk, scope, and required verification are explicit and supported by evidence.
+**Exit gate:** The report satisfies every completeness invariant in `ANALYSIS_REPORT.md`; the impact, risk, scope, uncertainty, and required verification are explicit and supported by evidence; every aggregate is expanded; and every required stable-ID mapping is traceable.
 
 ### `PLANNING`
 
-**Entry guard:** A current impact report and visual artifacts exist.
+**Entry guard:** A current canonical `analysis-report.md` exists.
 
 **Actor work:** Produce one canonical executable plan.
 
@@ -157,7 +157,7 @@ Parallel planners receive the same task contract and approved evidence package b
 
 If canonical-plan confidence remains `low`, route to `REVIEW` with `review_target: plan`.
 
-**Exit gate:** Exactly one canonical plan exists and is consistent with the task contract and impact report.
+**Exit gate:** Exactly one canonical plan exists and is consistent with the task contract and canonical analysis report.
 
 ### `IMPLEMENTATION`
 
@@ -183,7 +183,7 @@ If canonical-plan confidence remains `low`, route to `REVIEW` with `review_targe
 
 **Actor work:** A reviewer independent from the implementer inspects the full target and reports all findings in one result.
 
-Each reviewer invocation is one bounded use of `factory-review`. The orchestrator owns reviewer count, model-tier selection, isolation, and dispatch. Use one reviewer by default. When the current impact report requires multiple review perspectives, dispatch independent reviewers with the same canonical inputs; reviewers must not inspect one another's results. The orchestrator alone reconciles their results into the canonical review result and routes from the combined evidence.
+Each reviewer invocation is one bounded use of `factory-review`. The orchestrator owns reviewer count, model-tier selection, isolation, and dispatch. Use one reviewer by default. When the canonical analysis report requires multiple review perspectives, dispatch independent reviewers with the same canonical inputs; reviewers must not inspect one another's results. The orchestrator alone reconciles their results into the canonical review result and routes from the combined evidence.
 
 **Required output — review result:**
 
@@ -192,7 +192,7 @@ Each reviewer invocation is one bounded use of `factory-review`. The orchestrato
 - correctness and maintainability assessment
 - acceptance-criteria coverage
 - regression and system-impact assessment
-- reconciliation of the predicted impact graph and change-surface matrix with the actual change
+- reconciliation of the canonical analysis report's hotspots, impact inventory, system maps, risks, and boundaries with the actual change
 - uncertainties and missing evidence
 - outcome: `approved`, `changes_required`, or `inconclusive`
 
@@ -214,7 +214,7 @@ After fixes, a fresh review inspects the full resulting change again. Continued 
 - `pass`, `fail`, or `unavailable` for each check
 - evidence references
 - checks not performed and why
-- completed verification map
+- completed verification coverage mapped back to the analysis report's stable IDs
 
 **Exit gate:** Every required check has passing evidence or an explicitly accepted exception, and the evidence matches the final revision.
 
@@ -514,10 +514,7 @@ task_contract: reference
 latest_handoff: relative path
 artifacts:
   context: reference
-  analysis: reference
-  impact_graph: reference
-  change_surface_matrix: reference
-  verification_map: reference
+  analysis_report: reference
   plan: reference
   implementation: reference
   review: reference
