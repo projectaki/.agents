@@ -1,6 +1,6 @@
 ---
 name: factory-draft-pr
-description: "Create or update a GitHub draft pull request after factory verification passes. Use when asked to publish a Factory change with every acceptance criterion mapped to durable automated-test evidence, or exceptional video evidence only when automation is genuinely insufficient."
+description: "Create or update a GitHub draft pull request after factory verification passes. Use when asked to publish a Factory change with the complete diff grouped into behavioral paths and every path mapped to durable inspection, automated-test, screenshot, video, or explicitly accepted exception evidence."
 ---
 
 # Factory Draft PR
@@ -12,7 +12,8 @@ Publish one evidence-backed draft PR for the verified change.
 Require the repository, base branch, feature branch, acceptance criteria, full
 base-to-head diff, implementation packet, current `$factory-regression-scope`
 packet, and a matching `$factory-verify` packet with verdict `pass`. Require a
-reviewer-accessible URL for every required video; local paths are not evidence.
+matching final-revision `change-assurance-report.md` and a reviewer-accessible
+URL for every required screenshot or video; local paths are not evidence.
 
 ## Workflow
 
@@ -22,12 +23,15 @@ reviewer-accessible URL for every required video; local paths are not evidence.
 2. Inspect the task context, test scope, plan, implementation packet, commits,
    complete diff, regression scope, evidence results, and verification packet.
    Do not infer scope from commit messages alone.
-3. Build and validate the complete acceptance-to-evidence map before changing
-   remote state. Stop if any criterion lacks acceptable proof.
+3. Build and validate the complete change-path and acceptance-to-evidence maps
+   before changing remote state. Stop if any diff region is unaccounted for,
+   any path or criterion lacks acceptable proof, or any exception lacks
+   explicit human acceptance.
 4. Push the exact verified head with tracking. Never force-push unless the user
    explicitly requests it.
-5. Convert automated evidence to durable test-code permalinks containing the
-   pushed head SHA.
+5. Convert inspection and automated evidence to durable code or test-code
+   permalinks containing the pushed head SHA. Include the matching automated
+   execution result.
 6. Check whether the branch already has a PR and choose update or create.
 7. Rebuild the complete title and body from the current task, final diff, and
    verified evidence using
@@ -40,6 +44,22 @@ reviewer-accessible URL for every required video; local paths are not evidence.
    links.
 
 ## Content rules
+
+### Change-path assurance
+
+- Give reviewers a compact behavioral-path map and assurance matrix rather than
+  a file-by-file narrative.
+- Account for the complete diff through stable path IDs and grouped change
+  regions. Put exhaustive accountability detail in a collapsed PR section, or
+  use an existing durable reviewer-accessible link. Never link a local report.
+- For simple non-behavioral or behavior-preserving work, include one concise
+  inspection reason, a final-code link, and an available corroborating signal.
+- For automated evidence, link the exact test code and its matching execution
+  result. A test permalink alone does not prove that it passed for this head.
+- Use reviewer-accessible screenshot or video links only when automation cannot
+  sufficiently prove the relevant static or sequential property.
+- Show accepted exceptions and residual risk prominently. An unaccepted
+  exception blocks PR creation.
 
 ### Summary
 
@@ -60,10 +80,12 @@ reviewer-accessible URL for every required video; local paths are not evidence.
   materially different proof.
 - Render every automated item as a descriptive link to the exact test function
   or assertion in the pushed head commit, prefixed by its level, for example
-  `✅ [Unit: rejects expired tokens](<permalink>)`.
+  `✅ [Unit: rejects expired tokens](<permalink>)`, followed by a link to the
+  matching execution result.
 - Use durable GitHub blob permalinks containing the head commit SHA and tight
-  line anchors. Link to test code, not implementation code, CI dashboards,
-  local paths, or unverifiable prose.
+  line anchors. Do not substitute implementation code, an execution dashboard,
+  a local path, or unverifiable prose for inspected test assertions. The
+  execution-result link complements the test-code link.
 - Use the smallest sufficient set of links. When multiple tests are necessary,
   order them from fastest to slowest and separate them with `<br>`.
 - Include only criteria demonstrably fulfilled and passed for the current head.
@@ -72,7 +94,7 @@ reviewer-accessible URL for every required video; local paths are not evidence.
 - State observable behavior rather than a file inventory. Do not invent or
   weaken acceptance criteria to make the table complete.
 
-### Exceptional video evidence
+### Exceptional screenshot or video evidence
 
 - Include this section only when at least one acceptance criterion cannot be
   sufficiently proven with deterministic automated assertions.
@@ -81,9 +103,11 @@ reviewer-accessible URL for every required video; local paths are not evidence.
   for the same risk and head.
 - Use one compact row per exceptional criterion with specification area,
   required behavior, the reason automation is insufficient, and a descriptive
-  link to the sanitized reviewer-accessible video.
-- Never use video merely because a test is slow, inconvenient, missing, or was
-  not implemented. Never include local paths, credentials, private data, or
+  link to the sanitized reviewer-accessible screenshot or video.
+- Use screenshots for static visual properties and video for sequences,
+  gestures, animation, timing, or state transitions. Never use visual evidence
+  merely because a test is slow, inconvenient, missing, or was not
+  implemented. Never include local paths, credentials, private data, or
   placeholder links.
 
 ### Regression confidence

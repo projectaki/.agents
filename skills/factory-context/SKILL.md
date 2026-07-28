@@ -36,7 +36,8 @@ in the main session and state that limitation in the final packet.
 
 - the requested change, desired outcome, scope, and acceptance criteria
 - current behavior and the relevant architecture
-- relevant files, code areas, tests, and documentation
+- relevant files, code areas, tests, entry points, highest reliable observable
+  boundaries, material side effects, consumers, and documentation
 - project conventions, constraints, and authoritative external sources
 - confirmed facts, reasonable inferences, conflicts, assumptions, and unknowns
 - only the questions whose answers materially change the work

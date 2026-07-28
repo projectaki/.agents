@@ -18,8 +18,9 @@ the precise blocker.
 1. Read all supplied context and applicable repository instructions.
 2. Inspect the repository only as needed to ground the plan in current code.
 3. Resolve the requested behavior into ordered, concrete implementation steps.
-4. Map every test-scope risk ID to targeted test work or an explicit evidence
-   exception.
+4. Map every behavioral path and test-scope risk ID to corroborated inspection,
+   targeted automated test work, visual evidence only when automation is
+   insufficient, or an explicit human-approved evidence exception.
 5. Record relevant assumptions, risks, dependencies, and blockers.
 
 Do not edit files or implement the change. Do not add speculative refactors or
@@ -42,6 +43,8 @@ reconstructing the analysis. Include:
 - error handling, edge cases, migrations, and observability where relevant
 - test-scope risk IDs mapped to unit, integration, contract, component, or
   end-to-end test work and expected outcomes
+- behavioral path IDs mapped to implementation steps and the cheapest
+  sufficient planned proof
 - explicitly justified non-automated evidence exceptions
 - assumptions, risks, dependencies, blockers, and rollback notes where relevant
 

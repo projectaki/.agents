@@ -17,6 +17,14 @@ Read the complete subject, context, focus, criteria, repository or worktree, and
 
 Inspect the complete supplied subject against the supplied criteria. Report all supported findings in one result. Each finding must include severity, precise subject location, evidence, impact, the smallest safe recommendation, and confidence.
 
+For an implementation review, reconcile the entire base-to-head diff against
+the canonical change-assurance report. Confirm that every diff region belongs
+to a coherent change group, every group maps to a behavioral path or justified
+non-behavioral classification, boundary-level evidence actually reaches the
+path, and its assertions prove the claimed outcomes. Treat an omitted change,
+implicit path, unsupported inspection claim, or overstated evidence scope as a
+blocking completeness finding.
+
 Do not modify the subject or inspect another reviewer's result. If required context is missing or unavailable, return `incomplete`; do not retry, substitute a model, or start another lifecycle.
 
 Review and describe only the supplied revision. Context may establish expected

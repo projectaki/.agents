@@ -24,6 +24,7 @@ Assign stable identifiers and reuse them throughout the report:
 | Prefix | Meaning |
 | --- | --- |
 | `H#` | Hotspot requiring attention |
+| `P#` | End-to-end behavioral path requiring change assurance |
 | `S#` | Affected or potentially affected surface |
 | `R#` | Material risk or regression concern |
 | `U#` | Uncertainty or evidence gap |
@@ -40,7 +41,7 @@ Provide:
 - one sentence describing the change;
 - one sentence describing its system reach;
 - one sentence describing the dominant failure concern;
-- a compact classification table containing risk, scope, confidence, blast radius, and counts for hotspots, surfaces, risks, uncertainties, and verification checks;
+- a compact classification table containing risk, scope, confidence, blast radius, and counts for hotspots, behavioral paths, surfaces, risks, uncertainties, and verification checks;
 - a short reading guide pointing to the most important sections for this specific change.
 
 This section is an orientation layer, not a substitute for the complete report.
@@ -63,7 +64,7 @@ Every diagram must include:
 - a one-sentence purpose and explicit instruction for what to notice;
 - a legend before the diagram;
 - direction of reading;
-- stable `H#` and `S#` identifiers on relevant nodes;
+- stable `H#`, `P#`, and `S#` identifiers on relevant nodes;
 - node change state;
 - named relationships on edges;
 - source references for inferred or uncertain paths.
@@ -82,7 +83,36 @@ Color may reinforce a state but must never be its only indicator. Put the state 
 
 Do not add decorative nodes or unlabeled edges. A node appears only when it helps explain impact, a boundary, a hotspot, retained behavior, removal, or uncertainty.
 
-### 4. Complete impact inventory
+### 4. Behavioral path inventory
+
+Group the proposed change into meaningful end-to-end paths instead of treating
+each file or edit as an independent behavior.
+
+| ID | Trigger or caller | Path and affected surfaces | Highest reliable observable boundary | Expected behavior | Change category | Related risks | Planned proof |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+
+Trace each path upward to the highest stable caller or user-visible boundary
+whose assertions can reliably prove the changed behavior, and downward through
+material side effects and consumers. Prefer one sufficient boundary check over
+duplicative tests at every internal layer. Do not use a broad end-to-end test
+when a smaller deterministic boundary proves the same claim.
+
+Use these change categories:
+
+- `non-behavioral`: documentation, formatting, generated output, or metadata
+  with no runtime effect;
+- `behavior-preserving`: mechanical refactor, rename, relocation, or deletion
+  whose relevant behavior is intended to remain identical;
+- `localized-behavior`: deterministic behavior contained within one component;
+- `cross-boundary-behavior`: behavior crossing a service, process, persistence,
+  permission, contract, or shared-consumer boundary;
+- `experiential-behavior`: visual, interaction, animation, timing, or other
+  behavior requiring human-observable proof when automation is insufficient.
+
+Every affected `S#` must map to at least one `P#`, or be explicitly justified as
+having no executable behavioral path.
+
+### 5. Complete impact inventory
 
 List every affected and potentially affected surface, grouped by subsystem and ordered by risk within each group.
 
@@ -91,7 +121,7 @@ List every affected and potentially affected surface, grouped by subsystem and o
 
 Do not hide surfaces under catch-all entries such as “miscellaneous.” Aggregated entries must link to their complete expansion.
 
-### 5. Risks and uncertainties
+### 6. Risks and uncertainties
 
 List every material risk and uncertainty separately.
 
@@ -100,16 +130,21 @@ List every material risk and uncertainty separately.
 
 Clearly distinguish evidence-backed risk from uncertainty. Include external consumers and unverifiable paths when they are relevant.
 
-### 6. Verification coverage
+### 7. Verification coverage
 
 Map every acceptance criterion, hotspot, surface, risk, and uncertainty that requires proof to one or more checks.
 
 | ID | Proves | Check | Expected evidence | Required depth |
 | --- | --- | --- | --- | --- |
 
-The `Proves` column contains the relevant acceptance-criterion and `H#`, `S#`, `R#`, or `U#` references. Any intentionally unverified entry must state the rationale and residual risk.
+The `Proves` column contains the relevant acceptance-criterion and `H#`, `P#`,
+`S#`, `R#`, or `U#` references. Select the cheapest sufficient proof:
+corroborated inspection for simple non-behavioral or behavior-preserving
+changes, automated checks for deterministic behavior, and screenshot or video
+only when automation cannot prove the relevant observable property. Any
+intentionally unverified entry must state the rationale and residual risk.
 
-### 7. Boundaries and decisions
+### 8. Boundaries and decisions
 
 Use compact tables or bullets for:
 
@@ -122,7 +157,7 @@ Use compact tables or bullets for:
 
 Reference the applicable stable IDs.
 
-### 8. Planning implications
+### 9. Planning implications
 
 State only actionable downstream consequences:
 
@@ -132,7 +167,7 @@ State only actionable downstream consequences:
 - required verification depth;
 - unresolved input that blocks planning.
 
-### 9. Evidence index
+### 10. Evidence index
 
 List the repository files, symbols, tests, documentation, history, runtime observations, and supporting raw artifacts used by the analysis. Map evidence back to stable IDs where practical.
 

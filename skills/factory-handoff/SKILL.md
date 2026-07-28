@@ -35,6 +35,7 @@ Never invent another path or fall back to a temporary directory. If the path can
 ```text
 ~/.agents-db/<project_slug>/<branch_slug>/
 ├── state.md
+├── change-assurance-report.md
 └── <lifecycle_slug>/
     ├── handoff.md
     ├── context.md
@@ -44,6 +45,9 @@ Never invent another path or fall back to a temporary directory. If the path can
 ```
 
 - `state.md` is the canonical task record and pointer to the latest handoff.
+- `change-assurance-report.md` is the canonical final-diff accountability and
+  behavioral-path evidence report. Create it during implementation and replace
+  it with the current snapshot as the diff or evidence changes.
 - `handoff.md` is the canonical lifecycle handoff. Replace it whenever that
   lifecycle completes again and describe only the latest checkpoint.
 - `context.md` contains detailed context that would make `handoff.md` unnecessarily large. Create it only when useful.
@@ -85,6 +89,7 @@ After an actor returns any lifecycle result and before the router selects the ne
    - lifecycle output summary;
    - decisions, assumptions, and constraints;
    - canonical artifacts and evidence;
+   - current change-assurance report when implementation has begun;
    - changed files and Git HEAD when applicable;
    - validation performed;
    - risks, blockers, and unresolved questions;

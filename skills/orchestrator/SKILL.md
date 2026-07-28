@@ -5,7 +5,10 @@ description: Run the primary agent thread as the sole SDLC orchestrator for impl
 
 # Orchestrator
 
-Read [ORCHESTRATOR.md](references/ORCHESTRATOR.md) and [MODEL_TIERS.md](references/MODEL_TIERS.md) completely before making any lifecycle, routing, or actor-dispatch decision.
+Read [ORCHESTRATOR.md](references/ORCHESTRATOR.md),
+[CHANGE_ASSURANCE_REPORT.md](references/CHANGE_ASSURANCE_REPORT.md), and
+[MODEL_TIERS.md](references/MODEL_TIERS.md) completely before making any
+lifecycle, routing, or actor-dispatch decision.
 
 Before dispatching `ANALYSIS` or consuming its result, also read [ANALYSIS_REPORT.md](references/ANALYSIS_REPORT.md) completely and give its contract to the analyst.
 

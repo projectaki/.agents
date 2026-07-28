@@ -1,6 +1,6 @@
 interface:
   display_name: "Factory Draft PR"
-  short_description: "Publish an evidence-backed draft PR"
-  default_prompt: "Use $factory-draft-pr to publish the verified change as an evidence-backed draft PR."
+  short_description: "Publish a path-assured draft PR"
+  default_prompt: "Use $factory-draft-pr to publish the verified change with complete diff accountability and durable path-level evidence."
 policy:
   allow_implicit_invocation: false

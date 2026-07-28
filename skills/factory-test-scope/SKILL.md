@@ -1,6 +1,6 @@
 ---
 name: factory-test-scope
-description: "Use when the human explicitly starts pre-development test scoping for a proposed change before factory-plan. Trace the intended behavior through the existing codebase and produce a prioritized automated-test scope without editing files or running tests."
+description: "Use when the human explicitly starts pre-development test scoping for a proposed change before factory-plan. Trace stable behavioral paths through the existing codebase and select the cheapest sufficient inspection, automated, or exceptional visual evidence without editing files or running tests."
 ---
 
 # Factory Test Scope
@@ -16,12 +16,17 @@ behavior is materially undecided, return the precise blocker.
 
 ## Workflow
 
-1. Trace the intended behavior through domain logic, APIs, data, permissions,
-   jobs, configuration, shared consumers, and UI boundaries.
+1. Group the intended change into stable behavioral path IDs. Trace each path
+   from its highest relevant caller through domain logic, APIs, data,
+   permissions, jobs, configuration, shared consumers, and UI boundaries to
+   its observable result.
 2. Identify direct and plausible adjacent regression risks. Assign each a
    stable risk ID, priority, failure mode, and observable outcome.
-3. Inspect existing coverage and select the cheapest deterministic test level
-   that proves each risk: unit, integration, contract, component, or end-to-end.
+3. Inspect existing coverage and select the highest reliable observable
+   boundary and cheapest sufficient evidence for each path and risk. Use a
+   one-sentence inspection claim plus an available corroborating signal for
+   simple non-behavioral or behavior-preserving work. Otherwise select unit,
+   integration, contract, component, or end-to-end automation.
 4. Specify the test target, setup, action, assertions, edge cases, and likely
    files for every recommended test. Prefer fast focused tests over broad
    suites.
@@ -39,6 +44,8 @@ Return one test-scope packet containing:
 
 - requested behavior, acceptance criteria, repository baseline, and assumptions
 - affected behavior and consumer map
+- stable behavioral paths, change category, highest reliable observable
+  boundary, and planned proof
 - ordered risk register with stable ID, priority, failure mode, and impact
 - existing coverage mapped to risk IDs
 - recommended tests mapped to risk IDs, including level, target, setup,

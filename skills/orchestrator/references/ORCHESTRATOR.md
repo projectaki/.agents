@@ -45,9 +45,9 @@ The reviewer and verifier must be fresh invocations independent from the impleme
 | `CONTEXT_GATHERING` | Ground the task in repository, documentation, history, and runtime evidence | Context evidence package |
 | `ANALYSIS` | Determine impact, regression scope, blast radius, risk, and verification needs | Canonical `analysis-report.md` |
 | `PLANNING` | Select and describe one executable approach | Canonical implementation plan |
-| `IMPLEMENTATION` | Execute the canonical plan with one implementer | Implementation result and change set |
+| `IMPLEMENTATION` | Execute the canonical plan with one implementer | Implementation result, change set, and current `change-assurance-report.md` |
 | `REVIEW` | Independently assess a plan or implementation | Review result |
-| `VERIFICATION` | Prove acceptance criteria and regression expectations | Verification result |
+| `VERIFICATION` | Prove acceptance criteria and every changed behavioral path | Verification result and final `change-assurance-report.md` |
 | `DELIVERY` | Publish the verified revision as a PR | Delivery result |
 | `AWAITING_INPUT` | Suspend until required human or external input arrives | Pause reason and resume condition |
 | `COMPLETED` | Record successful terminal completion | Terminal result |
@@ -117,6 +117,7 @@ Produce one self-contained human entry point following `ANALYSIS_REPORT.md`. It 
 - risk, confidence, scope, and blast-radius classifications;
 - complete system-impact views with explicit visual semantics;
 - the complete impact inventory and verification coverage;
+- stable behavioral paths traced to their highest reliable observable boundary;
 - retained, removed, uncertain, and out-of-scope boundaries;
 - required planning, review, and verification depth;
 - evidence references for every material claim.
@@ -139,6 +140,7 @@ Supporting artifacts are optional and contain only raw evidence too large to emb
 - ordered implementation steps
 - expected files or components affected
 - acceptance-criteria mapping
+- behavioral-path mapping and planned proof for every `P#`
 - risk and regression mitigations
 - verification steps
 - assumptions and unresolved concerns
@@ -169,13 +171,19 @@ If canonical-plan confidence remains `low`, route to `REVIEW` with `review_targe
 
 - completed plan steps
 - changed files and components
+- a current `change-assurance-report.md` following
+  `CHANGE_ASSURANCE_REPORT.md`, including complete working-diff accountability
 - tests added or updated
 - deviations from the plan and their rationale
 - newly discovered risks, dependencies, or scope
 - local checks performed
 - remaining known issues
 
-**Exit gate:** The implementation is complete enough for independent review, and no discovery has invalidated an earlier canonical artifact. Material discoveries follow the matching allowed transition.
+**Exit gate:** The implementation is complete enough for independent review;
+the complete working diff is mapped to behavioral paths or precise
+non-behavioral classifications; and no discovery has invalidated an earlier
+canonical artifact. Material discoveries follow the matching allowed
+transition.
 
 ### `REVIEW`
 
@@ -192,6 +200,8 @@ Each reviewer invocation is one bounded use of `factory-review`. The orchestrato
 - correctness and maintainability assessment
 - acceptance-criteria coverage
 - regression and system-impact assessment
+- reconciliation of every final-diff change group, behavioral path, evidence
+  claim, and non-behavioral classification in `change-assurance-report.md`
 - reconciliation of the canonical analysis report's hotspots, impact inventory, system maps, risks, and boundaries with the actual change
 - uncertainties and missing evidence
 - outcome: `approved`, `changes_required`, or `inconclusive`
@@ -215,8 +225,12 @@ After fixes, a fresh review inspects the full resulting change again. Continued 
 - evidence references
 - checks not performed and why
 - completed verification coverage mapped back to the analysis report's stable IDs
+- final-revision `change-assurance-report.md` with every `P#` verdict and durable
+  `E#` evidence reference
 
-**Exit gate:** Every required check has passing evidence or an explicitly accepted exception, and the evidence matches the final revision.
+**Exit gate:** The complete final diff is accounted for; every behavioral path
+has sufficient passing evidence or an explicitly human-accepted exception; no
+exception remains pending; and the evidence matches the final revision.
 
 ### `DELIVERY`
 
@@ -230,6 +244,8 @@ After fixes, a fresh review inspects the full resulting change again. Continued 
 - PR URL and identifier
 - PR title and summary
 - acceptance criteria and verification evidence included in the description
+- compact behavioral-path map and assurance matrix with durable links to
+  inspection, test-code and execution, screenshot, or video evidence
 - known limitations or deferred work
 - confirmation that the PR references the reviewed and verified revision
 
@@ -515,6 +531,7 @@ latest_handoff: relative path
 artifacts:
   context: reference
   analysis_report: reference
+  change_assurance_report: reference
   plan: reference
   implementation: reference
   review: reference
@@ -568,6 +585,9 @@ The router may commit `COMPLETED` only when:
 - implementation review passed
 - authoritative verification passed
 - verification evidence matches the final revision
+- the complete final diff is mapped in `change-assurance-report.md`
+- every changed behavioral path has sufficient durable evidence or an
+  explicitly human-accepted exception
 - the PR exists for that revision
 - no unresolved blocker or required approval remains
 

@@ -7,6 +7,20 @@
 - **Affected:** <users, systems, contracts, data, and operations>
 - **Change set:** <base, head, and diff fingerprint>
 
+## Change-path assurance
+
+<!-- Lead with failures, unverified paths, or exceptions. Group large diffs by
+behavioral path; do not create one row per file or hunk. -->
+
+| Path | Behavioral claim | Change category | Highest reliable boundary | Evidence | Result | Residual risk |
+|---|---|---|---|---|---|---|
+| <P#> | <observable behavior> | <category and risk> | <caller, API, component, or user boundary> | <durable E# links> | Pass/Fail/Unverified/Exception accepted | <risk or none> |
+
+Account for every final-diff change group through these paths or a justified
+non-behavioral classification. Link to final code for inspection evidence, to
+test code plus its matching result for automated evidence, and to a
+reviewer-accessible artifact for screenshot or video evidence.
+
 ## Acceptance criteria
 
 | Criterion | Result | Evidence |
@@ -30,14 +44,14 @@ Preserve regression-scope IDs and account for every material risk exactly once.
 State exactly which checks verification ran. Prefer targeted fast checks; leave
 remote CI pending.
 
-## Manual and video evidence
+## Screenshot and video evidence
 
-| Risk ID | Evidence | Why automation was insufficient | Result | Artifact |
+| Path and risk IDs | Evidence | Why automation was insufficient | Result | Artifact |
 |---|---|---|---|---|
-| <risk ID> | Manual/Video | <justification> | Pass/Fail/Blocked/Not run | <artifact or reason absent> |
+| <P# and R#> | Screenshot/Video | <justification> | Pass/Fail/Blocked/Not run | <reviewer-accessible link or reason absent> |
 
-State when no manual or video evidence was required. A missing video is not a
-gap when automated evidence sufficiently covers the risk.
+State when no screenshot or video evidence was required. Missing visual
+evidence is not a gap when automation sufficiently covers the risk.
 
 ## Review and confidence
 

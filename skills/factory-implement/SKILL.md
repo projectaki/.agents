@@ -1,6 +1,6 @@
 ---
 name: factory-implement
-description: "Use only when the human explicitly starts the implementation lifecycle with an approved plan, scoped repository or worktree, acceptance criteria, and required decisions. Implement that scope, add targeted tests, and return an implementation packet."
+description: "Use only when the human explicitly starts the implementation lifecycle with an approved plan, scoped repository or worktree, acceptance criteria, and required decisions. Implement that scope, add targeted tests, account for the working diff in the change-assurance report, and return an implementation packet."
 ---
 
 # Factory Implement
@@ -19,8 +19,12 @@ missing, stop before editing.
 2. Implement only the approved scope using repository patterns.
 3. Add or update the smallest useful tests mapped to the plan's risk IDs. For a
    deterministic bug, add a regression test when practical.
-4. Run reachable targeted checks.
-5. Return the implementation packet and remaining verification work.
+4. Create or update the canonical `change-assurance-report.md` defined by the
+   orchestrator. Group the complete working diff into stable change groups,
+   map each group to behavioral paths or a precise non-behavioral
+   classification, and record current evidence.
+5. Run reachable targeted checks.
+6. Return the implementation packet and remaining verification work.
 
 Keep domain logic out of infrastructure and avoid unrelated refactors. Treat
 failed checks as work to investigate and unrun checks as unknown. If a required
@@ -34,6 +38,7 @@ and one attempt; do not install tools or seek elevated access solely to run them
 ## Return
 
 - files and behavior changed
+- current change-assurance report with complete working-diff accountability
 - tests added or updated, mapped to risk IDs
 - commands run, results, and the exact head or diff they cover
 - skipped checks, fallbacks, and residual risk

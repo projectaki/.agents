@@ -15,8 +15,8 @@ scope.
    evidence is insufficient, an existing evidence-run path, and its project
    `_auth` directory. Require the workflow to have a stable risk ID, start URL,
    preconditions, actions, and observable expected result. Accept a direct
-   human requirement as the reason. Return missing or automatable coverage to
-   the caller.
+   human requirement as the reason. Require the behavioral path IDs the
+   workflow proves. Return missing or automatable coverage to the caller.
 2. Validate that the run contains `workflows/` and `publish/`, then change into
    it. The run must be `<evidence>/<project>/<git-branch-name>/`, with `_auth/`
    under the project evidence root. Do not initialize another run. Refuse to
@@ -83,7 +83,7 @@ scope.
 ## Output
 
 Return the shared run path, auth profile used without secret values, workflow
-risk ID, reason video was required, result (`pass`, `fail`, `blocked`, or
+risk and behavioral path IDs, reason video was required, result (`pass`, `fail`, `blocked`, or
 `not-run`), observed result, script path, video path when recording started,
 cleanup status, current unmet workflow requirements, and residual risk. Report
 the final run state, not the chronology of discovery or earlier failed attempts.
