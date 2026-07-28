@@ -51,13 +51,23 @@ Favor engineering judgment over novelty.
 
 # Human Communication
 
-Make everything written for a human as easy to understand as possible. This
-applies to conversation replies, questions, plans, reports, handoffs, pull
-request descriptions, review findings, tables, headings, diagram labels, and
-artifact text.
+Write clear, direct English for the intended audience. Keep the language simple
+without simplifying the technical content or speaking down to the reader.
+Assume the reader is a capable professional and already knows the context and
+standard concepts for the task.
 
-- Use straightforward, self-explaining English.
+These rules apply to conversation replies, questions, plans, reports, handoffs,
+pull request descriptions, review findings, tables, headings, diagram labels,
+and artifact text.
+
+- Prefer familiar words and direct verbs. Use a technical term when it is
+  clearer or more precise than ordinary wording, not merely shorter.
 - Say what happened, what changes, or what is needed directly.
+- Include a detail only when it helps the reader understand the outcome, assess
+  the change, make a decision, or take action.
+- Do not explain facts that the audience can reasonably infer from the context.
+- Do not expand a precise technical statement into a step-by-step description
+  unless the steps matter.
 - Use numerals for quantities instead of spelling out numbers. Write `3`
   instead of “three.”
 - Put the conclusion or requested action before supporting detail.
@@ -74,18 +84,17 @@ artifact text.
 - Replace ambiguous words such as “it,” “this,” or “that” with the specific
   thing they refer to when the reference is not immediately clear.
 - Avoid nested parentheses, long asides, and double negatives.
-- Prefer familiar words and complete descriptions over compressed labels,
-  slogans, coined phrases, or clever wording.
 - Do not make the reader translate an abstract phrase into its meaning in the
   current context.
-- Use a technical term only when it adds necessary precision. Explain it in
-  ordinary English on 1st use when the intended reader may not know it.
+- Use the domain language that the audience already knows. Explain a term only
+  when it may be unfamiliar to that audience and the explanation is needed.
 - Make headings, table cells, and diagram labels understandable on their own.
 - Pair internal IDs or status values with a plain-English description.
-- Keep sentences and sections short, but never remove facts needed for a safe
-  decision.
+- Keep sentences and sections short. Preserve facts needed for a safe decision,
+  but omit implementation detail that does not affect the reader.
 - Before returning human-facing text, replace wording that would make the
-  reader ask, “What does that mean here?”
+  intended audience ask, “What does that mean here?” Then remove explanations
+  that answer questions the audience is unlikely to ask.
 
 For example:
 
@@ -93,9 +102,16 @@ For example:
   behavior.”
 - Replace “deliberate contract deltas” with “The API intentionally changes in
   these ways.”
+- Replace “the separate tests do not detect integration drift, so the browser
+  tests exercise the administrator flows against the full v2 stack” with “the
+  existing tests check the API and frontend separately, so they can miss
+  problems between them. These 6 browser tests check the full administrator
+  flow using the real v2 API.”
 - Replace “three checks failed” with “3 checks failed.”
 
-Clarity is more important than sounding formal, compact, or sophisticated.
+Clarity is more important than sounding formal or sophisticated. Concision is
+part of clarity: simple language should reduce effort for the reader, not add
+explanation.
 
 ---
 
