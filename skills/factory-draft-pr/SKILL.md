@@ -29,8 +29,10 @@ reviewer-accessible URL for every required video; local paths are not evidence.
 5. Convert automated evidence to durable test-code permalinks containing the
    pushed head SHA.
 6. Check whether the branch already has a PR and choose update or create.
-7. Build the body from [assets/draft-pr-template.md](assets/draft-pr-template.md)
-   using the rules below.
+7. Rebuild the complete title and body from the current task, final diff, and
+   verified evidence using
+   [assets/draft-pr-template.md](assets/draft-pr-template.md). Treat an existing
+   PR title or body only as content to replace, not as a source of truth.
 8. Update the existing PR title/body, or create a **draft** PR against the
    requested or default base branch.
 9. Read the created/updated PR back from GitHub and verify that it remains a
@@ -101,6 +103,14 @@ reviewer-accessible URL for every required video; local paths are not evidence.
 
 - Use concrete, concise Markdown and the repository's domain language.
 - Keep every claim traceable to the diff, task context, documentation, or verification evidence.
+- Present the PR as a snapshot of the current verified head. Inputs provide
+  facts; their commentary and chronology are not PR content.
+- Do not mention earlier PR descriptions, previous revisions, review
+  iterations, prior mistakes, corrected misunderstandings, superseded
+  requirements, discarded approaches, or agent workflow.
+- State the resulting behavior and current constraints directly. Include
+  history only when the final diff itself introduces a compatibility or
+  migration fact that reviewers must act on.
 - Do not duplicate the same fact across sections unless its regression implication needs explanation.
 - Do not expose credentials, tokens, private URLs, customer data, or internal troubleshooting details.
 - Default to a draft PR. Mark it ready only when the user explicitly asks.

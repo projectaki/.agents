@@ -33,6 +33,12 @@ change set. Missing, stale, or contradictory required input makes the verdict
 5. Return the verification packet and the PR-ready report from
    [references/pr-confidence-report.md](references/pr-confidence-report.md).
 
+Report only the current change set, current evidence, and remaining gaps.
+Earlier packets are inputs for validation, not report content. Do not narrate
+superseded scope, removed risks, corrected mistakes, failed earlier attempts, or
+how the report changed. Preserve stable risk IDs without recounting their
+history.
+
 ## Verdict
 
 - `pass`: every acceptance criterion and material regression risk is supported

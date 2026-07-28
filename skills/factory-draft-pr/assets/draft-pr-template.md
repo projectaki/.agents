@@ -1,6 +1,7 @@
 ## Summary
 
-<!-- Concise bullets describing what the final diff actually changes. -->
+<!-- Concise bullets describing the current final diff and resulting behavior.
+Do not include revision history, prior mistakes, or superseded content. -->
 
 ## Acceptance criteria fulfilled
 

@@ -28,6 +28,11 @@ behavior is materially undecided, return the precise blocker.
 5. Mark behavior that cannot be proven reliably by automation as an evidence
    exception and explain why. Do not design video workflows.
 
+Use request context to determine the intended behavior, then state that behavior
+directly. Do not include superseded requirements, corrected misunderstandings,
+discarded test ideas, or a narrative of how the scope was reached. Include
+history only when it defines a current compatibility constraint or risk.
+
 ## Output
 
 Return one test-scope packet containing:

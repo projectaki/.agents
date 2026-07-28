@@ -21,8 +21,8 @@ change set is incomplete or ambiguous, return the precise blocker.
    and shared dependency.
 2. Trace callers, consumers, routes, endpoints, jobs, state, permissions, data
    boundaries, and user-visible behavior beyond the edited files.
-3. Derive direct and plausible adjacent regression risks. Preserve matching
-   pre-development risk IDs and assign stable IDs to newly discovered risks.
+3. Derive direct and plausible adjacent regression risks. Reuse applicable
+   pre-development risk IDs and assign stable IDs to all other current risks.
 4. Map each risk to current-head evidence. Classify evidence as sufficient,
    missing, stale, failed, or inaccessible.
 5. Recommend the cheapest reliable next evidence for every gap, in this order:
@@ -39,16 +39,19 @@ Return one regression-scope packet containing:
 
 - exact base, head, diff fingerprint, change summary, and assumptions
 - changed files and symbols mapped to affected behavior and consumers
-- ordered risk register with ID, source (`planned` or `new`), priority, failure
-  mode, impact, and affected surfaces
+- ordered current risk register with ID, priority, failure mode, impact, and
+  affected surfaces
 - current evidence and status mapped to every risk ID
 - smallest recommended next evidence for each gap, including candidate test
   target or command when known
-- differences from the pre-development test scope
 - complete workflows only for risks marked `video-required`, including
   rationale, preconditions, environment, fixtures, actions, expected result,
   cleanup, and approval prerequisites
 - intentionally excluded areas, unknowns, and blockers
+
+Return a snapshot of risk for the exact final change set. Do not narrate how the
+scope evolved, label risks as old or new, list removed risks, or explain why an
+earlier packet was incomplete. Preserve prior IDs only as stable identifiers.
 
 Do not execute checks or workflows, modify files, create evidence, or treat the
 absence of a video as a gap when automated evidence is sufficient.

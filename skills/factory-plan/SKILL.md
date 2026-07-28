@@ -25,6 +25,12 @@ the precise blocker.
 Do not edit files or implement the change. Do not add speculative refactors or
 requirements not supported by the context.
 
+Use supplied context to derive the plan, not as prose to copy into it. Describe
+the current baseline and the implementation to perform. Omit prior mistakes,
+superseded requirements, discarded approaches, revision history, and
+explanations of how the plan changed. Include an earlier fact only when it
+remains a current compatibility constraint, unresolved decision, or risk.
+
 ## Output
 
 Return one self-contained plan that an implementor agent can execute without

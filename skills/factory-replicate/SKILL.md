@@ -49,6 +49,11 @@ production-data, or externally consequential steps.
 - skipped methods, evidence gaps, safety limits, and residual risk
 - observed boundary, labeled hypotheses, and needed human decisions
 
+State the reproducible current baseline and structured attempt data. Context
+informs the baseline but is not packet content. Do not narrate earlier issue
+wording, corrected misunderstandings, discarded reproduction ideas, or how the
+steps evolved.
+
 ## Stop
 
 Return the replication packet. Do not diagnose beyond the evidence, edit product

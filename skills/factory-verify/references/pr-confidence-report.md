@@ -2,7 +2,7 @@
 
 ## Summary
 
-- **Why:** <intended outcome>
+- **Outcome:** <current intended behavior>
 - **Changed:** <implemented behavior>
 - **Affected:** <users, systems, contracts, data, and operations>
 - **Change set:** <base, head, and diff fingerprint>
@@ -39,12 +39,6 @@ remote CI pending.
 State when no manual or video evidence was required. A missing video is not a
 gap when automated evidence sufficiently covers the risk.
 
-## Scope reconciliation
-
-- **Planned risks retained:** <risk IDs>
-- **New final-diff risks:** <risk IDs>
-- **Planned risks removed:** <risk IDs and reason>
-
 ## Review and confidence
 
 - **Review:** <verdict and unresolved findings>
@@ -54,3 +48,6 @@ gap when automated evidence sufficiently covers the risk.
 - **Residual risk:** <remaining unknowns>
 - **Next work:** <specific tests, evidence, or implementation changes>
 - **Human decision:** <approval, exception, or more work>
+
+Describe only the current verified change set. Do not include revision history,
+removed risks, earlier failures, corrected mistakes, or superseded scope.

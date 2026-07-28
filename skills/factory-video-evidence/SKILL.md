@@ -85,5 +85,7 @@ scope.
 Return the shared run path, auth profile used without secret values, workflow
 risk ID, reason video was required, result (`pass`, `fail`, `blocked`, or
 `not-run`), observed result, script path, video path when recording started,
-cleanup status, deviations, and residual risk. Say only that no regression was
-observed in a passing workflow; video evidence complements automated tests.
+cleanup status, current unmet workflow requirements, and residual risk. Report
+the final run state, not the chronology of discovery or earlier failed attempts.
+Say only that no regression was observed in a passing workflow; video evidence
+complements automated tests.

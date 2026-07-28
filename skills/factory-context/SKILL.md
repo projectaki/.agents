@@ -36,15 +36,19 @@ in the main session and state that limitation in the final packet.
 
 - the requested change, desired outcome, scope, and acceptance criteria
 - current behavior and the relevant architecture
-- relevant files, code areas, tests, documentation, and history
+- relevant files, code areas, tests, and documentation
 - project conventions, constraints, and authoritative external sources
 - confirmed facts, reasonable inferences, conflicts, assumptions, and unknowns
 - only the questions whose answers materially change the work
 
-## Human-readable output (current)
+Use history to establish the current state, not as content by default. Include a
+historical fact only when it still defines current behavior, compatibility,
+migration, or an unresolved decision. Do not narrate superseded requirements,
+earlier wording, discarded approaches, or how prior documentation was wrong.
 
-This is the current presentation contract. Keep it separate from the research
-workflow so it can be replaced later without changing how evidence is gathered.
+## Human-readable output
+
+Keep the presentation contract separate from the research workflow.
 
 Write for a human reviewer:
 

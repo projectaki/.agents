@@ -38,7 +38,12 @@ and one attempt; do not install tools or seek elevated access solely to run them
 - commands run, results, and the exact head or diff they cover
 - skipped checks, fallbacks, and residual risk
 - risk IDs without automated coverage and the reason
-- plan deviations, unresolved risks, and human decisions
+- current scope not implemented, unresolved risks, and decisions still needed
+
+Write the packet as the current implementation state. Do not narrate earlier
+attempts, corrected mistakes, or superseded plan details. Mention a divergence
+from the approved plan only when it leaves a current scope, risk, or decision
+that the next lifecycle must handle.
 
 ## Stop
 

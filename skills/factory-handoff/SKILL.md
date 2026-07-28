@@ -44,7 +44,8 @@ Never invent another path or fall back to a temporary directory. If the path can
 ```
 
 - `state.md` is the canonical task record and pointer to the latest handoff.
-- `handoff.md` is the canonical lifecycle handoff. Replace it whenever that lifecycle completes again.
+- `handoff.md` is the canonical lifecycle handoff. Replace it whenever that
+  lifecycle completes again and describe only the latest checkpoint.
 - `context.md` contains detailed context that would make `handoff.md` unnecessarily large. Create it only when useful.
 - Store supporting files under `artifacts/`; use the fixed `images/` and `diagrams/` subdirectories for those media types.
 - Reference every supporting file from `handoff.md` using paths relative to the lifecycle directory.
@@ -64,6 +65,13 @@ analysis/
 
 Do not use timestamps or ad hoc handoff names in canonical paths.
 
+Treat supplied packets, discussion, and earlier checkpoints as sources used to
+derive the current checkpoint. Do not copy their commentary or narrate
+superseded wording, corrected mistakes, discarded approaches, or prior versions.
+Retain an earlier fact only when it remains an active decision, constraint,
+risk, blocker, or required provenance. Git HEAD, task revision, validation
+results, and artifact references are state data and should remain explicit.
+
 The layout supports one active orchestrated task per project and branch. If `state.md` already exists, resume that task. Do not replace it with a different objective unless the human explicitly archives or clears the existing task state.
 
 ## Persist a lifecycle result
@@ -81,6 +89,8 @@ After an actor returns any lifecycle result and before the router selects the ne
    - validation performed;
    - risks, blockers, and unresolved questions;
    - inputs the router needs for its next decision.
+   Express each item as current state. Replace superseded values instead of
+   appending a correction or change narrative.
 3. Write optional detailed material to `context.md` and supporting files to `artifacts/`.
    For `ANALYSIS`, write and validate the required `analysis-report.md` before checkpointing.
 4. Update root `state.md` with:

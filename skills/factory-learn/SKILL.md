@@ -16,6 +16,10 @@ Identify knowledge worth preserving. Remain read-only.
    explain a durable repository-specific constraint.
 3. Keep every proposal factual, actionable, concise, and free of secrets,
    sensitive logs, transient environment failures, and speculation.
+4. Write proposed project guidance as a standalone statement of the durable
+   current rule. Use the incident or feedback as evidence for the proposal, not
+   as content. Do not include the triggering mistake, prior wording, correction
+   story, or phrases such as “previously” and “we learned.”
 
 ## Output
 
@@ -27,6 +31,8 @@ Return:
   decision record, or a follow-up task
 - exact proposed content or follow-up wording
 - duplicates, conflicts, stale guidance, and decisions required from the user
+
+Keep evidence and rationale outside the exact proposed content.
 
 Do not edit files, create follow-ups, send messages, or perform external
 actions. The user decides whether and where to preserve each proposal.

@@ -19,6 +19,11 @@ Inspect the complete supplied subject against the supplied criteria. Report all 
 
 Do not modify the subject or inspect another reviewer's result. If required context is missing or unavailable, return `incomplete`; do not retry, substitute a model, or start another lifecycle.
 
+Review and describe only the supplied revision. Context may establish expected
+behavior but is not review content. Do not discuss findings from earlier
+revisions, already-corrected mistakes, or how the subject changed unless the
+review criteria explicitly require historical analysis.
+
 ## Output
 
 Return:
