@@ -2,13 +2,9 @@
 set -euo pipefail
 
 usage() {
-  echo "usage: resolve-handoff-path.sh --root | <lifecycle>" >&2
+  echo "usage: resolve-handoff-path.sh --root | --history | --checkpoint <sequence> <lifecycle> | <lifecycle>" >&2
   exit 2
 }
-
-if [[ "$#" -ne 1 ]]; then
-  usage
-fi
 
 slugify() {
   local raw_value="$1"
@@ -43,20 +39,49 @@ fi
 branch_slug="$(slugify "$branch_name")"
 task_root="${HOME}/.agents-db/${project_slug}/${branch_slug}"
 
-if [[ "$1" == "--root" ]]; then
+if [[ "$#" -eq 1 && "$1" == "--root" ]]; then
   printf '%s\n' "$task_root"
   exit 0
 fi
 
-lifecycle_name="${1//_/-}"
-lifecycle_slug="$(slugify "$lifecycle_name")"
-case "$lifecycle_slug" in
-  intake|context-gathering|analysis|planning|implementation|review|verification|delivery|awaiting-input|completed|cancelled)
-    ;;
-  *)
-    echo "unknown orchestrator lifecycle: $1" >&2
+if [[ "$#" -eq 1 && "$1" == "--history" ]]; then
+  printf '%s\n' "${task_root}/history/checkpoints"
+  exit 0
+fi
+
+resolve_lifecycle_slug() {
+  local lifecycle_name="${1//_/-}"
+  local lifecycle_slug
+
+  lifecycle_slug="$(slugify "$lifecycle_name")"
+  case "$lifecycle_slug" in
+    intake|context-gathering|analysis|planning|implementation|review|verification|delivery|awaiting-input|completed|cancelled)
+      printf '%s' "$lifecycle_slug"
+      ;;
+    *)
+      echo "unknown orchestrator lifecycle: $1" >&2
+      exit 2
+      ;;
+  esac
+}
+
+if [[ "$#" -eq 3 && "$1" == "--checkpoint" ]]; then
+  checkpoint_sequence="$2"
+  if [[ ! "$checkpoint_sequence" =~ ^[0-9]+$ ]] || (( 10#$checkpoint_sequence < 1 )); then
+    echo "checkpoint sequence must be a positive integer: $checkpoint_sequence" >&2
     exit 2
-    ;;
-esac
+  fi
+
+  lifecycle_slug="$(resolve_lifecycle_slug "$3")"
+  printf -v padded_sequence '%06d' "$((10#$checkpoint_sequence))"
+  printf '%s\n' "${task_root}/history/checkpoints/${padded_sequence}-${lifecycle_slug}"
+  exit 0
+fi
+
+if [[ "$#" -ne 1 ]]; then
+  usage
+fi
+
+lifecycle_slug="$(resolve_lifecycle_slug "$1")"
 
 printf '%s\n' "${task_root}/${lifecycle_slug}"

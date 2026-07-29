@@ -499,6 +499,11 @@ The `factory-handoff` skill owns path resolution and the persistence format. Eve
 ```text
 $HOME/.agents-db/<project_slug>/<branch_slug>/
 ├── state.md
+├── history/
+│   └── checkpoints/
+│       └── <sequence>-<lifecycle_slug>/
+│           ├── manifest.md
+│           └── snapshot/
 └── <lifecycle_slug>/
     ├── handoff.md
     ├── context.md
@@ -507,7 +512,17 @@ $HOME/.agents-db/<project_slug>/<branch_slug>/
         └── diagrams/
 ```
 
-`state.md` is the canonical task record and latest-handoff pointer. Each lifecycle directory holds the context and artifacts required to understand that lifecycle without conversation history. When a lifecycle completes again, replace that lifecycle's canonical handoff with the newer revision.
+`state.md` is the canonical task record and latest-handoff pointer. Each
+lifecycle directory holds the context and artifacts required to understand that
+lifecycle without conversation history. When a lifecycle completes again,
+replace that lifecycle's canonical handoff with the newer revision.
+
+Every completed checkpoint also creates an immutable historical snapshot using
+one branch-task-wide monotonic checkpoint sequence. A snapshot contains the
+handoff and every mutable branch-task file it references, preserving
+branch-relative paths. This history supports observation, audit, and
+orchestration improvement. It is never an alternate source for routing,
+recovery, or artifact freshness.
 
 Only one orchestrated task may be active for a project and branch. If `state.md` already exists, resume it rather than initializing a different task at the same path. Replacing existing task state requires explicit human direction.
 
@@ -526,8 +541,10 @@ status: lifecycle_active | lifecycle_checkpointed | transition_pending | termina
 state: current lifecycle
 last_checkpointed_lifecycle: lifecycle | null
 revision: monotonic task revision
+checkpoint_sequence: monotonic committed checkpoint sequence
 task_contract: reference
 latest_handoff: relative path
+latest_snapshot: relative manifest path
 artifacts:
   context: reference
   analysis_report: reference
@@ -542,12 +559,22 @@ last_actor_result: reference | null
 pending_transition: reference | null
 last_route: reference
 transition_history: []
+checkpoint_history:
+  - sequence: integer
+    lifecycle: lifecycle
+    task_revision: integer
+    invocation_id: stable identifier | null
+    snapshot: relative manifest path
 git_head: commit | null
 worktree_dirty: boolean
 terminal_result: reference | null
 ```
 
 Artifact references are relative to the lifecycle directory unless explicitly marked external.
+`checkpoint_history` contains one compact entry per committed checkpoint in
+sequence order. `transition_history` records routing decisions;
+`checkpoint_history` records the persisted lifecycle results that those
+decisions consumed.
 
 ### Transition ordering
 
@@ -555,7 +582,9 @@ For restart safety:
 
 1. Persist the actor result.
 2. Confirm the lifecycle exit gate.
-3. Invoke the `factory-handoff` skill in persist mode with the actor outcome and exit-gate result, then verify `state.md`, `handoff.md`, and referenced artifacts.
+3. Invoke the `factory-handoff` skill in persist mode with the actor outcome and
+   exit-gate result. It writes and verifies the canonical handoff, immutable
+   historical snapshot, state index, and referenced artifacts.
 4. Evaluate the router using the verified handoff.
 5. Persist the routing decision and new lifecycle.
 6. Dispatch the next actor.
@@ -568,6 +597,8 @@ At orchestrator start, restart, or post-compaction recovery:
 
 - Invoke the `factory-handoff` skill in resume mode.
 - Read `state.md`, the latest lifecycle `handoff.md`, and the artifacts required for routing.
+- Verify the indexed latest historical snapshot and report incomplete or
+  inconsistent history without treating history as routing state.
 - Reconcile the persisted project, branch, Git HEAD, and dirty-worktree state with the current workspace.
 - If status is `lifecycle_checkpointed`, route from the persisted actor outcome and exit-gate result.
 - If status is `transition_pending`, recover the pending human approval before dispatching work.

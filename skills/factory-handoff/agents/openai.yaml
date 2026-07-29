@@ -1,4 +1,4 @@
 interface:
   display_name: "Factory Handoff"
-  short_description: "Persist and resume lifecycle checkpoints"
-  default_prompt: "Use $factory-handoff to persist or resume this lifecycle at its deterministic task path."
+  short_description: "Persist, observe, and resume lifecycle checkpoints"
+  default_prompt: "Use $factory-handoff to persist an immutable lifecycle checkpoint or resume the current task state."
