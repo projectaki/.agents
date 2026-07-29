@@ -500,10 +500,15 @@ The `factory-handoff` skill owns path resolution and the persistence format. Eve
 $HOME/.agents-db/<project_slug>/<branch_slug>/
 ├── state.md
 ├── history/
-│   └── checkpoints/
-│       └── <sequence>-<lifecycle_slug>/
-│           ├── manifest.md
-│           └── snapshot/
+│   ├── timeline.md
+│   ├── checkpoints/
+│   │   └── <sequence>-<lifecycle_slug>/
+│   │       ├── manifest.md
+│   │       └── snapshot/
+│   └── routes/
+│       └── <sequence>-<from>--<to>/
+│           ├── decision.md
+│           └── disposition.md
 └── <lifecycle_slug>/
     ├── handoff.md
     ├── context.md
@@ -524,6 +529,18 @@ branch-relative paths. This history supports observation, audit, and
 orchestration improvement. It is never an alternate source for routing,
 recovery, or artifact freshness.
 
+Every router evaluation creates an immutable route-decision record before the
+route is proposed or committed. The record includes all evaluated edges, guard
+results, evidence, routing signals, selected edge, rationale, invalidations,
+and next-actor policy. Approval or rejection is stored separately as an
+immutable disposition, so rejected proposals and interrupted transitions remain
+observable.
+
+`history/timeline.md` is a replaceable, derived view of checkpoint and route
+records. It shows the lifecycle path and reasoning in chronological order for
+humans analyzing run quality. It is not canonical state and must never drive
+routing.
+
 Only one orchestrated task may be active for a project and branch. If `state.md` already exists, resume it rather than initializing a different task at the same path. Replacing existing task state requires explicit human direction.
 
 Do not advance when the deterministic handoff path cannot be resolved, written, or validated.
@@ -542,9 +559,11 @@ state: current lifecycle
 last_checkpointed_lifecycle: lifecycle | null
 revision: monotonic task revision
 checkpoint_sequence: monotonic committed checkpoint sequence
+route_sequence: monotonic router-evaluation sequence
 task_contract: reference
 latest_handoff: relative path
 latest_snapshot: relative manifest path
+latest_route_record: relative decision path | null
 artifacts:
   context: reference
   analysis_report: reference
@@ -558,23 +577,14 @@ active_invocation: reference | null
 last_actor_result: reference | null
 pending_transition: reference | null
 last_route: reference
-transition_history: []
-checkpoint_history:
-  - sequence: integer
-    lifecycle: lifecycle
-    task_revision: integer
-    invocation_id: stable identifier | null
-    snapshot: relative manifest path
 git_head: commit | null
 worktree_dirty: boolean
 terminal_result: reference | null
 ```
 
-Artifact references are relative to the lifecycle directory unless explicitly marked external.
-`checkpoint_history` contains one compact entry per committed checkpoint in
-sequence order. `transition_history` records routing decisions;
-`checkpoint_history` records the persisted lifecycle results that those
-decisions consumed.
+Artifact references are relative to the lifecycle directory unless explicitly
+marked external. Canonical state stores only current counters and pointers;
+complete checkpoint and routing history lives under `history/`.
 
 ### Transition ordering
 
@@ -586,10 +596,14 @@ For restart safety:
    exit-gate result. It writes and verifies the canonical handoff, immutable
    historical snapshot, state index, and referenced artifacts.
 4. Evaluate the router using the verified handoff.
-5. Persist the routing decision and new lifecycle.
-6. Dispatch the next actor.
+5. Persist and verify the immutable route-decision record and update the
+   lifecycle timeline.
+6. Persist the routing decision and new lifecycle.
+7. Write the committed route disposition, update the timeline, and dispatch the
+   next actor.
 
-The temporary human approval gate below modifies steps 5 and 6 but never permits routing before step 3 succeeds.
+The temporary human approval gate below modifies steps 5 through 7 but never
+permits routing before step 3 succeeds.
 
 ### Resume and interrupted actors
 
@@ -599,6 +613,8 @@ At orchestrator start, restart, or post-compaction recovery:
 - Read `state.md`, the latest lifecycle `handoff.md`, and the artifacts required for routing.
 - Verify the indexed latest historical snapshot and report incomplete or
   inconsistent history without treating history as routing state.
+- Verify the indexed latest route decision and disposition. Rebuild a stale or
+  missing lifecycle timeline from immutable history records.
 - Reconcile the persisted project, branch, Git HEAD, and dirty-worktree state with the current workspace.
 - If status is `lifecycle_checkpointed`, route from the persisted actor outcome and exit-gate result.
 - If status is `transition_pending`, recover the pending human approval before dispatching work.
@@ -630,12 +646,21 @@ This temporary gate overrides the ordinary transition-ordering rules:
 
 1. The current lifecycle result's `factory-handoff` checkpoint is persisted and verified.
 2. The router evaluates that handoff and proposes one permitted transition.
-3. The orchestrator presents the current lifecycle, proposed lifecycle, passed guard, rationale, invalidated artifacts, and next actor/model tier.
-4. The orchestrator records the proposal in `state.md` with status `transition_pending` without changing the canonical lifecycle or dispatching an actor.
-5. The orchestrator waits for explicit human approval.
-6. On approval, the orchestrator commits the new lifecycle in `state.md` and dispatches its actor.
-7. On rejection, the orchestrator records the rejection, leaves the lifecycle unchanged, and waits for direction or reevaluates the route using new human input.
+3. The orchestrator persists the immutable route decision and regenerates the
+   lifecycle timeline.
+4. The orchestrator presents the current lifecycle, proposed lifecycle, passed guard, rationale, invalidated artifacts, and next actor/model tier.
+5. The orchestrator records the proposal in `state.md` with status `transition_pending` without changing the canonical lifecycle or dispatching an actor.
+6. The orchestrator waits for explicit human approval.
+7. On approval, the orchestrator commits the new lifecycle in `state.md`, writes
+   the immutable committed disposition, updates the timeline, and dispatches
+   its actor.
+8. On rejection, the orchestrator writes the immutable rejected disposition,
+   updates the timeline, leaves the lifecycle unchanged, and waits for
+   direction or reevaluates the route using new human input.
 
-For initial entry into `INTAKE`, initialize the branch-level `state.md` and record the proposed entry as `transition_pending`; no prior lifecycle handoff exists.
+For initial entry into `INTAKE`, initialize branch-level `state.md` with no
+current lifecycle and both history sequences at `0`. Persist the
+`initial -> INTAKE` route decision, then record the proposed entry as
+`transition_pending`; no prior lifecycle handoff exists.
 
 The gate applies to initial entry into `INTAKE` and every transition shown in the state machine.
