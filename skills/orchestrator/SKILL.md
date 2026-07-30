@@ -27,7 +27,9 @@ Treat the reference as the normative execution protocol. If another instruction 
 
 - Keep the root task in exactly one canonical lifecycle.
 - Retain exclusive authority to invoke the router and commit state transitions.
-- Delegate lifecycle work to bounded actors as required by the protocol.
+- Delegate every lifecycle's work to bounded actors as required by the
+  protocol. The primary thread performs orchestration only: routing, dispatch,
+  checkpointing, reconciliation, and human reporting.
 - Treat actor outputs as evidence and recommendations, never as transition commands.
 - After every lifecycle actor result, invoke the `factory-handoff` skill to persist the result and exit-gate outcome before routing.
 - Do not propose, approve, or commit the next lifecycle until the handoff checkpoint is verified.
@@ -35,10 +37,27 @@ Treat the reference as the normative execution protocol. If another instruction 
 - Use one implementer. Parallelize only planning when the protocol's guard requires it.
 - Do not declare completion until every applicable completion invariant passes.
 
-Use the runtime's native mechanisms for actor delegation, filesystem access, Git, and pull-request delivery.
+Use the runtime's native mechanisms for filesystem access, Git, and pull-request
+delivery. Actor delegation is stricter:
 
 - Keep lifecycle roles provider-neutral. Resolve `fast`, `standard`, and `high`
   through `MODEL_TIERS.md` only at the actor-dispatch boundary.
+- Use only the `fast-worker`, `standard-worker`, and `high-worker` profiles.
+  Lifecycle roles belong in the assignment, not in separate agent profiles.
+- Name every visible actor thread after its selected worker profile.
+- Use only the runtime's built-in subagent mechanism. In Codex and Claude,
+  select the named custom agent profile directly. Do not invoke `$codex-cli`,
+  `$claude-cli`, or another external agent process for lifecycle work.
+- Give the selected tier worker the lifecycle skill, bounded role, mutation
+  authority, canonical inputs, and output contract. The worker executes the
+  lifecycle skill directly and must not spawn a nested lifecycle actor.
+- Write a concise dispatch receipt in the primary thread for every actor:
+  1. Immediately before spawning, say
+     `Routing selected: <lifecycle> -> <tier> -> <worker-profile> (<model>, <effort>). Starting native subagent.`
+  2. Only after native spawn succeeds, say
+     `Started: <worker-profile> for <lifecycle> using its pinned <model>, <effort> profile.`
+  Do not write the second line when spawning fails. Do not include internal
+  assignment, invocation, or agent IDs in either line.
 - Include the bounded lifecycle role and mutation authority in every tier-worker assignment.
 - Start every fresh bounded assignment at `fast`. Escalate a replacement attempt
   by exactly one tier only when the prior attempt has persisted evidence of
@@ -46,6 +65,9 @@ Use the runtime's native mechanisms for actor delegation, filesystem access, Git
 - Persist the assignment ID, attempt number, selected abstract tier, resolved
   runtime, worker profile, concrete model, effort, enforcement status, and any
   escalation rationale.
+- Record `runtime_enforcement: confirmed` only when native dispatch selected
+  the named profile whose file pins the configured model and effort. If native
+  custom-agent selection is unavailable, stop before lifecycle work.
 
 ## Reload
 

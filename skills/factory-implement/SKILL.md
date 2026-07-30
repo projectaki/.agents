@@ -5,6 +5,13 @@ description: "Use only when the human explicitly starts the implementation lifec
 
 # Factory Implement
 
+## Execution boundary
+
+When used by the orchestrator, the primary thread must spawn the tier worker
+selected by routing and instruct that worker to use this skill. The primary
+thread must not perform this lifecycle workflow. A tier worker executes the
+workflow directly and does not spawn another lifecycle actor.
+
 Implement an approved plan and nothing more.
 
 ## Need
@@ -31,9 +38,10 @@ failed checks as work to investigate and unrun checks as unknown. If a required
 check is inaccessible, report the blocker. If evidence invalidates the plan,
 request a plan revision instead of expanding scope.
 
-Spawn subagents for bounded implementation steps only when useful and allowed by
-repository policy. For optional conditional tools, make one availability check
-and one attempt; do not install tools or seek elevated access solely to run them.
+Do not spawn nested implementation agents. The selected tier worker owns the
+bounded implementation assignment. For optional conditional tools, make one
+availability check and one attempt; do not install tools or seek elevated
+access solely to run them.
 
 ## Return
 

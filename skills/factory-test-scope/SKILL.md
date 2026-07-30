@@ -5,6 +5,13 @@ description: "Use when the human explicitly starts pre-development test scoping 
 
 # Factory Test Scope
 
+## Execution boundary
+
+When used by the orchestrator, the primary thread must spawn the tier worker
+selected by routing and instruct that worker to use this skill. The primary
+thread must not perform this lifecycle workflow. A tier worker executes the
+workflow directly and does not spawn another lifecycle actor.
+
 Define the smallest reliable test coverage for a proposed change before
 implementation. Remain read-only.
 

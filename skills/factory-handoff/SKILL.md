@@ -138,6 +138,11 @@ assignment_id: implementation-r1
 attempt: 2
 model_tier: standard
 attempted_model_tiers: [fast, standard]
+runtime: codex
+worker_profile: standard-worker
+resolved_model: gpt-5.6-terra
+resolved_effort: medium
+dispatch_mechanism: native_profile
 runtime_enforcement: confirmed
 escalation_rationale: Fast attempt omitted required acceptance-criteria evidence.
 actor_outcome: succeeded
@@ -330,8 +335,8 @@ After an actor returns any lifecycle result and before the router selects the ne
    - a first link to the lifecycle's `report.md`;
    - task objective and acceptance criteria;
    - lifecycle, task revision, assignment ID, invocation ID, attempt number,
-     current tier, attempted tiers, resolved runtime details, runtime
-     enforcement, actor outcome, and exit-gate result;
+     current tier, attempted tiers, resolved runtime details, dispatch
+     mechanism, runtime enforcement, actor outcome, and exit-gate result;
    - lifecycle output summary;
    - decisions, assumptions, and constraints;
    - canonical artifacts and evidence;

@@ -5,6 +5,13 @@ description: "Use only when the human explicitly starts final verification for a
 
 # Factory Verify
 
+## Execution boundary
+
+When used by the orchestrator, the primary thread must spawn the tier worker
+selected by routing and instruct that worker to use this skill. The primary
+thread must not perform this lifecycle workflow. A tier worker executes the
+workflow directly and does not spawn another lifecycle actor.
+
 Produce the final pre-PR confidence report. Do not modify the implementation.
 
 ## Input

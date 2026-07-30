@@ -502,10 +502,23 @@ replacement may advance only to the next tier. After an insufficient `high`
 attempt, the router must follow a permitted lifecycle edge or enter
 `AWAITING_INPUT`; it must not repeat `high`.
 
-When the runtime dispatch API cannot select a concrete model or effort, record
-`runtime_enforcement: intended` rather than claiming the mapping was enforced.
-Use `confirmed` only when dispatch accepted the explicit worker profile, model,
-and effort.
+Use only `fast-worker`, `standard-worker`, and `high-worker` for actor
+dispatch. The lifecycle role is part of the bounded assignment and must not be
+encoded as another custom-agent profile.
+
+The visible thread name must equal the selected worker profile, but the name is
+not proof of model selection. Use `confirmed` only when dispatch accepted the
+explicit native custom-agent profile whose file pins the model and effort. Do
+not use Codex CLI, Claude CLI, or another external agent process as a fallback.
+If the native runtime cannot select the profile, do not dispatch lifecycle
+work.
+
+For every actor dispatch, the primary thread must provide a user-visible
+receipt. Before spawning, announce the lifecycle, abstract tier, selected
+worker profile, concrete model, and effort. After native spawning succeeds,
+confirm that the named worker started with its pinned profile. Do not emit the
+success confirmation when spawning fails, and keep internal IDs out of the
+human-visible receipt.
 
 ### Router result
 
@@ -546,7 +559,8 @@ runtime: codex | claude
 worker_profile: runtime worker profile
 resolved_model: concrete model identifier
 resolved_effort: runtime effort value
-runtime_enforcement: intended | confirmed
+dispatch_mechanism: native_profile
+runtime_enforcement: confirmed
 outcome: succeeded | failed | blocked | inconclusive
 confidence: low | medium | high
 summary: concise result

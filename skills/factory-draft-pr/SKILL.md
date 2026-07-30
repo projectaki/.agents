@@ -5,6 +5,13 @@ description: "Create or update a GitHub draft pull request after factory verific
 
 # Factory Draft PR
 
+## Execution boundary
+
+When used by the orchestrator, the primary thread must spawn the tier worker
+selected by routing and instruct that worker to use this skill. The primary
+thread must not perform this lifecycle workflow. A tier worker executes the
+workflow directly and does not spawn another lifecycle actor.
+
 Publish one evidence-backed draft PR for the verified change.
 
 ## Input

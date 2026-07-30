@@ -5,6 +5,13 @@ description: "Use when the human explicitly starts post-implementation regressio
 
 # Factory Regression Scope
 
+## Execution boundary
+
+When used by the orchestrator, the primary thread must spawn the tier worker
+selected by routing and instruct that worker to use this skill. The primary
+thread must not perform this lifecycle workflow. A tier worker executes the
+workflow directly and does not spawn another lifecycle actor.
+
 Determine what the completed implementation could have regressed. Remain
 read-only.
 

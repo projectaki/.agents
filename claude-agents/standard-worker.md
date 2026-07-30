@@ -1,6 +1,6 @@
 ---
 name: standard-worker
-description: Bounded orchestrator worker for standard-tier lifecycle work.
+description: Use when the orchestrator routes a lifecycle assignment to the standard tier.
 model: claude-sonnet-5
 effort: medium
 ---

@@ -5,32 +5,29 @@ description: "Use only when the human explicitly starts the context lifecycle fo
 
 # Factory Context
 
+## Execution boundary
+
+When used by the orchestrator, the primary thread must spawn the tier worker
+selected by routing and instruct that worker to use this skill. The primary
+thread must not perform this lifecycle workflow. A tier worker executes the
+workflow directly and does not spawn another lifecycle actor.
+
 Build the evidence base for planning. Do not plan or implement.
 
 ## Workflow
 
 1. Read the request and complete issue, including linked artifacts. Extract the
    outcome, scope, acceptance criteria, constraints, and unresolved decisions.
-2. Spawn exactly one `context-researcher` subagent to perform repository and
-   documentation discovery. Give it the complete request, supplied artifacts,
-   repository or worktree, applicable instructions, and the evidence needed for
-   this packet.
-3. Ask the subagent to trace the relevant code, tests, configuration, history,
-   and repository documentation. It may search authoritative online sources
-   when external APIs, libraries, standards, or current behavior matter.
-4. Wait for the subagent, then cross-check its findings against the request.
-   Separate confirmed facts, reasonable inferences, and unknowns. Use a focused
-   follow-up with the same subagent for a material omission when supported.
-5. Resolve discoverable gaps before asking the human, then return one
+2. Trace the relevant code, tests, configuration, history, and repository
+   documentation. Search authoritative online sources when external APIs,
+   libraries, standards, or current behavior matter.
+3. Cross-check the findings against the request. Separate confirmed facts,
+   reasonable inferences, and unknowns.
+4. Resolve discoverable gaps before asking the human, then return one
    self-contained context packet.
 
-Keep repository exploration, command output, and working notes inside the
-subagent. The main session should read only enough repository state to prepare
-the delegation, reconcile conflicting evidence, or fill a specific gap. Do not
-repeat the subagent's full discovery in the main session.
-
-If repository policy or the runtime prevents subagent use, perform the research
-in the main session and state that limitation in the final packet.
+When the orchestrator dispatches this lifecycle, the selected tier worker owns
+the complete workflow. Do not spawn another role-specific agent.
 
 ## Evidence to include
 

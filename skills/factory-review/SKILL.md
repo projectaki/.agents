@@ -5,6 +5,13 @@ description: "Perform one bounded, read-only review of a supplied subject and re
 
 # Factory Review
 
+## Execution boundary
+
+When used by the orchestrator, the primary thread must spawn the tier worker
+selected by routing and instruct that worker to use this skill. The primary
+thread must not perform this lifecycle workflow. A tier worker executes the
+workflow directly and does not spawn another lifecycle actor.
+
 Perform one independent, read-only review of the supplied subject.
 
 The caller supplies the reviewer focus, selected model tier, and bounded assignment. Do not spawn agents, invoke another CLI, choose a model, coordinate other reviewers, or merge other review results.

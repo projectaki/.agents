@@ -1,6 +1,6 @@
 ---
 name: fast-worker
-description: Bounded orchestrator worker for latency-first lifecycle work.
+description: Use when the orchestrator routes a lifecycle assignment to the fast tier.
 model: claude-sonnet-5
 effort: low
 ---

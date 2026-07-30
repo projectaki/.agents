@@ -1,6 +1,6 @@
 ---
 name: high-worker
-description: Bounded orchestrator worker for high-tier lifecycle work.
+description: Use when the orchestrator routes a lifecycle assignment to the high tier.
 model: claude-opus-5
 effort: high
 ---

@@ -5,6 +5,13 @@ description: "Use only when the human explicitly starts the replication lifecycl
 
 # Factory Replicate
 
+## Execution boundary
+
+When used by the orchestrator, the primary thread must spawn the tier worker
+selected by routing and instruct that worker to use this skill. The primary
+thread must not perform this lifecycle workflow. A tier worker executes the
+workflow directly and does not spawn another lifecycle actor.
+
 Create a trustworthy pre-fix bug baseline.
 
 ## Need
@@ -23,13 +30,12 @@ steps, evidence, and safety limits. Reject non-bug work or report missing input.
    causes as hypotheses.
 6. Sanitize evidence and keep temporary artifacts outside tracked files.
 
-Spawn one `bug-reproducer` subagent. For visible behavior, also spawn one
-`user-simulator`. If repository policy or the runtime prevents spawning,
-perform the roles in the main session and report the omission. For conditional
-tools, make one availability check and one attempt, then use a reachable
-fallback. Do not install tools or seek elevated access only for optional
-evidence. If an inaccessible condition is essential, return `inconclusive` or
-`blocked`, not `not-reproduced`.
+The selected tier worker owns reproduction and, for visible behavior, the user
+perspective. Do not spawn role-specific agents. For conditional tools, make one
+availability check and one attempt, then use a reachable fallback. Do not
+install tools or seek elevated access only for optional evidence. If an
+inaccessible condition is essential, return `inconclusive` or `blocked`, not
+`not-reproduced`.
 
 Get human approval before destructive, irreversible, credentialed,
 production-data, or externally consequential steps.
