@@ -1,67 +1,51 @@
 ---
 name: factory-plan
-description: "Use only when the human explicitly starts the planning lifecycle with change context and a completed factory-test-scope packet. Convert those inputs into a detailed, implementation-ready plan without editing files or implementing the change."
+description: "Use only when the human explicitly starts planning with change context and a current factory-test-scope packet. Produce an implementation-ready plan without editing files or implementing."
 ---
 
 # Factory Plan
 
-## Execution boundary
+Create the smallest complete implementation plan.
 
-When used by the orchestrator, the primary thread must spawn the tier worker
-selected by routing and instruct that worker to use this skill. The primary
-thread must not perform this lifecycle workflow. A tier worker executes the
-workflow directly and does not spawn another lifecycle actor.
+When orchestrated, the primary thread must delegate this skill to the routed
+tier worker. That worker must not spawn another lifecycle actor.
 
-Convert the supplied context into the smallest complete implementation plan.
+## Inputs
 
-## Input
-
-Require a current `$factory-test-scope` packet for the proposed change. If it is
-missing, stale, or based on materially different acceptance criteria, return
-the precise blocker.
+Require a current `factory-test-scope` packet for the proposed change. Return
+the exact blocker if it is missing, stale, or based on materially different
+acceptance criteria.
 
 ## Workflow
 
-1. Read all supplied context and applicable repository instructions.
-2. Inspect the repository only as needed to ground the plan in current code.
-3. Resolve the requested behavior into ordered, concrete implementation steps.
+1. Read supplied context and repository instructions.
+2. Inspect only enough current code to ground the plan.
+3. Define ordered, concrete implementation steps.
 4. Map every behavioral path and test-scope risk ID to corroborated inspection,
-   targeted automated test work, visual evidence only when automation is
-   insufficient, or an explicit human-approved evidence exception.
-5. Record relevant assumptions, risks, dependencies, and blockers.
+   targeted automation, visual evidence only when automation is insufficient,
+   or a human-approved evidence exception.
+5. Record assumptions, risks, dependencies, and blockers.
 
-Do not edit files or implement the change. Do not add speculative refactors or
-requirements not supported by the context.
-
-Use supplied context to derive the plan, not as prose to copy into it. Describe
-the current baseline and the implementation to perform. Omit prior mistakes,
-superseded requirements, discarded approaches, revision history, and
-explanations of how the plan changed. Include an earlier fact only when it
-remains a current compatibility constraint, unresolved decision, or risk.
+Do not edit, implement, add unsupported requirements, or plan speculative
+refactors. Describe current requirements and constraints without revision
+history or discarded approaches.
 
 ## Output
 
-Return one self-contained agent plan that an implementor agent can execute without
-reconstructing the analysis. Include:
+Return a self-contained agent plan with:
 
 - objective, scope, and acceptance criteria
 - current behavior and relevant architecture
-- ordered steps with expected files, symbols, and logic changes
-- error handling, edge cases, migrations, and observability where relevant
-- test-scope risk IDs mapped to unit, integration, contract, component, or
-  end-to-end test work and expected outcomes
-- behavioral path IDs mapped to implementation steps and the cheapest
-  sufficient planned proof
-- explicitly justified non-automated evidence exceptions
-- assumptions, risks, dependencies, blockers, and rollback notes where relevant
+- ordered steps with expected files, symbols, and logic
+- relevant errors, edge cases, migrations, observability, and rollback
+- risk IDs mapped to test level, work, and expected result
+- path IDs mapped to implementation steps and cheapest sufficient proof
+- justified non-automated exceptions
+- assumptions, risks, dependencies, blockers, and required decisions
 
-When used by the orchestrator, also provide the lifecycle's single human
-`report.md`. Write the plan for alignment and approval: use plain behavior and
-risk names, ordered implementation steps, and small readable sections. Keep
-stable IDs and exhaustive mappings in the agent plan. Do not put them in the
-human report. Avoid tables wider than 4 columns.
+When orchestrated, also write one human `report.md` for approval. Use plain
+behavior and risk names, ordered steps, and small sections. Keep IDs and full
+mappings in the agent plan; avoid tables wider than 4 columns.
 
-If the context is contradictory or lacks a decision that materially changes the
-implementation, return the specific blocker instead of inventing requirements.
-
-Stop after returning the plan or blocker.
+Return a specific blocker instead of inventing a material decision. Stop after
+the plan or blocker.

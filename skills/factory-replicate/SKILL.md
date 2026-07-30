@@ -1,66 +1,57 @@
 ---
 name: factory-replicate
-description: "Use only when the human explicitly starts the replication lifecycle for a reported bug. Reproduce the unchanged failure, minimize the steps, capture a safe pre-fix baseline, and report confidence without diagnosing or fixing it."
+description: "Use only when the human explicitly starts replication for a reported bug. Reproduce the unchanged failure, minimize the steps, capture a safe pre-fix baseline, and report confidence without diagnosing or fixing it."
 ---
 
 # Factory Replicate
 
-## Execution boundary
+Create a trustworthy pre-fix baseline.
 
-When used by the orchestrator, the primary thread must spawn the tier worker
-selected by routing and instruct that worker to use this skill. The primary
-thread must not perform this lifecycle workflow. A tier worker executes the
-workflow directly and does not spawn another lifecycle actor.
+When orchestrated, the primary thread must delegate this skill to the routed
+tier worker. That worker owns reproduction, including the user perspective for
+visible behavior, and must not spawn another lifecycle actor.
 
-Create a trustworthy pre-fix bug baseline.
+## Input
 
-## Need
+Require expected and observed behavior, environment, known steps, evidence, and
+safety limits. Reject non-bug work or report missing input.
 
-A bug context packet with expected and observed behavior, environment, known
-steps, evidence, and safety limits. Reject non-bug work or report missing input.
-
-## Do
+## Workflow
 
 1. Read the context and repository instructions.
 2. Choose the smallest safe reproduction surface.
-3. Reproduce without editing product code. Make at most three attempts unless
-   the context justifies another limit.
-4. Record the exact environment, inputs, steps, result, frequency, and evidence.
+3. Try without editing product code, at most 3 times unless context sets another
+   limit.
+4. Record environment, inputs, steps, result, frequency, and evidence.
 5. Minimize reliable steps and identify the observed boundary. Label unproven
    causes as hypotheses.
 6. Sanitize evidence and keep temporary artifacts outside tracked files.
 
-The selected tier worker owns reproduction and, for visible behavior, the user
-perspective. Do not spawn role-specific agents. For conditional tools, make one
-availability check and one attempt, then use a reachable fallback. Do not
-install tools or seek elevated access only for optional evidence. If an
-inaccessible condition is essential, return `inconclusive` or `blocked`, not
+For conditional tools, check once and try once, then use a reachable fallback.
+Do not install tools or seek elevated access for optional evidence. If an
+essential condition is inaccessible, return `inconclusive` or `blocked`, not
 `not-reproduced`.
 
-Get human approval before destructive, irreversible, credentialed,
-production-data, or externally consequential steps.
+Get approval before destructive, irreversible, credentialed, production-data,
+or externally consequential steps.
 
 ## Verdicts
 
-- `reproduced`: the failure occurred with reliable evidence.
+- `reproduced`: reliable evidence captured the failure.
 - `not-reproduced`: a representative reachable environment did not show it.
-- `inconclusive`: the evidence or environment was insufficient.
-- `blocked`: a required condition could not be accessed safely.
+- `inconclusive`: evidence or environment was insufficient.
+- `blocked`: a required condition was not safely accessible.
 
-## Return
+## Output
 
-- verdict, expected/actual behavior, environment, and preconditions
+Return:
+
+- verdict, expected and actual behavior, environment, and preconditions
 - minimal steps, attempts, frequency, and confidence
-- evidence locations, redactions, retention, and cleanup
-- skipped methods, evidence gaps, safety limits, and residual risk
-- observed boundary, labeled hypotheses, and needed human decisions
+- evidence, redactions, retention, and cleanup
+- skipped methods, gaps, safety limits, and residual risk
+- observed boundary, hypotheses, and required user decisions
 
-State the reproducible current baseline and structured attempt data. Context
-informs the baseline but is not packet content. Do not narrate earlier issue
-wording, corrected misunderstandings, discarded reproduction ideas, or how the
-steps evolved.
-
-## Stop
-
-Return the replication packet. Do not diagnose beyond the evidence, edit product
-code, implement a fix, or start another lifecycle.
+Describe the current baseline and attempt data, not issue history or discarded
+ideas. Do not diagnose beyond evidence, edit product code, fix the bug, or start
+another lifecycle.

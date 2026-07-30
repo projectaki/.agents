@@ -1,4 +1,0 @@
-interface:
-  display_name: "Orchestrator"
-  short_description: "Orchestrate changes with path-level evidence"
-  default_prompt: "Use $orchestrator to coordinate this implementation through analysis, code change, behavioral-path assurance, review, verification, and PR delivery."

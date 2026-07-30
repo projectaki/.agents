@@ -1,16 +1,15 @@
 ---
 name: factory-handoff
-description: Persist immutable lifecycle checkpoints, route reasoning, approval dispositions, and a readable lifecycle timeline while restoring deterministic current handoffs under ~/.agents-db. Use after every lifecycle result, before and after routing to another lifecycle, and whenever an orchestrator resumes, audits, observes, or reconciles task state across agent turns, context compaction, and restarts.
+description: Persist immutable lifecycle checkpoints, route decisions and dispositions, and a readable timeline; restore deterministic current handoffs under ~/.agents-db. Use after each lifecycle result, around routing, and when resuming, auditing, or reconciling Factory state.
 ---
 
 # Factory Handoff
 
-Use this skill in one of three modes: **persist** a lifecycle result, **record**
-a router evaluation or disposition, or **resume** an existing task.
+Use 1 mode: persist a lifecycle result, record a route, or resume a task.
 
-## Resolve the deterministic path
+## Paths
 
-Run the bundled resolver relative to this skill's directory:
+Run the bundled resolver:
 
 ```bash
 <skill-directory>/scripts/resolve-handoff-path.sh <lifecycle>
@@ -18,7 +17,7 @@ Run the bundled resolver relative to this skill's directory:
 <skill-directory>/scripts/resolve-handoff-path.sh --route <sequence> <from> <to>
 ```
 
-The commands return:
+It returns:
 
 ```text
 $HOME/.agents-db/<project_slug>/<branch_slug>/<lifecycle_slug>
@@ -26,18 +25,17 @@ $HOME/.agents-db/<project_slug>/<branch_slug>/history/checkpoints/<sequence>-<li
 $HOME/.agents-db/<project_slug>/<branch_slug>/history/routes/<sequence>-<from>--<to>
 ```
 
-Use `--root` to return the branch task root, `--history` to return the history
-root, and `--timeline` to return the human-readable lifecycle timeline. The
-resolver:
+Use `--root`, `--history`, or `--timeline` for those paths. The resolver:
 
-- derives the project from the Git root basename, falling back to the workspace basename;
-- derives the branch from Git, using `detached-<short_sha>` or `no-branch` when necessary;
-- lowercases names, replaces `/` with `--`, and replaces unsafe characters with `-`;
-- accepts only lifecycles defined by the orchestrator protocol.
+- uses the Git root basename, else workspace basename, for the project
+- uses the Git branch, `detached-<short_sha>`, or `no-branch`
+- lowercases names, changes `/` to `--`, and unsafe characters to `-`
+- accepts only `factory-orchestrator` lifecycles
 
-Never invent another path or fall back to a temporary directory. If the path cannot be created or written, report the blocker and do not advance the lifecycle.
+Never invent or use a temporary fallback path. If the resolved path is not
+writable, report the blocker and do not advance.
 
-## Storage layout
+## Layout
 
 ```text
 ~/.agents-db/<project_slug>/<branch_slug>/
@@ -68,47 +66,34 @@ Never invent another path or fall back to a temporary directory. If the path can
         └── diagrams/
 ```
 
-- `state.md` is the canonical task record and pointer to the latest handoff.
-- `change-assurance-report.md` is the canonical final-diff accountability and
-  behavioral-path evidence report. Create it during implementation and replace
-  it with the current snapshot as the diff or evidence changes.
-- `handoff.md` is the canonical lifecycle handoff. Replace it whenever that
-  lifecycle completes again and describe only the latest checkpoint.
-- `report.md` is the lifecycle's only human review document. Follow the
-  orchestrator's `HUMAN_REPORTS.md` contract. Keep internal IDs, state,
-  traceability matrices, and recovery metadata in agent-oriented files.
-- `history/checkpoints/` is an append-only observation and audit record. It
-  never changes canonical routing or resume behavior.
-- `history/routes/` is an append-only record of router evaluations and their
-  dispositions. A rejected proposal remains observable even though no
-  lifecycle transition occurred.
-- `history/timeline.md` is a derived audit view of the lifecycle run, not a
-  lifecycle report.
-  Replace it from immutable checkpoint and route records after each history
-  event. It is noncanonical and can always be rebuilt.
-- Each checkpoint directory contains `manifest.md` and a self-contained
-  `snapshot/` tree. Copy the canonical handoff and every mutable branch-task
-  file it references into `snapshot/`, preserving each path relative to the
-  branch task root. This keeps historical relative links valid after canonical
-  files change.
-- `context.md` contains detailed context that would make `handoff.md` unnecessarily large. Create it only when useful.
-- Store supporting files under `artifacts/`; use the fixed `images/` and `diagrams/` subdirectories for those media types.
-- Reference every supporting file from `handoff.md` using paths relative to the lifecycle directory.
+- `state.md`: canonical task state and latest-handoff pointer.
+- `change-assurance-report.md`: replaceable current diff/path/evidence record,
+  created during implementation.
+- `handoff.md`: replaceable latest result for 1 lifecycle.
+- `report.md`: that lifecycle's only human document; no internal bookkeeping.
+- `context.md`: optional detail that would bloat `handoff.md`.
+- `artifacts/`: supporting files; put media in `images/` or `diagrams/`.
+- `history/checkpoints/`: append-only observations; never route from them.
+- `history/routes/`: append-only decisions and dispositions, including rejected
+  proposals.
+- `history/timeline.md`: rebuildable, noncanonical view of immutable history.
 
-External references with their own durable identity, including Git commits and
-permanent evidence URLs, remain references and do not need copying. Copy mutable
-local references into the snapshot when they live elsewhere in the branch task
-root. Import a mutable local file outside the branch task root into canonical
-artifacts before snapshotting it. Do not retain credentials, secrets, or
-unredacted sensitive data in either canonical or historical artifacts.
+Link artifacts from `handoff.md` with lifecycle-relative paths. A checkpoint
+snapshot must copy the canonical handoff and every mutable branch-task file it
+references, preserving branch-root-relative paths. Keep durable Git and
+permanent URL references external. Import mutable files outside the task root
+into canonical artifacts first. Never persist secrets or unredacted sensitive
+data.
 
-## Checkpoint identity and history
+Use canonical names only; no timestamps or ad hoc handoff names. One active task
+is allowed per project and branch. Resume an existing `state.md`; replace its
+objective only after explicit archive or clear.
 
-Use one monotonic `checkpoint_sequence` across the branch task. A lifecycle can
-complete several times without changing the task revision, so never identify a
-checkpoint by task revision alone.
+## Checkpoints
 
-Record only the current history counters and pointers in `state.md`:
+Use 1 monotonically increasing `checkpoint_sequence` per branch task. Repeated
+lifecycle runs still get new sequences. Store only current counters and pointers
+in `state.md`:
 
 ```yaml
 checkpoint_sequence: 3
@@ -117,17 +102,11 @@ route_sequence: 2
 latest_route_record: history/routes/000002-review--implementation/decision.md
 ```
 
-For an existing task without these fields, treat the last sequence as `0` and
-initialize an empty history. Never renumber or reuse a committed sequence. Do
-not store the complete checkpoint or route history in `state.md`; canonical
-state contains only what routing and recovery need now.
+For legacy state without these fields, start at `0`. Never reuse, renumber,
+overwrite, or prune committed sequences. Retention after a terminal lifecycle
+requires separate explicit policy.
 
-Write `manifest.md` with the checkpoint sequence, lifecycle, task revision,
-assignment ID, invocation ID, attempt number, tier history, runtime-enforcement
-status, escalation rationale when applicable, actor outcome, exit-gate result,
-Git HEAD, dirty-worktree status, creation time, canonical handoff path, and an
-inventory of copied files. Use SHA-256 for every copied-file checksum. Terminal
-lifecycles without an actor use `invocation_id: null`. Use this manifest shape:
+Write `manifest.md` in this shape:
 
 ```yaml
 checkpoint_sequence: 3
@@ -138,9 +117,9 @@ assignment_id: implementation-r1
 attempt: 2
 model_tier: standard
 attempted_model_tiers: [fast, standard]
-runtime: codex
+runtime: <runtime>
 worker_profile: standard-worker
-resolved_model: gpt-5.6-terra
+resolved_model: <model>
 resolved_effort: medium
 dispatch_mechanism: native_profile
 runtime_enforcement: confirmed
@@ -157,29 +136,29 @@ files:
 external_references: []
 ```
 
-After a checkpoint is committed in `state.md`, its checkpoint directory is
-immutable. Retain every checkpoint while the task is active. Archival and
-retention after a terminal lifecycle are explicit policy decisions outside this
-skill; do not silently prune history.
+Include sequence, lifecycle, revision, assignment and invocation IDs, attempt,
+tier history, runtime enforcement, applicable escalation rationale, actor
+outcome, exit gate, Git state, UTC creation time, canonical handoff, all copied
+files with SHA-256, and external references. Use `invocation_id: null` for
+terminal lifecycles without actors. A checkpoint becomes immutable when indexed
+in `state.md`.
 
-## Route decision history
+## Route records
 
-After every router evaluation, allocate `route_sequence + 1` and write
-`decision.md` before proposing or committing the route. Record:
+After every route evaluation, allocate `route_sequence + 1` and write
+`decision.md` before proposing or committing the route. Include:
 
-- task revision, trigger event, current lifecycle, and source checkpoint;
-- every permitted outgoing edge evaluated, its guard result, and supporting
-  evidence;
-- hard invariants and policy signals used, including risk, confidence, scope,
-  assignment ID, attempt number, and any prior sequential escalation;
-- selected lifecycle, edge, passed guard, and an evidence-backed rationale
-  sufficient to audit the decision;
-- invalidated artifacts and why they became stale;
-- next actor role, initial abstract model tier, and resolved runtime details
-  when known. A fresh assignment's initial tier is always `fast`;
-- creation time and Git HEAD.
+- revision, trigger, current lifecycle, and source checkpoint
+- every permitted edge, guard result, and evidence
+- invariants and signals: risk, confidence, scope, assignment, attempt, and
+  earlier sequential escalation
+- selected lifecycle, edge, passed guard, and auditable rationale
+- stale artifacts and reasons
+- next role, initial abstract tier, and runtime details when known; a fresh
+  assignment always starts at `fast`
+- UTC creation time and Git HEAD
 
-Use this decision shape:
+Use this shape:
 
 ```yaml
 route_sequence: 2
@@ -213,19 +192,12 @@ created_at: <ISO-8601 UTC>
 git_head: <commit-or-null>
 ```
 
-Record decision factors and evidence, not private deliberation or hidden
-chain-of-thought. For initial entry, use `from: initial` and
-`source_checkpoint: null`.
+Use `from: initial` and `source_checkpoint: null` for initial entry. Record
+evidence, not private reasoning. Never replace a decision.
 
-Never replace `decision.md`. Under the temporary human approval gate, create
-`disposition.md` after a rejection or after an approved lifecycle transition
-has been committed to canonical state. Without that gate, write the committed
-disposition after committing the lifecycle transition. Record the status,
-decision time, authorization or rejection reason, approval reference when
-applicable, and whether the lifecycle transition was committed. A pending
-proposal has no `disposition.md`.
-
-Use this disposition shape:
+A pending proposal has no `disposition.md`. With a temporary human gate, write
+it after rejection or after an approved transition commits. Without a gate,
+write it after the transition commits:
 
 ```yaml
 route_sequence: 2
@@ -238,190 +210,126 @@ transition_committed: true
 committed_lifecycle: IMPLEMENTATION
 ```
 
-If new evidence causes reevaluation, allocate a new route sequence instead of
-amending the earlier decision. This preserves reasoning that did not lead to a
-transition and makes non-convergence observable.
+Never replace a disposition. New evidence requires a new route sequence.
 
-## Lifecycle timeline
+## Timeline
 
-Regenerate `history/timeline.md` from checkpoint manifests, route decisions,
-and route dispositions. Show:
+Rebuild `history/timeline.md` after every history event from manifests,
+decisions, and dispositions. Include:
 
-- a run summary with lifecycle visit counts, edge counts, rework loops,
-  rejected routes, escalations, and `AWAITING_INPUT` entries;
-- each lifecycle visit and its checkpoint outcome;
-- every proposed node-to-node route, including rejected proposals;
-- the selected guard and concise rationale;
-- task revision, assignment ID, invocation ID, attempt number, attempted model
-  tiers, runtime enforcement, risk, confidence, and scope;
-- invalidated artifacts, blockers, and approval disposition;
-- relative links to the full immutable records.
+- visit and edge counts, rework loops, rejected routes, escalations, and
+  `AWAITING_INPUT` entries
+- each checkpoint outcome and proposed route, including rejected routes
+- selected guard, concise rationale, revision, assignment, invocation, attempt,
+  attempted tiers, runtime enforcement, risk, confidence, and scope
+- stale artifacts, blockers, approval disposition, and relative record links
 
-Order entries chronologically and include checkpoint and route sequence IDs.
-Use a compact event table with time, ID, event type, lifecycle or movement,
-outcome or guard, rationale, and a relative record link. Put detailed evidence
-only in the linked immutable record.
-The timeline summarizes immutable records; it must not introduce facts absent
-from them. A missing or stale timeline is an observability defect, not a reason
-to route from history or override valid canonical state.
+Order by time and include sequence IDs. Use a compact table with time, ID, event,
+lifecycle or movement, outcome or guard, rationale, and record link. Keep detail
+in immutable records. The timeline may not add facts. Missing or stale timeline
+is an observability defect, not routing authority.
 
-## Record a router evaluation
+## Record a route
 
-After the router selects an edge and before the route is proposed or committed:
+Before proposing or committing:
 
-1. Allocate `route_sequence + 1` and resolve the route directory.
-2. Write and verify the complete immutable `decision.md`.
+1. Allocate the next route sequence and resolve its directory.
+2. Write and verify immutable `decision.md`.
 3. Update `route_sequence` and `latest_route_record` in `state.md` without
-   changing the current lifecycle.
-4. Regenerate and verify `history/timeline.md`.
+   changing lifecycle.
+4. Rebuild and verify the timeline.
 
-After the route outcome is known:
+After the outcome:
 
-1. For a rejection, write `disposition.md` with `status: rejected`.
-2. For an approved or ungated route, first commit the new lifecycle in
-   canonical state, then write `disposition.md` with `status: committed`.
-3. Regenerate and verify the timeline.
+1. For rejection, write `status: rejected`.
+2. For approved or ungated routing, commit canonical lifecycle first, then write
+   `status: committed`.
+3. Rebuild and verify the timeline.
 
-If canonical state shows that a route committed but `disposition.md` is missing,
-resume may write one recovered committed disposition using canonical evidence.
-If the evidence is ambiguous, report the mismatch and do not infer an outcome.
-Never rewrite a decision or disposition.
-
-Every lifecycle requires:
-
-```text
-<lifecycle>/
-├── handoff.md
-├── report.md
-├── context.md
-└── artifacts/
-    ├── images/
-    └── diagrams/
-```
-
-`report.md` is the canonical human entry point and contains the information a
-human needs to understand and approve that lifecycle result. The handoff links
-to it first and does not duplicate it. Agent-only detail stays in `handoff.md`,
-`context.md`, canonical packets, and supporting artifacts. For `ANALYSIS`,
-`context.md` contains complete stable-ID traceability while `report.md` uses
-plain names only.
-
-Do not use timestamps or ad hoc handoff names in canonical paths.
-
-Treat supplied packets, discussion, and earlier checkpoints as sources used to
-derive the current checkpoint. Do not copy their commentary or narrate
-superseded wording, corrected mistakes, discarded approaches, or prior versions.
-Retain an earlier fact only when it remains an active decision, constraint,
-risk, blocker, or required provenance. Git HEAD, task revision, validation
-results, and artifact references are state data and should remain explicit.
-
-The layout supports one active orchestrated task per project and branch. If `state.md` already exists, resume that task. Do not replace it with a different objective unless the human explicitly archives or clears the existing task state.
+On resume, recover a missing committed disposition only from unambiguous
+canonical evidence. Otherwise report a mismatch. Never rewrite route records.
 
 ## Persist a lifecycle result
 
-After an actor returns any lifecycle result and before the router selects the next lifecycle:
+Each lifecycle directory requires `handoff.md`, `report.md`, `context.md`, and
+`artifacts/images/` and `artifacts/diagrams/`. `report.md` is the human entry
+point. `handoff.md` links it first without duplicating it. Agent detail stays in
+`handoff.md`, `context.md`, canonical packets, and artifacts. For `ANALYSIS`,
+keep stable-ID traceability in `context.md`, not `report.md`.
 
-1. Resolve and create the lifecycle directory and required artifact directories.
-2. Write and validate the lifecycle's single `report.md` using
-   `HUMAN_REPORTS.md`. Run:
+Derive current state from inputs. Omit superseded wording, mistakes, discarded
+approaches, and version narrative. Keep active decisions, constraints, risks,
+blockers, provenance, Git state, revision, validation, and artifact references.
+
+After any actor result and before routing:
+
+1. Resolve and create the lifecycle and artifact directories.
+2. Write the lifecycle's single `report.md`, then run:
 
    ```bash
    python3 <skill-directory>/scripts/validate-human-report.py <lifecycle-directory>/report.md
    ```
 
-   Fix every reported violation before checkpointing. This mechanical check is
-   not a substitute for the required human readability edit.
-3. Write the canonical `handoff.md` with:
-   - a first link to the lifecycle's `report.md`;
-   - task objective and acceptance criteria;
-   - lifecycle, task revision, assignment ID, invocation ID, attempt number,
-     current tier, attempted tiers, resolved runtime details, dispatch
-     mechanism, runtime enforcement, actor outcome, and exit-gate result;
-   - lifecycle output summary;
-   - decisions, assumptions, and constraints;
-   - canonical artifacts and evidence;
-   - current change-assurance report when implementation has begun;
-   - changed files and Git HEAD when applicable;
-   - validation performed;
-   - risks, blockers, and unresolved questions;
-   - model-insufficiency signals and evidence, the next sequential tier when
-     eligible, and inputs the lifecycle router needs when escalation is not
-     eligible.
-   Express each item as current state. Replace superseded values instead of
-   appending a correction or change narrative.
-4. Write optional detailed material to `context.md` and supporting files to
-   `artifacts/`. For `ANALYSIS`, `context.md` must contain the complete internal
-   traceability required by `ANALYSIS_REPORT.md`.
-5. Allocate `checkpoint_sequence + 1`, resolve its deterministic checkpoint
-   directory, and create the complete historical snapshot and `manifest.md`
-   from the canonical files. Fail if that committed sequence already exists;
-   never overwrite a historical checkpoint.
-6. Verify the snapshot manifest, every copied file, every preserved relative
-   reference, and every checksum.
-7. Update root `state.md` with:
-   - project and branch slugs;
-   - task objective;
-   - task revision;
-   - status: `lifecycle_checkpointed` for a persisted actor result, `lifecycle_active` for `AWAITING_INPUT`, or `terminal` for `COMPLETED` and `CANCELLED`;
-   - current and last-checkpointed lifecycle;
-   - relative path to the latest handoff;
-   - Git HEAD and dirty-worktree status;
-   - pending transition, if any;
-   - active assignment ID, active attempt, and attempted model tiers;
-   - the committed checkpoint sequence;
-   - relative path to the latest snapshot manifest;
-   - update time.
-8. Regenerate `history/timeline.md`.
-9. Verify that `state.md`, canonical `handoff.md`, snapshot `manifest.md`,
-   lifecycle timeline, and
-   every canonical and historical referenced artifact are readable.
-10. Return the branch task root, canonical handoff path, human report path, and
-   snapshot manifest
-   path.
+   Fix every issue and also edit for readability.
+3. Write canonical `handoff.md` with:
+   - first link to `report.md`
+   - objective and acceptance criteria
+   - lifecycle, revision, assignment, invocation, attempt, current and attempted
+     tiers, runtime details, dispatch, enforcement, outcome, and exit gate
+   - output summary, decisions, assumptions, constraints, artifacts, evidence,
+     assurance report once implementation begins, changed files, Git HEAD,
+     validation, risks, blockers, and open questions
+   - model-insufficiency evidence, next eligible tier, or routing inputs when
+     escalation is ineligible
+4. Put optional detail in `context.md` and supporting files in `artifacts/`.
+5. Allocate the next checkpoint, create its snapshot and manifest, and fail if
+   the directory exists.
+6. Verify the manifest, copied files, relative links, and checksums.
+7. Update `state.md` with project and branch slugs, objective, revision, status,
+   current and last-checkpointed lifecycle, latest handoff, Git state, pending
+   transition, active assignment and attempt, attempted tiers, checkpoint
+   sequence, snapshot manifest, and update time. Use:
+   - `lifecycle_checkpointed` for an actor result
+   - `lifecycle_active` for `AWAITING_INPUT`
+   - `terminal` for `COMPLETED` or `CANCELLED`
+8. Rebuild the timeline.
+9. Verify state, canonical handoff, manifest, timeline, and every referenced
+   canonical and historical artifact are readable.
+10. Return the task root, canonical handoff, human report, and snapshot manifest.
 
-Persist the canonical handoff, immutable snapshot, and state index as one
-complete checkpoint. Do not mark the lifecycle checkpointed or append its
-history pointer when validation fails.
+Treat the handoff, snapshot, and state index as 1 atomic checkpoint. Do not index
+or mark checkpointed if validation fails.
 
-When the orchestrator selects a replacement attempt, keep the canonical
-lifecycle unchanged, update `state.md` to `lifecycle_active`, and persist the
-next invocation with exactly the next tier. The completed checkpoint is the
-immutable escalation decision evidence. Do not create a lifecycle route record
-or self-edge for this invocation-control action.
+For a replacement attempt, keep the lifecycle unchanged, set state to
+`lifecycle_active`, and persist the next invocation at exactly the next tier.
+The prior checkpoint is escalation evidence. Do not create a route or self-edge.
 
-`AWAITING_INPUT`, `COMPLETED`, and `CANCELLED` have no worker actor result. Persist their pause or terminal result immediately after committing entry into the lifecycle.
+`AWAITING_INPUT`, `COMPLETED`, and `CANCELLED` have no worker result. Persist
+them immediately after lifecycle entry.
 
-## Resume a task
+## Resume
 
-1. Resolve the branch task root with `resolve-handoff-path.sh --root`.
-2. Read `state.md`. If it does not exist, report that no resumable task exists at the deterministic path.
-3. Read the latest `handoff.md` referenced by `state.md`.
-4. Read all artifacts required for the next routing decision.
-5. Compare persisted project, branch, Git HEAD, and dirty-worktree status with the current workspace.
-6. Verify that `latest_snapshot` exists, its manifest agrees with the indexed
-   sequence and lifecycle, and its checksums pass. For legacy state without
-   history fields, report that history begins with the next checkpoint rather
-   than treating the task as corrupt.
-7. Treat unindexed checkpoint directories as incomplete writes. If the next
-   sequence's manifest, checksums, actor result, and canonical handoff all match,
-   finish the interrupted persist by indexing that snapshot in `state.md`.
-   Otherwise report a blocker. Never route from, overwrite, or silently delete
-   an unindexed checkpoint.
-8. Return a resume packet containing the persisted lifecycle, revision, latest
-   actor outcome, artifacts, latest snapshot, history mismatches, blockers, and
-   pending transition.
+1. Resolve the task root with `--root`.
+2. Read `state.md`; if absent, report no resumable task at that path.
+3. Read its latest `handoff.md` and routing inputs.
+4. Compare persisted project, branch, Git HEAD, and dirty state with the
+   workspace.
+5. Verify the indexed snapshot exists and its sequence, lifecycle, and checksums
+   match. For legacy state, start history at the next checkpoint.
+6. Treat unindexed checkpoint directories as interrupted writes. Index the next
+   one only when its manifest, checksums, actor result, and canonical handoff
+   match; otherwise block. Never route from, overwrite, or delete it.
+7. Verify the latest indexed route and disposition. Index an unindexed next
+   route only when its decision is valid, its source matches canonical state,
+   and no conflict exists; otherwise block. Never overwrite or delete it.
+8. Return lifecycle, revision, latest outcome, artifacts, snapshot, history
+   mismatches, blockers, and pending transition.
 
-Also verify the latest indexed route decision and disposition when present.
-Treat an unindexed next-sequence route directory as an interrupted write. Index
-it only when its immutable decision is valid, its source agrees with canonical
-state, and no conflicting route exists; otherwise report a blocker. Never
-overwrite or silently delete it.
-When legacy `transition_history` exists, return a required migration: import
-each entry into an immutable route record using only its available facts, mark
-the record `provenance: legacy_state`, and remove the embedded history only
-after validating every imported record. Regenerate a missing or stale timeline
-from immutable records.
+If legacy `transition_history` exists, require migration. Import each entry into
+an immutable route record using only available facts, mark
+`provenance: legacy_state`, validate all imports, then remove embedded history.
+Rebuild a missing or stale timeline.
 
-Historical snapshots are diagnostic evidence only. Do not choose a lifecycle,
-reconstruct current state, or route from history. The primary orchestrator
-consumes the resume packet and invokes the router from canonical state.
+Historical snapshots are diagnostic only. Never choose a lifecycle, rebuild
+current state, or route from history. The primary orchestrator routes from the
+canonical resume packet.

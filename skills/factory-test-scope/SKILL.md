@@ -1,68 +1,57 @@
 ---
 name: factory-test-scope
-description: "Use when the human explicitly starts pre-development test scoping for a proposed change before factory-plan. Trace stable behavioral paths through the existing codebase and select the cheapest sufficient inspection, automated, or exceptional visual evidence without editing files or running tests."
+description: "Use when the human explicitly starts pre-development test scoping before factory-plan. Trace stable behavioral paths and choose the cheapest sufficient inspection, automated, or exceptional visual evidence without editing files or running tests."
 ---
 
 # Factory Test Scope
 
-## Execution boundary
+Define the smallest reliable pre-implementation coverage. Remain read-only.
 
-When used by the orchestrator, the primary thread must spawn the tier worker
-selected by routing and instruct that worker to use this skill. The primary
-thread must not perform this lifecycle workflow. A tier worker executes the
-workflow directly and does not spawn another lifecycle actor.
-
-Define the smallest reliable test coverage for a proposed change before
-implementation. Remain read-only.
+When orchestrated, the primary thread must delegate this skill to the routed
+tier worker. That worker must not spawn another lifecycle actor.
 
 ## Input
 
-Read the requested behavior, acceptance criteria, context, repository
-instructions, relevant architecture, and existing tests. If the intended
-behavior is materially undecided, return the precise blocker.
+Read the behavior, acceptance criteria, context, repository instructions,
+architecture, and existing tests. Return the exact blocker if behavior is
+materially undecided.
 
 ## Workflow
 
-1. Group the intended change into stable behavioral path IDs. Trace each path
-   from its highest relevant caller through domain logic, APIs, data,
-   permissions, jobs, configuration, shared consumers, and UI boundaries to
-   its observable result.
-2. Identify direct and plausible adjacent regression risks. Assign each a
-   stable risk ID, priority, failure mode, and observable outcome.
-3. Inspect existing coverage and select the highest reliable observable
-   boundary and cheapest sufficient evidence for each path and risk. Use a
-   one-sentence inspection claim plus an available corroborating signal for
-   simple non-behavioral or behavior-preserving work. Otherwise select unit,
+1. Group the change into stable behavioral path IDs. Trace each path from its
+   highest relevant caller through logic, APIs, data, permissions, jobs,
+   configuration, consumers, and UI to the observable result.
+2. Give each direct or plausible adjacent risk a stable ID, priority, failure
+   mode, and observable outcome.
+3. Inspect coverage. For each path and risk, choose the highest reliable
+   observable boundary and cheapest sufficient proof. Use a 1-sentence
+   inspection claim plus an available corroborating signal only for simple
+   non-behavioral or behavior-preserving work; otherwise choose unit,
    integration, contract, component, or end-to-end automation.
-4. Specify the test target, setup, action, assertions, edge cases, and likely
-   files for every recommended test. Prefer fast focused tests over broad
-   suites.
-5. Mark behavior that cannot be proven reliably by automation as an evidence
-   exception and explain why. Do not design video workflows.
+4. For each test, specify target, setup, action, assertions, edge cases, and
+   likely files. Prefer focused tests.
+5. Mark evidence exceptions only when automation cannot prove the behavior;
+   explain why. Do not design video workflows.
 
-Use request context to determine the intended behavior, then state that behavior
-directly. Do not include superseded requirements, corrected misunderstandings,
-discarded test ideas, or a narrative of how the scope was reached. Include
-history only when it defines a current compatibility constraint or risk.
+State current intended behavior. Omit superseded requirements, discarded
+ideas, and decision history unless still a compatibility constraint or risk.
 
 ## Output
 
-Return one agent-oriented test-scope packet containing:
+Return an agent packet with:
 
-- requested behavior, acceptance criteria, repository baseline, and assumptions
-- affected behavior and consumer map
-- stable behavioral paths, change category, highest reliable observable
-  boundary, and planned proof
-- ordered risk register with stable ID, priority, failure mode, and impact
-- existing coverage mapped to risk IDs
-- recommended tests mapped to risk IDs, including level, target, setup,
-  assertions, edge cases, expected speed, and candidate files
-- excluded areas, evidence exceptions, unknowns, and blockers
+- behavior, criteria, baseline, and assumptions
+- affected behaviors and consumers
+- paths, change category, observable boundary, and planned proof
+- ordered risks with ID, priority, failure mode, and impact
+- existing coverage and recommended tests mapped to risks
+- each test's level, target, setup, assertions, edge cases, expected speed, and
+  candidate files
+- exclusions, evidence exceptions, unknowns, and blockers
 
-When used by the orchestrator, also provide the content for the lifecycle's
-single human `report.md`. Describe coverage by the plain name of each behavior
-and risk. Do not expose stable IDs, ID-only mappings, or wide matrices. Use one
-short subsection per behavior when a table would need more than 4 columns.
+When orchestrated, also write one human `report.md` using behavior and risk
+names, not IDs or wide matrices. Use a short subsection per behavior when a
+table would exceed 4 columns.
 
-Do not plan production changes, edit files, implement tests, execute checks, or
-claim coverage from tests that were not inspected.
+Do not plan production changes, edit, implement tests, run checks, or claim
+coverage from uninspected tests.

@@ -1,76 +1,60 @@
 ---
 name: factory-context
-description: "Use only when the human explicitly starts the context lifecycle for a software change or investigation. Read the issue, codebase, and relevant local or authoritative online documentation; return the complete evidence needed to begin planning, or identify what is missing."
+description: "Use only when the human explicitly starts the context lifecycle for a software change or investigation. Research the issue, codebase, and relevant local or authoritative online documentation; return planning evidence or identify what is missing."
 ---
 
 # Factory Context
 
-## Execution boundary
+Build the evidence needed for planning. Do not plan or implement.
 
-When used by the orchestrator, the primary thread must spawn the tier worker
-selected by routing and instruct that worker to use this skill. The primary
-thread must not perform this lifecycle workflow. A tier worker executes the
-workflow directly and does not spawn another lifecycle actor.
-
-Build the evidence base for planning. Do not plan or implement.
+When orchestrated, the primary thread must delegate this skill to the routed
+tier worker. That worker completes the workflow without spawning another
+lifecycle actor.
 
 ## Workflow
 
-1. Read the request and complete issue, including linked artifacts. Extract the
-   outcome, scope, acceptance criteria, constraints, and unresolved decisions.
-2. Trace the relevant code, tests, configuration, history, and repository
-   documentation. Search authoritative online sources when external APIs,
-   libraries, standards, or current behavior matter.
-3. Cross-check the findings against the request. Separate confirmed facts,
-   reasonable inferences, and unknowns.
-4. Resolve discoverable gaps before asking the human, then return one
-   self-contained context packet.
+1. Read the complete request and linked artifacts. Extract the outcome, scope,
+   acceptance criteria, constraints, and open decisions.
+2. Trace relevant code, tests, configuration, history, and repository
+   documentation. Use authoritative online sources when current external APIs,
+   libraries, standards, or behavior matter.
+3. Separate confirmed facts, reasonable inferences, conflicts, and unknowns.
+4. Resolve discoverable gaps, then return one self-contained context packet or
+   the smallest set of blocking questions.
 
-When the orchestrator dispatches this lifecycle, the selected tier worker owns
-the complete workflow. Do not spawn another role-specific agent.
+## Context packet
 
-## Evidence to include
+Include:
 
-- the requested change, desired outcome, scope, and acceptance criteria
-- current behavior and the relevant architecture
-- relevant files, code areas, tests, entry points, highest reliable observable
-  boundaries, material side effects, consumers, and documentation
-- project conventions, constraints, and authoritative external sources
-- confirmed facts, reasonable inferences, conflicts, assumptions, and unknowns
-- only the questions whose answers materially change the work
+- requested change, outcome, scope, and acceptance criteria
+- current behavior and relevant architecture
+- relevant files, symbols, entry points, tests, reliable observable boundaries,
+  side effects, consumers, and documentation
+- project conventions, constraints, and authoritative sources
+- facts, inferences, conflicts, assumptions, unknowns, and material questions
 
-Use history to establish the current state, not as content by default. Include a
-historical fact only when it still defines current behavior, compatibility,
-migration, or an unresolved decision. Do not narrate superseded requirements,
-earlier wording, discarded approaches, or how prior documentation was wrong.
+Include history only when it still defines behavior, compatibility, migration,
+or an open decision. Omit superseded requirements, discarded approaches, and
+correction history.
 
 ## Human report
 
-Keep the presentation contract separate from the research workflow.
+When orchestrated, keep exhaustive evidence in the agent packet and write one
+`report.md` without internal IDs or bookkeeping.
 
-When used by the orchestrator, keep exhaustive evidence and traceability in the
-agent packet and produce the lifecycle's single `report.md` for the human.
-Never put internal IDs or agent bookkeeping in that report.
-
-Write for a human reviewer:
-
-- Use plain language, short sentences, generous spacing, and descriptive
-  headings.
-- Start with a brief **At a glance** summary of the change and its readiness.
-- Prefer ordinary names such as **Ready for planning**, **Needs clarification**,
-  and **Blocked** over machine-style values or internal lifecycle identifiers.
-- Do not return JSON, YAML, key-value fields, raw command output, or internal
-  agent terminology.
-- Avoid unexplained jargon and abbreviations. Include file paths, code symbols,
-  versions, and identifiers only when they help the reviewer verify or locate
-  evidence, and explain why each one matters.
-- Use bullets for scan-friendly facts and numbered lists only for ordered steps
-  or questions. Do not compress unrelated facts into dense tables.
-- Clearly distinguish **Confirmed**, **Likely**, and **Still unknown**. Never
-  present an inference as a fact.
+- Use plain language, short sentences, spacing, and descriptive headings.
+- Start with **At a glance** and the readiness.
+- Prefer **Ready for planning**, **Needs clarification**, or **Blocked**.
+- Do not use JSON, YAML, key-value fields, raw command output, or internal agent
+  terms.
+- Use technical names only when they help verification, and explain why they
+  matter.
+- Use bullets for facts and numbered lists only for ordered steps or questions.
+  Avoid dense tables.
+- Label **Confirmed**, **Likely**, and **Still unknown** clearly.
 - Omit empty sections.
 
-Use these headings when they apply:
+Use these headings when relevant:
 
 1. **At a glance**
 2. **What needs to change**
@@ -83,11 +67,6 @@ Use these headings when they apply:
 9. **What is still unclear**
 10. **Readiness**
 
-End **Readiness** with a direct sentence beginning with **Yes**, **Not yet**, or
-**Blocked**, followed by the reason in plain language.
-
-Mark the task **Ready for planning** only when a planner can understand what
-must change, how the current system works, which constraints apply, and which
-evidence supports those conclusions without repeating discovery.
-
-Stop after the context packet or the smallest set of blocking questions.
+End **Readiness** with **Yes**, **Not yet**, or **Blocked**, followed by the
+reason. Mark **Ready for planning** only when a planner can proceed without
+repeating discovery.

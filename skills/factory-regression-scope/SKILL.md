@@ -1,78 +1,63 @@
 ---
 name: factory-regression-scope
-description: "Use when the human explicitly starts post-implementation regression scoping for a completed change before factory-verify. Account for the exact final diff, trace grouped behavioral paths, and produce the change-assurance, regression-risk, and evidence-gap packet without running checks."
+description: "Use when the human explicitly starts post-implementation regression scoping before factory-verify. Account for the exact final diff, trace grouped behavioral paths, and return change assurance, current risks, and evidence gaps without running checks."
 ---
 
 # Factory Regression Scope
 
-## Execution boundary
+Find what the completed implementation could regress. Remain read-only.
 
-When used by the orchestrator, the primary thread must spawn the tier worker
-selected by routing and instruct that worker to use this skill. The primary
-thread must not perform this lifecycle workflow. A tier worker executes the
-workflow directly and does not spawn another lifecycle actor.
-
-Determine what the completed implementation could have regressed. Remain
-read-only.
+When orchestrated, the primary thread must delegate this skill to the routed
+tier worker. That worker must not spawn another lifecycle actor.
 
 ## Input
 
-Require the exact base, head, and complete diff. Read the task, acceptance
-criteria, approved plan, implementation packet, repository instructions,
-relevant tests, and pre-development test-scope packet when supplied. If the
-change set is incomplete or ambiguous, return the precise blocker.
+Require exact base, head, and complete diff. Read the task, criteria, approved
+plan, implementation packet, repository instructions, relevant tests, and
+pre-development scope when supplied. Return the exact blocker for an incomplete
+or ambiguous change set.
 
 ## Workflow
 
 1. Inventory every changed file, symbol, behavior, configuration, schema, flag,
    and shared dependency.
-2. Reconcile the complete diff into stable change groups. Map every group to a
-   behavioral path or a precise non-behavioral classification. Trace each path
-   upward to its highest reliable observable boundary and downward through
-   callers, consumers, routes, endpoints, jobs, state, permissions, data
-   boundaries, and user-visible effects.
-3. Derive direct and plausible adjacent regression risks. Reuse applicable
-   pre-development risk IDs and assign stable IDs to all other current risks.
-4. Map each risk to current-head evidence. Classify evidence as sufficient,
-   missing, stale, failed, or inaccessible.
-5. Recommend the cheapest sufficient next evidence for every gap: corroborated
+2. Group the whole diff. Map every group to a behavioral path or precise
+   non-behavioral class. Trace paths up to the highest reliable observable
+   boundary and down through callers, consumers, routes, endpoints, jobs,
+   state, permissions, data, and user effects.
+3. Derive direct and plausible adjacent risks. Reuse applicable earlier risk
+   IDs; assign stable IDs to the rest.
+4. Map each risk to current-head evidence classified as `sufficient`,
+   `missing`, `stale`, `failed`, or `inaccessible`.
+5. For each gap, recommend the cheapest sufficient next proof: corroborated
    inspection for simple non-behavioral or behavior-preserving changes;
    otherwise focused unit, integration, contract, component, or deterministic
-   end-to-end automation; then screenshot or video only when automation cannot
-   prove the relevant property.
-6. Recommend a screenshot only for a static visual property, or video when a
-   reviewer must assess a sequence, gesture, animation, timing, or state
-   transition that deterministic assertions cannot prove. Include the reason
-   automation is insufficient and a complete, shortest-path UI workflow for
-   each video-required risk.
+   end-to-end automation; then visual evidence only when automation cannot
+   prove the property.
+6. Use screenshots only for static visual properties. Use video only for a
+   sequence, gesture, animation, timing, or transition that deterministic
+   assertions cannot prove. Explain why and provide the complete shortest
+   workflow.
 
 ## Output
 
-Return one agent-oriented regression-scope packet containing:
+Return an agent packet with:
 
-- exact base, head, diff fingerprint, change summary, and assumptions
-- a change-assurance report following the orchestrator contract, with the
-  complete diff grouped and mapped to behavioral paths, observable boundaries,
-  affected consumers, and current evidence
-- ordered current risk register with ID, priority, failure mode, impact, and
-  affected surfaces
-- current evidence and status mapped to every risk ID
-- smallest recommended next evidence for each gap, including candidate test
-  target or command when known
-- complete workflows only for risks marked `video-required`, including
-  rationale, preconditions, environment, fixtures, actions, expected result,
-  cleanup, and approval prerequisites
-- static capture requirements for risks marked `screenshot-required`
-- intentionally excluded areas, unknowns, and blockers
+- base, head, diff fingerprint, summary, and assumptions
+- current assurance report mapping the complete diff to paths, observable
+  boundaries, consumers, and evidence
+- ordered risks with ID, priority, failure mode, impact, and surfaces
+- evidence status and smallest next proof for every risk, including likely
+  target or command
+- complete workflows only for `video-required` risks: rationale, preconditions,
+  environment, fixtures, actions, result, cleanup, and approval needs
+- capture requirements for `screenshot-required` risks
+- exclusions, unknowns, and blockers
 
-When used by the orchestrator, also provide the lifecycle's single human
-`report.md`. Name every affected behavior and material risk directly. State
-what has proof, what still needs proof, and the consequence of each gap. Keep
-stable IDs and exhaustive many-to-many mappings in the internal packet.
+When orchestrated, also write one human `report.md` naming each behavior and
+material risk, its proof or gap, and the consequence. Keep IDs and full mappings
+in the agent packet.
 
-Return a snapshot of risk for the exact final change set. Do not narrate how the
-scope evolved, label risks as old or new, list removed risks, or explain why an
-earlier packet was incomplete. Preserve prior IDs only as stable identifiers.
-
-Do not execute checks or workflows, modify files, create evidence, or treat the
-absence of a video as a gap when automated evidence is sufficient.
+Describe only the exact final change set. Preserve earlier IDs without their
+history. Do not run checks or workflows, edit files, create evidence, or require
+video when automation is sufficient.

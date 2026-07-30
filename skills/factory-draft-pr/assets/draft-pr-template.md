@@ -1,45 +1,40 @@
 ## Summary
 
-<!-- Concise bullets describing the current final diff and resulting behavior.
-Do not include revision history, prior mistakes, or superseded content. -->
+<!-- Current final diff and resulting behavior. No revision history. -->
 
 ## Verified behavior
 
-<!-- Use one short block per distinct behavior. Name the behavior directly.
-Never expose internal path, change-group, risk, or evidence IDs. -->
+<!-- Repeat per behavior. Use plain names, not internal IDs. -->
 
-### <!-- Plain behavior name -->
+### <!-- Behavior -->
 
 - **Expected:** <!-- Observable behavior -->
-- **Changed:** <!-- Concise implementation summary with final-code links -->
-- **Evidence:** <!-- Exact test code plus matching result, or justified
-  reviewer-accessible visual evidence -->
+- **Changed:** <!-- Summary and final-code links -->
+- **Evidence:** <!-- Test code and result, or justified public visual -->
 - **Result:** ✅ Pass
 
 ## Acceptance criteria fulfilled
 
-<!-- Include every criterion proven by automation. Use the fastest sufficient
-test evidence and link to exact test code at the pushed head SHA plus its
-matching execution result. -->
+<!-- Include every automated criterion. Link exact test code at the pushed SHA
+and its result. -->
 
 | Specification area | Required behavior | Automated evidence |
 |---|---|---|
-| <!-- Area --> | <!-- Observable acceptance behavior --> | ✅ [<!-- Level: descriptive test proof -->](<!-- GitHub test permalink -->) · [result](<!-- execution URL -->) |
+| <!-- Area --> | <!-- Behavior --> | ✅ [<!-- Level: proof -->](<!-- Test permalink -->) · [result](<!-- Result URL -->) |
 
-<!-- Include the section below only for criteria that deterministic automation
-cannot sufficiently prove. Remove it when all criteria have automated proof. -->
+<!-- Include only criteria automation cannot prove. Otherwise remove. -->
 
 ## Exceptional screenshot or video evidence
 
-### <!-- Plain behavior name -->
+### <!-- Behavior -->
 
-- **Required behavior:** <!-- Observable acceptance behavior -->
-- **Why automation is insufficient:** <!-- Specific technical or perceptual limitation -->
-- **Visual proof:** ✅ [<!-- Screenshot or video: descriptive proof -->](<!-- Reviewer-accessible artifact URL -->)
+- **Required behavior:** <!-- Observable behavior -->
+- **Why automation is insufficient:** <!-- Specific limitation -->
+- **Visual proof:** ✅ [<!-- Descriptive proof -->](<!-- Public artifact URL -->)
 
 ## Regression confidence
 
 No regressions were observed in the verified scope.
 
-<!-- Include only when genuine implementation gaps remain. -->
+<!-- Include only genuine implementation gaps. -->
 ## Known gaps
