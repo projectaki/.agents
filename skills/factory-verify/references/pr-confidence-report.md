@@ -1,57 +1,69 @@
 # PR Verification Report
 
-## Summary
+## Readiness
 
-- **Outcome:** <current intended behavior>
-- **Changed:** <implemented behavior>
+<Pass, fail, blocked, or more evidence needed, followed by the concrete reason.>
+
+- **Intended outcome:** <current intended behavior>
+- **Implemented:** <implemented behavior>
 - **Affected:** <users, systems, contracts, data, and operations>
-- **Change set:** <base, head, and diff fingerprint>
+- **Verified revision:** <short commit reference when useful>
 
-## Change-path assurance
+Lead with failures, unverified behavior, and accepted exceptions.
 
-<!-- Lead with failures, unverified paths, or exceptions. Group large diffs by
-behavioral path; do not create one row per file or hunk. -->
+## Verified behavior
 
-| Path | Behavioral claim | Change category | Highest reliable boundary | Evidence | Result | Residual risk |
-|---|---|---|---|---|---|---|
-| <P#> | <observable behavior> | <category and risk> | <caller, API, component, or user boundary> | <durable E# links> | Pass/Fail/Unverified/Exception accepted | <risk or none> |
+Use one block for each distinct changed behavior. Do not combine several
+endpoints, routes, jobs, or consumers into a count-based item.
 
-Account for every final-diff change group through these paths or a justified
-non-behavioral classification. Link to final code for inspection evidence, to
-test code plus its matching result for automated evidence, and to a
-reviewer-accessible artifact for screenshot or video evidence.
+### <Plain behavior name>
+
+- **Expected:** <observable claim>
+- **Affected boundary:** <caller, API, component, or user boundary>
+- **Result:** <Pass, fail, unverified, or exception accepted>
+- **Evidence:** <descriptive links to final code and inspection, or exact test
+  code and matching result>
+- **Remaining risk:** <risk or none>
+
+Repeat this block for every changed behavior. Keep internal path and evidence
+IDs in the agent packet.
 
 ## Acceptance criteria
 
-| Criterion | Result | Evidence |
-|---|---|---|
-| <criterion> | Pass/Fail/Unverified | <current implementation and observed proof> |
+Use a short bullet for each criterion:
 
-## Regression risk coverage
+- **<Criterion in plain language> — <Pass, fail, or unverified>.** <Evidence or
+  remaining gap.>
 
-| Risk ID | Affected behavior | Evidence | Result | Remaining gap |
-|---|---|---|---|---|
-| <risk ID> | <behavior and failure mode> | <test or observation> | Pass/Fail/Unverified | <next evidence or none> |
+## Regression risks
 
-Preserve regression-scope IDs and account for every material risk exactly once.
+Use one block per material risk.
 
-## Automated checks
+### <Plain risk name>
 
-| Check | Source | Covered head | Result | CI status |
-|---|---|---|---|---|
-| <targeted check> | Implementation/Verification | <commit or diff> | Pass/Fail/Not run | Pending |
+- **Could affect:** <behavior and failure mode>
+- **Result:** <Pass, fail, or unverified>
+- **Evidence:** <test, inspection, or observation>
+- **Remaining gap:** <next evidence or none>
 
-State exactly which checks verification ran. Prefer targeted fast checks; leave
-remote CI pending.
+## Checks run
 
-## Screenshot and video evidence
+List each check with its result and scope. State which checks verification ran
+and which were supplied by implementation. Leave remote CI marked as pending.
 
-| Path and risk IDs | Evidence | Why automation was insufficient | Result | Artifact |
-|---|---|---|---|---|
-| <P# and R#> | Screenshot/Video | <justification> | Pass/Fail/Blocked/Not run | <reviewer-accessible link or reason absent> |
+- **<Check name> — <Pass, fail, or not run>.** <Covered behavior and revision.>
 
-State when no screenshot or video evidence was required. Missing visual
-evidence is not a gap when automation sufficiently covers the risk.
+## Visual evidence
+
+Include this section only when a screenshot or video was required because
+automation could not prove the observable property.
+
+### <Plain behavior name>
+
+- **Evidence:** <Screenshot or video>
+- **Why automation was insufficient:** <concrete reason>
+- **Result:** <Pass, fail, blocked, or not run>
+- **Artifact:** <reviewer-accessible link or reason absent>
 
 ## Review and confidence
 
@@ -64,4 +76,5 @@ evidence is not a gap when automation sufficiently covers the risk.
 - **Human decision:** <approval, exception, or more work>
 
 Describe only the current verified change set. Do not include revision history,
-removed risks, earlier failures, corrected mistakes, or superseded scope.
+removed risks, earlier failures, corrected mistakes, or superseded scope. Do
+not include internal path, risk, change-group, or evidence IDs.

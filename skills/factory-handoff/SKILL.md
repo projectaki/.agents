@@ -52,6 +52,7 @@ Never invent another path or fall back to a temporary directory. If the path can
 │   │           ├── change-assurance-report.md
 │   │           └── <lifecycle_slug>/
 │   │               ├── handoff.md
+│   │               ├── report.md
 │   │               ├── context.md
 │   │               └── artifacts/
 │   └── routes/
@@ -60,6 +61,7 @@ Never invent another path or fall back to a temporary directory. If the path can
 │           └── disposition.md
 └── <lifecycle_slug>/
     ├── handoff.md
+    ├── report.md
     ├── context.md
     └── artifacts/
         ├── images/
@@ -72,12 +74,16 @@ Never invent another path or fall back to a temporary directory. If the path can
   it with the current snapshot as the diff or evidence changes.
 - `handoff.md` is the canonical lifecycle handoff. Replace it whenever that
   lifecycle completes again and describe only the latest checkpoint.
+- `report.md` is the lifecycle's only human review document. Follow the
+  orchestrator's `HUMAN_REPORTS.md` contract. Keep internal IDs, state,
+  traceability matrices, and recovery metadata in agent-oriented files.
 - `history/checkpoints/` is an append-only observation and audit record. It
   never changes canonical routing or resume behavior.
 - `history/routes/` is an append-only record of router evaluations and their
   dispositions. A rejected proposal remains observable even though no
   lifecycle transition occurred.
-- `history/timeline.md` is the derived human entry point for the lifecycle run.
+- `history/timeline.md` is a derived audit view of the lifecycle run, not a
+  lifecycle report.
   Replace it from immutable checkpoint and route records after each history
   event. It is noncanonical and can always be rebuilt.
 - Each checkpoint directory contains `manifest.md` and a self-contained
@@ -276,18 +282,24 @@ resume may write one recovered committed disposition using canonical evidence.
 If the evidence is ambiguous, report the mismatch and do not infer an outcome.
 Never rewrite a decision or disposition.
 
-The `ANALYSIS` lifecycle additionally requires:
+Every lifecycle requires:
 
 ```text
-analysis/
+<lifecycle>/
 ├── handoff.md
-├── analysis-report.md
+├── report.md
+├── context.md
 └── artifacts/
     ├── images/
     └── diagrams/
 ```
 
-`analysis-report.md` is the canonical human entry point and contains all essential impact understanding. The ANALYSIS handoff links to it first and does not duplicate its contents. ANALYSIS supporting artifacts contain only raw evidence too large to embed and are linked from the relevant report entries.
+`report.md` is the canonical human entry point and contains the information a
+human needs to understand and approve that lifecycle result. The handoff links
+to it first and does not duplicate it. Agent-only detail stays in `handoff.md`,
+`context.md`, canonical packets, and supporting artifacts. For `ANALYSIS`,
+`context.md` contains complete stable-ID traceability while `report.md` uses
+plain names only.
 
 Do not use timestamps or ad hoc handoff names in canonical paths.
 
@@ -305,7 +317,17 @@ The layout supports one active orchestrated task per project and branch. If `sta
 After an actor returns any lifecycle result and before the router selects the next lifecycle:
 
 1. Resolve and create the lifecycle directory and required artifact directories.
-2. Write the canonical `handoff.md` with:
+2. Write and validate the lifecycle's single `report.md` using
+   `HUMAN_REPORTS.md`. Run:
+
+   ```bash
+   python3 <skill-directory>/scripts/validate-human-report.py <lifecycle-directory>/report.md
+   ```
+
+   Fix every reported violation before checkpointing. This mechanical check is
+   not a substitute for the required human readability edit.
+3. Write the canonical `handoff.md` with:
+   - a first link to the lifecycle's `report.md`;
    - task objective and acceptance criteria;
    - lifecycle, task revision, assignment ID, invocation ID, attempt number,
      current tier, attempted tiers, resolved runtime details, runtime
@@ -322,15 +344,16 @@ After an actor returns any lifecycle result and before the router selects the ne
      eligible.
    Express each item as current state. Replace superseded values instead of
    appending a correction or change narrative.
-3. Write optional detailed material to `context.md` and supporting files to `artifacts/`.
-   For `ANALYSIS`, write and validate the required `analysis-report.md` before checkpointing.
-4. Allocate `checkpoint_sequence + 1`, resolve its deterministic checkpoint
+4. Write optional detailed material to `context.md` and supporting files to
+   `artifacts/`. For `ANALYSIS`, `context.md` must contain the complete internal
+   traceability required by `ANALYSIS_REPORT.md`.
+5. Allocate `checkpoint_sequence + 1`, resolve its deterministic checkpoint
    directory, and create the complete historical snapshot and `manifest.md`
    from the canonical files. Fail if that committed sequence already exists;
    never overwrite a historical checkpoint.
-5. Verify the snapshot manifest, every copied file, every preserved relative
+6. Verify the snapshot manifest, every copied file, every preserved relative
    reference, and every checksum.
-6. Update root `state.md` with:
+7. Update root `state.md` with:
    - project and branch slugs;
    - task objective;
    - task revision;
@@ -343,11 +366,12 @@ After an actor returns any lifecycle result and before the router selects the ne
    - the committed checkpoint sequence;
    - relative path to the latest snapshot manifest;
    - update time.
-7. Regenerate `history/timeline.md`.
-8. Verify that `state.md`, canonical `handoff.md`, snapshot `manifest.md`,
+8. Regenerate `history/timeline.md`.
+9. Verify that `state.md`, canonical `handoff.md`, snapshot `manifest.md`,
    lifecycle timeline, and
    every canonical and historical referenced artifact are readable.
-9. Return the branch task root, canonical handoff path, and snapshot manifest
+10. Return the branch task root, canonical handoff path, human report path, and
+   snapshot manifest
    path.
 
 Persist the canonical handoff, immutable snapshot, and state index as one

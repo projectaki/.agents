@@ -113,6 +113,27 @@ Clarity is more important than sounding formal or sophisticated. Concision is
 part of clarity: simple language should reduce effort for the reader, not add
 explanation.
 
+## Human Reports and Agent Records
+
+Keep human reports separate from agent-oriented state.
+
+- Agent records may use stable IDs, exhaustive mappings, state fields, and
+  dense traceability when those forms improve recovery or verification.
+- Produce exactly 1 human report for each completed lifecycle or stage. Optimize
+  that report only for human understanding, alignment, and approval.
+- Do not expose internal IDs or ID-only cross-references in a human report.
+  Write the behavior, risk, component, or check name instead.
+- Use tables only for direct comparison. Prefer 2 or 3 columns and never exceed
+  4 columns in a human report. Replace wide matrices with short sections or
+  repeated blocks.
+- Create a diagram only when it is easier to understand than prose or a list.
+  Use plain domain labels and no internal IDs.
+- Do not aggregate distinct endpoints, routes, jobs, consumers, commands, or
+  state transitions into count-based diagram nodes. Show each meaningful item
+  by name, split the diagram by coherent flow, or use a complete list.
+- Delete or redraw any diagram that a reader cannot understand without tracing
+  IDs or consulting another section.
+
 ---
 
 # Anti-goals

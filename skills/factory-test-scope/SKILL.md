@@ -40,7 +40,7 @@ history only when it defines a current compatibility constraint or risk.
 
 ## Output
 
-Return one test-scope packet containing:
+Return one agent-oriented test-scope packet containing:
 
 - requested behavior, acceptance criteria, repository baseline, and assumptions
 - affected behavior and consumer map
@@ -51,6 +51,11 @@ Return one test-scope packet containing:
 - recommended tests mapped to risk IDs, including level, target, setup,
   assertions, edge cases, expected speed, and candidate files
 - excluded areas, evidence exceptions, unknowns, and blockers
+
+When used by the orchestrator, also provide the content for the lifecycle's
+single human `report.md`. Describe coverage by the plain name of each behavior
+and risk. Do not expose stable IDs, ID-only mappings, or wide matrices. Use one
+short subsection per behavior when a table would need more than 4 columns.
 
 Do not plan production changes, edit files, implement tests, execute checks, or
 claim coverage from tests that were not inspected.

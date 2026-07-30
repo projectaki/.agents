@@ -1,36 +1,31 @@
-# ANALYSIS Report Contract
+# Analysis Human Report Contract
 
 The canonical human entry point for the `ANALYSIS` lifecycle is:
 
 ```text
-<analysis-lifecycle-directory>/analysis-report.md
+<analysis-lifecycle-directory>/report.md
 ```
 
-The report must be self-contained for understanding the change's system impact. Optimize for attention through ordering, grouping, tables, short bullets, and visual semantics—not by omitting information.
+Follow `HUMAN_REPORTS.md`. The report must let a human understand the proposed
+change, its complete meaningful system impact, and the decisions needed before
+planning.
 
 ## Completeness invariants
 
 - Include every known hotspot, affected or potentially affected surface, material risk, uncertainty, system boundary, and required verification mapping.
 - Do not impose numerical limits on hotspots, nodes, surfaces, risks, maps, or checks.
-- An overview may aggregate detail only when every aggregate expands into a detailed map or complete inventory entry in the same report.
+- Do not hide distinct affected endpoints, routes, jobs, consumers, commands, or
+  state transitions behind aggregate counts.
 - Essential understanding must not require opening another artifact.
 - Supporting artifacts are allowed only for raw evidence too large to embed. Link each one from the relevant report entry.
 - Every material claim includes an evidence reference.
 
-## Stable IDs
+## Internal traceability
 
-Assign stable identifiers and reuse them throughout the report:
-
-| Prefix | Meaning |
-| --- | --- |
-| `H#` | Hotspot requiring attention |
-| `P#` | End-to-end behavioral path requiring change assurance |
-| `S#` | Affected or potentially affected surface |
-| `R#` | Material risk or regression concern |
-| `U#` | Uncertainty or evidence gap |
-| `V#` | Required verification check |
-
-IDs remain stable when ANALYSIS is regenerated. Retire obsolete entries explicitly; do not silently renumber unrelated entries.
+Maintain stable hotspot, behavioral-path, surface, risk, uncertainty, and
+verification IDs in the agent-oriented `context.md`. Keep the complete
+many-to-many mappings there for planning, recovery, review, and verification.
+Do not expose these IDs or ID-only mappings in `report.md`.
 
 ## Required reading order
 
@@ -41,108 +36,94 @@ Provide:
 - one sentence describing the change;
 - one sentence describing its system reach;
 - one sentence describing the dominant failure concern;
-- a compact classification table containing risk, scope, confidence, blast radius, and counts for hotspots, behavioral paths, surfaces, risks, uncertainties, and verification checks;
-- a short reading guide pointing to the most important sections for this specific change.
+- a direct readiness statement;
+- the decisions or clarifications still needed.
 
 This section is an orientation layer, not a substitute for the complete report.
 
-### 2. Attention index
+### 2. What needs attention
 
-List every hotspot, ordered by severity and grouped by logical system area.
-
-| ID | Severity | Area | What could go wrong | Why it matters | Related IDs |
-| --- | --- | --- | --- | --- | --- |
+List every hotspot in plain language, ordered by severity and grouped by
+logical system area. For each one, state what could go wrong, why it matters,
+and how the implementation or verification should address it.
 
 Do not show only the highest-severity entries. If no hotspot exists, state why.
 
 ### 3. System impact
 
-Begin with a system-level overview showing the complete flow between meaningful boundaries. Follow it with as many detailed maps as necessary to represent every affected path without crowding unrelated concerns into one diagram.
+Begin with a system-level overview of the complete flow between meaningful
+boundaries. Use prose, bullets, or a diagram according to whichever is easiest
+to read. Follow it with detailed views only where they improve understanding.
 
-Every diagram must include:
+For every diagram:
 
-- a one-sentence purpose and explicit instruction for what to notice;
-- a legend before the diagram;
-- direction of reading;
-- stable `H#`, `P#`, and `S#` identifiers on relevant nodes;
-- node change state;
-- named relationships on edges;
-- source references for inferred or uncertain paths.
+- use descriptive domain names with no internal IDs;
+- show each meaningful endpoint, route, job, consumer, command, or transition
+  as its own named node;
+- split large diagrams by coherent flow or subsystem;
+- label relationships with concrete verbs;
+- state the purpose and what the reader should notice;
+- omit the diagram when prose or a list is clearer.
 
-Use these node states consistently:
+When change state matters, use these plain labels:
 
 | State | Meaning |
 | --- | --- |
-| `CHANGED` | Directly modified by the proposed work |
-| `AFFECTED` | Not directly modified but behavior may change |
-| `RETAINED` | Deliberately unchanged and relevant to understanding impact |
-| `REMOVED` | Deleted or made unreachable by the proposed work |
-| `UNCERTAIN` | Plausibly affected but not yet proven |
+| Changed | Directly modified by the proposed work |
+| Affected | Not directly modified but behavior may change |
+| Retained | Deliberately unchanged and relevant to understanding impact |
+| Removed | Deleted or made unreachable by the proposed work |
+| Uncertain | Plausibly affected but not yet proven |
 
 Color may reinforce a state but must never be its only indicator. Put the state in the node label. Use solid edges for evidenced relationships and dashed edges for uncertain or compatibility paths. Label every edge with its meaning, such as `calls`, `writes`, `reads`, `generates`, `publishes`, `invalidates`, or `authorizes`.
 
 Do not add decorative nodes or unlabeled edges. A node appears only when it helps explain impact, a boundary, a hotspot, retained behavior, removal, or uncertainty.
 
-### 4. Behavioral path inventory
+### 4. Behavior that will change
 
 Group the proposed change into meaningful end-to-end paths instead of treating
 each file or edit as an independent behavior.
 
-| ID | Trigger or caller | Path and affected surfaces | Highest reliable observable boundary | Expected behavior | Change category | Related risks | Planned proof |
-| --- | --- | --- | --- | --- | --- | --- | --- |
+Use one short subsection per behavior. State:
 
-Trace each path upward to the highest stable caller or user-visible boundary
-whose assertions can reliably prove the changed behavior, and downward through
-material side effects and consumers. Prefer one sufficient boundary check over
-duplicative tests at every internal layer. Do not use a broad end-to-end test
-when a smaller deterministic boundary proves the same claim.
+- what starts it;
+- the named components and surfaces it crosses;
+- what the user or consuming system should observe;
+- material side effects and consumers;
+- the main regression concern;
+- the planned proof.
 
-Use these change categories:
+Keep the formal change category and stable path mapping in `context.md`, not in
+the human report. Trace every behavior to the highest reliable observable
+boundary. Prefer one sufficient boundary check over duplicate checks at every
+internal layer.
 
-- `non-behavioral`: documentation, formatting, generated output, or metadata
-  with no runtime effect;
-- `behavior-preserving`: mechanical refactor, rename, relocation, or deletion
-  whose relevant behavior is intended to remain identical;
-- `localized-behavior`: deterministic behavior contained within one component;
-- `cross-boundary-behavior`: behavior crossing a service, process, persistence,
-  permission, contract, or shared-consumer boundary;
-- `experiential-behavior`: visual, interaction, animation, timing, or other
-  behavior requiring human-observable proof when automation is insufficient.
-
-Every affected `S#` must map to at least one `P#`, or be explicitly justified as
-having no executable behavioral path.
-
-### 5. Complete impact inventory
+### 5. Complete affected-area inventory
 
 List every affected and potentially affected surface, grouped by subsystem and ordered by risk within each group.
 
-| ID | State | Surface | Expected effect | Callers or consumers | Boundary | Related hotspots and risks | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-
-Do not hide surfaces under catch-all entries such as “miscellaneous.” Aggregated entries must link to their complete expansion.
+Prefer one compact block per subsystem. Name each surface separately and state
+its change state, expected effect, callers or consumers, and supporting
+evidence. Do not use catch-all entries such as "miscellaneous" or count-based
+entries such as "4 endpoints."
 
 ### 6. Risks and uncertainties
 
 List every material risk and uncertainty separately.
 
-| ID | Type | Severity | Trigger or unknown | Failure impact | Affected surfaces | Mitigation or evidence needed |
-| --- | --- | --- | --- | --- | --- | --- |
+Use one short block per item with a descriptive heading. State whether the item
+is a confirmed risk or an uncertainty, its severity, trigger or unknown,
+failure impact, affected areas, and mitigation or evidence needed. Include
+external consumers and paths that cannot yet be verified.
 
-Clearly distinguish evidence-backed risk from uncertainty. Include external consumers and unverifiable paths when they are relevant.
+### 7. How success will be checked
 
-### 7. Verification coverage
-
-Map every acceptance criterion, hotspot, surface, risk, and uncertainty that requires proof to one or more checks.
-
-| ID | Proves | Check | Expected evidence | Required depth |
-| --- | --- | --- | --- | --- |
-
-The `Proves` column contains the relevant acceptance-criterion and `H#`, `P#`,
-`S#`, `R#`, or `U#` references. Select the cheapest sufficient proof:
-corroborated inspection for simple non-behavioral or behavior-preserving
-changes, automated checks for deterministic behavior, and screenshot or video
-only when automation cannot prove the relevant observable property. Any
-intentionally unverified entry must state the rationale and residual risk.
+Describe every required check using the behavior or risk name it proves. Select
+the cheapest sufficient proof: corroborated inspection for simple
+non-behavioral changes, automated checks for deterministic behavior, and
+screenshot or video only when automation cannot prove the observable property.
+State the rationale and residual risk for anything intentionally unverified.
+Keep the exhaustive acceptance-to-risk-to-check matrix in `context.md`.
 
 ### 8. Boundaries and decisions
 
@@ -154,8 +135,6 @@ Use compact tables or bullets for:
 - assumptions;
 - decisions already constrained by evidence;
 - out-of-scope areas that are close enough to be mistaken as affected.
-
-Reference the applicable stable IDs.
 
 ### 9. Planning implications
 
@@ -169,14 +148,18 @@ State only actionable downstream consequences:
 
 ### 10. Evidence index
 
-List the repository files, symbols, tests, documentation, history, runtime observations, and supporting raw artifacts used by the analysis. Map evidence back to stable IDs where practical.
+List only the repository files, symbols, tests, documentation, history, runtime
+observations, and supporting raw artifacts that help the reviewer verify a
+material claim. Keep the exhaustive evidence index and stable-ID mappings in
+`context.md`.
 
 ## Writing rules
 
-- Prefer tables, short bullets, and captions over prose paragraphs.
+- Follow the table and diagram limits in `HUMAN_REPORTS.md`.
 - Put the conclusion before supporting detail.
 - Order by severity first, then system flow or subsystem.
-- State “none” rather than omitting a required section.
-- Avoid repeating the same explanation; use stable-ID references.
+- Omit empty sections unless their absence could be mistaken for incomplete
+  analysis; in that case state that no items were found.
+- Avoid repeating the same explanation, but repeat the plain name when needed;
+  never substitute an opaque ID.
 - Keep labels concrete and domain-specific.
-- Do not use “low attention span” as a reason to shorten the evidence set.

@@ -40,6 +40,11 @@ verdict `inconclusive` or `blocked`.
 6. Return the verification packet and the PR-ready report from
    [references/pr-confidence-report.md](references/pr-confidence-report.md).
 
+The PR-ready report is the lifecycle's single human `report.md`. Keep stable
+IDs, fingerprints, and exhaustive assurance mappings in the internal
+verification packet and `change-assurance-report.md`. In the human report, name
+behaviors, risks, and checks directly.
+
 Report only the current change set, current evidence, and remaining gaps.
 Earlier packets are inputs for validation, not report content. Do not narrate
 superseded scope, removed risks, corrected mistakes, failed earlier attempts, or

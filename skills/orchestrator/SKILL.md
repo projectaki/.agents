@@ -6,6 +6,7 @@ description: Run the primary agent thread as the sole SDLC orchestrator for impl
 # Orchestrator
 
 Read [ORCHESTRATOR.md](references/ORCHESTRATOR.md),
+[HUMAN_REPORTS.md](references/HUMAN_REPORTS.md),
 [CHANGE_ASSURANCE_REPORT.md](references/CHANGE_ASSURANCE_REPORT.md), and
 [MODEL_TIERS.md](references/MODEL_TIERS.md) completely before making any
 lifecycle, routing, or actor-dispatch decision.

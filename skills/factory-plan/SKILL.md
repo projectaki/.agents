@@ -34,7 +34,7 @@ remains a current compatibility constraint, unresolved decision, or risk.
 
 ## Output
 
-Return one self-contained plan that an implementor agent can execute without
+Return one self-contained agent plan that an implementor agent can execute without
 reconstructing the analysis. Include:
 
 - objective, scope, and acceptance criteria
@@ -47,6 +47,12 @@ reconstructing the analysis. Include:
   sufficient planned proof
 - explicitly justified non-automated evidence exceptions
 - assumptions, risks, dependencies, blockers, and rollback notes where relevant
+
+When used by the orchestrator, also provide the lifecycle's single human
+`report.md`. Write the plan for alignment and approval: use plain behavior and
+risk names, ordered implementation steps, and small readable sections. Keep
+stable IDs and exhaustive mappings in the agent plan. Do not put them in the
+human report. Avoid tables wider than 4 columns.
 
 If the context is contradictory or lacks a decision that materially changes the
 implementation, return the specific blocker instead of inventing requirements.

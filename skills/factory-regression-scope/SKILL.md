@@ -41,7 +41,7 @@ change set is incomplete or ambiguous, return the precise blocker.
 
 ## Output
 
-Return one regression-scope packet containing:
+Return one agent-oriented regression-scope packet containing:
 
 - exact base, head, diff fingerprint, change summary, and assumptions
 - a change-assurance report following the orchestrator contract, with the
@@ -57,6 +57,11 @@ Return one regression-scope packet containing:
   cleanup, and approval prerequisites
 - static capture requirements for risks marked `screenshot-required`
 - intentionally excluded areas, unknowns, and blockers
+
+When used by the orchestrator, also provide the lifecycle's single human
+`report.md`. Name every affected behavior and material risk directly. State
+what has proof, what still needs proof, and the consequence of each gap. Keep
+stable IDs and exhaustive many-to-many mappings in the internal packet.
 
 Return a snapshot of risk for the exact final change set. Do not narrate how the
 scope evolved, label risks as old or new, list removed risks, or explain why an

@@ -47,11 +47,13 @@ URL for every required screenshot or video; local paths are not evidence.
 
 ### Change-path assurance
 
-- Give reviewers a compact behavioral-path map and assurance matrix rather than
-  a file-by-file narrative.
+- Give reviewers a compact plain-language behavior summary rather than a
+  file-by-file narrative or internal assurance matrix.
 - Account for the complete diff through stable path IDs and grouped change
-  regions. Put exhaustive accountability detail in a collapsed PR section, or
-  use an existing durable reviewer-accessible link. Never link a local report.
+  regions internally. In the PR, name each behavior directly and do not expose
+  internal IDs. Use an existing durable reviewer-accessible accountability link
+  only when a reviewer genuinely needs the exhaustive detail. Never link a
+  local report.
 - For simple non-behavioral or behavior-preserving work, include one concise
   inspection reason, a final-code link, and an available corroborating signal.
 - For automated evidence, link the exact test code and its matching execution

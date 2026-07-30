@@ -37,6 +37,8 @@ and one attempt; do not install tools or seek elevated access solely to run them
 
 ## Return
 
+Return the agent-oriented implementation packet with:
+
 - files and behavior changed
 - current change-assurance report with complete working-diff accountability
 - tests added or updated, mapped to risk IDs
@@ -44,6 +46,12 @@ and one attempt; do not install tools or seek elevated access solely to run them
 - skipped checks, fallbacks, and residual risk
 - risk IDs without automated coverage and the reason
 - current scope not implemented, unresolved risks, and decisions still needed
+
+When used by the orchestrator, also provide the lifecycle's single human
+`report.md`. Describe what changed, what remains unchanged, checks already run,
+current risks, and readiness in plain language. Keep diff group IDs, path IDs,
+evidence IDs, fingerprints, and exhaustive accountability in the internal
+change-assurance report.
 
 Write the packet as the current implementation state. Do not narrate earlier
 attempts, corrected mistakes, or superseded plan details. Mention a divergence

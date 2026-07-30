@@ -47,9 +47,13 @@ historical fact only when it still defines current behavior, compatibility,
 migration, or an unresolved decision. Do not narrate superseded requirements,
 earlier wording, discarded approaches, or how prior documentation was wrong.
 
-## Human-readable output
+## Human report
 
 Keep the presentation contract separate from the research workflow.
+
+When used by the orchestrator, keep exhaustive evidence and traceability in the
+agent packet and produce the lifecycle's single `report.md` for the human.
+Never put internal IDs or agent bookkeeping in that report.
 
 Write for a human reviewer:
 

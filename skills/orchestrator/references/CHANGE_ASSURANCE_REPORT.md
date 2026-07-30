@@ -1,6 +1,6 @@
-# Change Assurance Report Contract
+# Internal Change Assurance Contract
 
-The canonical human entry point for final-diff accountability is:
+The canonical agent-oriented record for final-diff accountability is:
 
 ```text
 <branch-task-root>/change-assurance-report.md
@@ -8,7 +8,14 @@ The canonical human entry point for final-diff accountability is:
 
 Create it during `IMPLEMENTATION`, reconcile it against the exact completed
 diff during regression scoping and review, finalize its evidence during
-`VERIFICATION`, and publish its compact path coverage in the PR description.
+`VERIFICATION`, and use it to derive the human lifecycle reports and PR
+description.
+
+This is not a human lifecycle report. Stable IDs, wide traceability matrices,
+diff fingerprints, and exhaustive evidence mappings belong here. Every
+lifecycle still writes one separate `report.md` following
+`HUMAN_REPORTS.md`. Translate internal IDs into plain behavior, risk, and check
+names in that report.
 
 The report answers two different questions:
 
@@ -87,9 +94,9 @@ Durable evidence references are:
 Local paths, inferred test coverage, a test name without inspected assertions,
 and an execution result without identifiable scope are not durable PR evidence.
 
-## Required reading order
+## Required internal structure
 
-### 1. Assurance summary
+### 1. Assurance state
 
 State the intended outcome, system reach, dominant regression concern, base,
 head, and diff fingerprint. Include counts for:
@@ -101,12 +108,11 @@ head, and diff fingerprint. Include counts for:
 
 Put failures, unverified paths, and exceptions before passing detail.
 
-### 2. Behavioral path map
+### 2. Behavioral traceability map
 
-Show the changed flow at meaningful boundaries. Use `P#` and relevant analysis
-IDs, label changed and affected nodes, name edges, and identify the observable
-boundary used for proof. Split the map by subsystem when one diagram would be
-crowded.
+Record the changed flow at meaningful boundaries. This internal map may use
+stable IDs. A human report must redraw or restate any useful part with plain
+names and the diagram rules in `HUMAN_REPORTS.md`.
 
 ### 3. Path assurance matrix
 
@@ -150,6 +156,8 @@ State `none` when there are no exceptions.
 - `VERIFICATION`: bind the report to the final revision, execute or inspect the
   required evidence, and assign every path a verdict.
 - `DELIVERY`: put the assurance summary and path matrix in the PR description
-  with durable evidence links. Put exhaustive accountability detail in a
-  collapsed section, or use a durable reviewer-accessible link when one already
-  exists. Never link a local lifecycle artifact.
+  using plain behavior and risk names with durable evidence links. Put
+  exhaustive accountability detail in a collapsed section only when reviewers
+  genuinely need it, or use a durable reviewer-accessible link when one already
+  exists. Never link a local lifecycle artifact or expose an ID-only matrix as
+  reviewer-facing content.

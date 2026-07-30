@@ -43,7 +43,7 @@ The reviewer and verifier must be fresh invocations independent from the impleme
 | --- | --- | --- |
 | `INTAKE` | Normalize objective, scope, authority, and definition of done | Task contract |
 | `CONTEXT_GATHERING` | Ground the task in repository, documentation, history, and runtime evidence | Context evidence package |
-| `ANALYSIS` | Determine impact, regression scope, blast radius, risk, and verification needs | Canonical `analysis-report.md` |
+| `ANALYSIS` | Determine impact, regression scope, blast radius, risk, and verification needs | Analysis packet and human `report.md` |
 | `PLANNING` | Select and describe one executable approach | Canonical implementation plan |
 | `IMPLEMENTATION` | Execute the canonical plan with one implementer | Implementation result, change set, and current `change-assurance-report.md` |
 | `REVIEW` | Independently assess a plan or implementation | Review result |
@@ -66,6 +66,24 @@ Every active lifecycle defines:
 5. **Handoff gate** — the lifecycle result, exit-gate outcome, context, and artifacts are persisted at the deterministic handoff path.
 
 An actor saying it is finished never satisfies an exit gate by itself. The handoff gate is mandatory whether the exit gate passes or fails, and the router must not select the next lifecycle until the handoff gate passes.
+
+### Human report and agent record
+
+Every completed lifecycle has two output layers:
+
+1. Agent-oriented state in `handoff.md`, `context.md`, canonical packets, and
+   supporting artifacts. Optimize this layer for deterministic recovery,
+   routing, traceability, and verification. Stable IDs and exhaustive matrices
+   belong here.
+2. Exactly one `<lifecycle-directory>/report.md` following
+   `HUMAN_REPORTS.md`. Optimize this layer only for human understanding,
+   alignment, and approval. It must not expose internal IDs or require the
+   reader to decode agent bookkeeping.
+
+The human report is mandatory even when the lifecycle is blocked or
+inconclusive. In that case it should state the blocker, its effect, and the
+decision or input needed. Do not create a second reviewer-facing summary,
+packet, or report for the same lifecycle.
 
 ### `INTAKE`
 
@@ -108,9 +126,10 @@ An actor saying it is finished never satisfies an exit gate by itself. The hando
 
 **Actor work:** Analyze the proposed change in the context of the whole affected system.
 
-**Required output — canonical `analysis-report.md`:**
+**Required output — analysis packet and human `report.md`:**
 
-Produce one self-contained human entry point following `ANALYSIS_REPORT.md`. It contains:
+Produce the internal traceability packet in `context.md` and one self-contained
+human entry point following `ANALYSIS_REPORT.md`. Together they contain:
 
 - the attention-optimized orientation and reading guide;
 - every hotspot, affected and potentially affected surface, caller, consumer, dependency, integration boundary, risk, and uncertainty;
@@ -124,23 +143,29 @@ Produce one self-contained human entry point following `ANALYSIS_REPORT.md`. It 
 
 Attention optimization means progressive disclosure and logical grouping, never truncation. There is no numerical cap on report entries or diagram nodes. An overview may aggregate detail only when the same report expands every aggregate into complete detailed maps or inventory entries.
 
-Supporting artifacts are optional and contain only raw evidence too large to embed. Essential understanding must remain in `analysis-report.md`.
+Supporting artifacts are optional and contain only raw evidence too large to
+embed. Essential human understanding must remain in `report.md`; exhaustive
+agent traceability remains in `context.md`.
 
-**Exit gate:** The report satisfies every completeness invariant in `ANALYSIS_REPORT.md`; the impact, risk, scope, uncertainty, and required verification are explicit and supported by evidence; every aggregate is expanded; and every required stable-ID mapping is traceable.
+**Exit gate:** The human report satisfies every completeness and readability
+invariant in `ANALYSIS_REPORT.md`; the internal packet contains the complete
+stable-ID traceability; impact, risk, scope, uncertainty, and required
+verification are explicit and supported by evidence; and distinct affected
+surfaces are not hidden behind aggregate counts.
 
 ### `PLANNING`
 
-**Entry guard:** A current canonical `analysis-report.md` exists.
+**Entry guard:** A current analysis packet and human analysis `report.md` exist.
 
 **Actor work:** Produce one canonical executable plan.
 
-**Required output — canonical plan:**
+**Required output — canonical plan and human `report.md`:**
 
 - chosen approach and rationale
 - ordered implementation steps
 - expected files or components affected
 - acceptance-criteria mapping
-- behavioral-path mapping and planned proof for every `P#`
+- internal behavioral-path mapping and planned proof for every stable path
 - risk and regression mitigations
 - verification steps
 - assumptions and unresolved concerns
@@ -170,7 +195,7 @@ If canonical-plan confidence remains `low`, route to `REVIEW` with `review_targe
 
 **Actor work:** One implementer executes the plan within the approved scope.
 
-**Required output — implementation result:**
+**Required output — implementation result and human `report.md`:**
 
 - completed plan steps
 - changed files and components
@@ -196,7 +221,7 @@ transition.
 
 Each reviewer invocation is one bounded use of `factory-review`. The orchestrator owns reviewer count, model-tier selection, isolation, and dispatch. Use one reviewer by default. When the canonical analysis report requires multiple review perspectives, dispatch independent reviewers with the same canonical inputs; reviewers must not inspect one another's results. The orchestrator alone reconciles their results into the canonical review result and routes from the combined evidence.
 
-**Required output — review result:**
+**Required output — review result and human `report.md`:**
 
 - review target and revision
 - all findings, classified by severity and owning lifecycle
@@ -219,7 +244,7 @@ After fixes, a fresh review inspects the full resulting change again. Continued 
 
 **Actor work:** A verifier independent from the implementer gathers authoritative evidence.
 
-**Required output — verification result:**
+**Required output — verification result and human `report.md`:**
 
 - acceptance criteria checked
 - regression risks checked
@@ -241,13 +266,13 @@ exception remains pending; and the evidence matches the final revision.
 
 **Actor work:** Commit if needed, push, and create or update the PR without modifying implementation content.
 
-**Required output — delivery result:**
+**Required output — delivery result and human `report.md`:**
 
 - branch and commit reference
 - PR URL and identifier
 - PR title and summary
 - acceptance criteria and verification evidence included in the description
-- compact behavioral-path map and assurance matrix with durable links to
+- compact plain-language behavior and assurance summary with durable links to
   inspection, test-code and execution, screenshot, or video evidence
 - known limitations or deferred work
 - confirmation that the PR references the reviewed and verified revision
@@ -260,7 +285,8 @@ Remote CI is outside v1's completion gate.
 
 **Entry guard:** Required authority, credentials, approval, product decision, or irreducible information is unavailable.
 
-**Required output:** The pause reason, question or dependency, suspended artifact, and resume condition.
+**Required output:** The pause reason, question or dependency, suspended
+artifact, resume condition, and human `report.md`.
 
 When input arrives, the router reevaluates the task and chooses the appropriate permitted lifecycle. It does not blindly resume the prior actor.
 
@@ -564,6 +590,7 @@ $HOME/.agents-db/<project_slug>/<branch_slug>/
 │           └── disposition.md
 └── <lifecycle_slug>/
     ├── handoff.md
+    ├── report.md
     ├── context.md
     └── artifacts/
         ├── images/
@@ -574,6 +601,11 @@ $HOME/.agents-db/<project_slug>/<branch_slug>/
 lifecycle directory holds the context and artifacts required to understand that
 lifecycle without conversation history. When a lifecycle completes again,
 replace that lifecycle's canonical handoff with the newer revision.
+
+`report.md` is the single human entry point for that lifecycle. `handoff.md`,
+`context.md`, canonical packets, state, and history records are agent-oriented.
+Snapshots preserve both layers, but only `report.md` is written for routine
+human review.
 
 Every completed checkpoint also creates an immutable historical snapshot using
 one branch-task-wide monotonic checkpoint sequence. A snapshot contains the
@@ -619,7 +651,8 @@ latest_snapshot: relative manifest path
 latest_route_record: relative decision path | null
 artifacts:
   context: reference
-  analysis_report: reference
+  human_report: reference
+  analysis_traceability: reference
   change_assurance_report: reference
   plan: reference
   implementation: reference

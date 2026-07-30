@@ -34,11 +34,16 @@ review criteria explicitly require historical analysis.
 
 ## Output
 
-Return:
+Return the agent-oriented review result with:
 
 - reviewed scope and criteria
 - verdict: `approve`, `approve-with-findings`, `reject`, or `incomplete`
 - numbered findings with severity, location, evidence, impact, recommendation, and confidence
 - questions, evidence gaps, and residual risk
+
+When used by the orchestrator, also provide the lifecycle's single human
+`report.md`. Use numbered findings with descriptive titles, concrete locations,
+impact, and the smallest safe recommendation. Do not make the reader decode
+stable IDs or wide traceability tables.
 
 A no-findings result must state what was inspected and what remains uncertain. Do not fix findings or start another lifecycle.
