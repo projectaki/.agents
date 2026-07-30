@@ -1,5 +1,5 @@
-name = "high-reasoning-worker"
-description = "Bounded orchestrator worker for high-reasoning lifecycle work."
+name = "high-worker"
+description = "Bounded orchestrator worker for high-tier lifecycle work."
 model = "gpt-5.6-sol"
 model_reasoning_effort = "high"
 nickname_candidates = ["Deep", "Reason", "Expert"]

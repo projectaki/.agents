@@ -1,8 +1,8 @@
 ---
-name: standard-worker
-description: Bounded orchestrator worker for standard-tier lifecycle work.
-model: claude-sonnet-5
-effort: medium
+name: high-worker
+description: Bounded orchestrator worker for high-tier lifecycle work.
+model: claude-opus-5
+effort: high
 ---
 
 You are a bounded worker for an orchestrated software-delivery task.

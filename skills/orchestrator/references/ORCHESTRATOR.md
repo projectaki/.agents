@@ -149,13 +149,16 @@ Supporting artifacts are optional and contain only raw evidence too large to emb
 
 Use a single planner by default.
 
-Use two isolated planners followed by one `high_reasoning` synthesizer when any of these is true:
+Use two isolated planners followed by one synthesizer when any of these is true:
 
 - risk is `high`
 - confidence is `low`
 - a previous canonical plan failed review or implementation
 
 Parallel planners receive the same task contract and approved evidence package but not each other's outputs. The synthesizer receives both candidates and produces one canonical plan. Candidate plans remain supporting evidence; downstream actors receive only the canonical plan.
+
+The synthesizer is a fresh bounded assignment and therefore starts at `fast`.
+Its risk and scope do not bypass the normal sequential escalation policy.
 
 If canonical-plan confidence remains `low`, route to `REVIEW` with `review_target: plan`.
 
@@ -360,9 +363,9 @@ When a transition invalidates prior assumptions or artifacts, mark dependent dow
 
 ### Trigger events
 
-Invoke the router only after:
+Invoke the lifecycle router only after no replacement attempt is permitted and:
 
-- an actor returns a result
+- an actor result and exit-gate evaluation have been checkpointed
 - an actor run is interrupted
 - new user or external input arrives
 - explicit cancellation arrives
@@ -382,7 +385,10 @@ The router evaluates in this order:
 
 The router may never invent an edge.
 
-If deterministic rules do not select exactly one valid edge, run one `high_reasoning` routing evaluation over the same persisted evidence. If ambiguity remains, enter `AWAITING_INPUT`.
+If deterministic rules do not select exactly one valid edge, run a bounded
+routing-evaluation assignment over the same persisted evidence. Start that
+assignment at `fast` and apply the normal sequential escalation policy. If the
+`high` attempt remains ambiguous, enter `AWAITING_INPUT`.
 
 ### Routing signals
 
@@ -417,21 +423,63 @@ Actors report confidence with reasons. The router may lower confidence but may n
 
 ### Model policy
 
-V1 defines two abstract tiers:
+V1 defines three abstract tiers:
 
-- `standard`
-- `high_reasoning`
+- `fast`: capable, latency-first model with low reasoning
+- `standard`: capable balanced model with medium reasoning
+- `high`: strongest suitable model with high reasoning
 
-Use `high_reasoning` when any of these is true:
+Every fresh bounded assignment starts at `fast`. Risk, confidence, scope,
+planning mode, lifecycle role, and router ambiguity may tighten the output
+contract or the exit gate, but they never select a higher initial tier.
+Concrete models and runtime worker profiles are defined in `MODEL_TIERS.md` and
+resolved only at the actor-dispatch boundary.
 
-- risk is `high`
-- confidence is `low`
-- scope is `cross-system`
-- parallel plans are being synthesized
+#### Assignment attempts
 
-Otherwise use `standard`. Concrete models and runtime worker profiles are defined in `MODEL_TIERS.md` and resolved only at the actor-dispatch boundary.
+An assignment is the stable combination of lifecycle role, task revision,
+bounded objective, canonical inputs, mutation authority, and output contract.
+Give it a stable `assignment_id`.
 
-Escalation is proactive for high-risk or uncertain work and reactive after failure. A failed or inconclusive actor result must follow a permitted transition whose guard matches the evidence, or enter `AWAITING_INPUT`; the orchestrator must not reinvoke the same lifecycle.
+- Attempt 1 is fresh and must use `fast`.
+- A replacement attempt keeps the same `assignment_id`, lifecycle, inputs,
+  authority, and output contract. It increments `attempt` and advances exactly
+  one tier: `fast` → `standard` → `high`.
+- New or materially changed inputs create a new assignment at `fast`; they do
+  not inherit escalation from the old assignment.
+- Escalation changes only invocation control. It is not a lifecycle transition,
+  does not add a self-edge to the state machine, and does not relax reviewer
+  independence or the single-implementer rule.
+
+The orchestrator may escalate only after the actor result and exit-gate
+evaluation are persisted by `factory-handoff`, and only when at least one
+model-insufficiency signal is supported by evidence:
+
+- required output is missing, malformed, internally inconsistent, or fails its
+  lifecycle contract;
+- material claims remain unsupported or conflict with the supplied evidence;
+- the exit gate is inconclusive because the actor could not resolve a bounded
+  reasoning problem within the supplied context;
+- an independent reviewer or verifier identifies an analysis-quality gap owned
+  by the current assignment; or
+- the actor recommends the next tier and cites a concrete unresolved issue that
+  the next tier could reasonably address.
+
+Tool failure, missing credentials, absent authority, unavailable external
+input, safety policy, invalid task scope, and implementation defects are not
+model insufficiency. Follow a permitted lifecycle transition or enter
+`AWAITING_INPUT` for those conditions.
+
+Persist each attempt's tier, resolved runtime details, enforcement status,
+outcome, exit-gate result, and evidence-backed escalation rationale. A
+replacement may advance only to the next tier. After an insufficient `high`
+attempt, the router must follow a permitted lifecycle edge or enter
+`AWAITING_INPUT`; it must not repeat `high`.
+
+When the runtime dispatch API cannot select a concrete model or effort, record
+`runtime_enforcement: intended` rather than claiming the mapping was enforced.
+Use `confirmed` only when dispatch accepted the explicit worker profile, model,
+and effort.
 
 ### Router result
 
@@ -442,7 +490,7 @@ Every routing decision returns and persists:
 - guard that passed
 - concise rationale
 - invalidated artifacts, if any
-- next actor role and model tier
+- next actor role and initial model tier (`fast` for every fresh assignment)
 - planning mode when entering `PLANNING`: `single` or `parallel`
 
 Conceptually:
@@ -463,13 +511,16 @@ Every actor invocation returns:
 
 ```yaml
 invocation_id: stable identifier
+assignment_id: stable bounded-assignment identifier
+attempt: positive integer
 role: actor role
 lifecycle: lifecycle worked
-model_tier: standard | high_reasoning
+model_tier: fast | standard | high
 runtime: codex | claude
 worker_profile: runtime worker profile
 resolved_model: concrete model identifier
 resolved_effort: runtime effort value
+runtime_enforcement: intended | confirmed
 outcome: succeeded | failed | blocked | inconclusive
 confidence: low | medium | high
 summary: concise result
@@ -483,10 +534,12 @@ risks: []
 assumptions: []
 blockers: []
 recommended_follow_up: []
-recommended_model_tier: standard | high_reasoning
+recommended_model_tier: fast | standard | high
+escalation_rationale: null | evidence-backed reason
 ```
 
-Recommendations are evidence for the router. They are not transition commands.
+Recommendations are evidence for the orchestrator. They are not escalation or
+transition commands and can advance by at most one tier.
 
 ## Persistence and recovery
 
@@ -574,6 +627,9 @@ artifacts:
   verification: reference
   delivery: reference
 active_invocation: reference | null
+active_assignment_id: stable identifier | null
+active_attempt: positive integer | null
+attempted_model_tiers: [fast, standard, high] | []
 last_actor_result: reference | null
 pending_transition: reference | null
 last_route: reference
@@ -595,11 +651,15 @@ For restart safety:
 3. Invoke the `factory-handoff` skill in persist mode with the actor outcome and
    exit-gate result. It writes and verifies the canonical handoff, immutable
    historical snapshot, state index, and referenced artifacts.
-4. Evaluate the router using the verified handoff.
-5. Persist and verify the immutable route-decision record and update the
+4. Evaluate model insufficiency using the verified handoff. If the evidence
+   permits a replacement attempt, persist its sequential escalation rationale,
+   update the active invocation, dispatch the replacement, and remain in the
+   current lifecycle.
+5. Otherwise evaluate the router using the verified handoff.
+6. Persist and verify the immutable route-decision record and update the
    lifecycle timeline.
-6. Persist the routing decision and new lifecycle.
-7. Write the committed route disposition, update the timeline, and dispatch the
+7. Persist the routing decision and new lifecycle.
+8. Write the committed route disposition, update the timeline, and dispatch the
    next actor.
 
 The temporary human approval gate below modifies steps 5 through 7 but never
@@ -618,7 +678,8 @@ At orchestrator start, restart, or post-compaction recovery:
 - Reconcile the persisted project, branch, Git HEAD, and dirty-worktree state with the current workspace.
 - If status is `lifecycle_checkpointed`, route from the persisted actor outcome and exit-gate result.
 - If status is `transition_pending`, recover the pending human approval before dispatching work.
-- If status is `lifecycle_active` with an interrupted invocation, enter `AWAITING_INPUT`; do not automatically reinvoke it.
+- If status is `lifecycle_active` with an interrupted invocation, enter
+  `AWAITING_INPUT`; do not automatically replace or escalate it.
 - Before repeating commit, push, or PR creation, inspect whether the side effect already succeeded.
 
 The router, not the handoff skill, decides where execution continues.

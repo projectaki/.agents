@@ -117,9 +117,10 @@ not store the complete checkpoint or route history in `state.md`; canonical
 state contains only what routing and recovery need now.
 
 Write `manifest.md` with the checkpoint sequence, lifecycle, task revision,
-invocation ID when applicable, actor outcome, exit-gate result, Git HEAD,
-dirty-worktree status, creation time, canonical handoff path, and an inventory
-of copied files. Use SHA-256 for every copied-file checksum. Terminal
+assignment ID, invocation ID, attempt number, tier history, runtime-enforcement
+status, escalation rationale when applicable, actor outcome, exit-gate result,
+Git HEAD, dirty-worktree status, creation time, canonical handoff path, and an
+inventory of copied files. Use SHA-256 for every copied-file checksum. Terminal
 lifecycles without an actor use `invocation_id: null`. Use this manifest shape:
 
 ```yaml
@@ -127,6 +128,12 @@ checkpoint_sequence: 3
 lifecycle: IMPLEMENTATION
 task_revision: 1
 invocation_id: implementation-r1-attempt-2
+assignment_id: implementation-r1
+attempt: 2
+model_tier: standard
+attempted_model_tiers: [fast, standard]
+runtime_enforcement: confirmed
+escalation_rationale: Fast attempt omitted required acceptance-criteria evidence.
 actor_outcome: succeeded
 exit_gate: passed
 git_head: <commit-or-null>
@@ -153,11 +160,12 @@ After every router evaluation, allocate `route_sequence + 1` and write
 - every permitted outgoing edge evaluated, its guard result, and supporting
   evidence;
 - hard invariants and policy signals used, including risk, confidence, scope,
-  and escalation;
+  assignment ID, attempt number, and any prior sequential escalation;
 - selected lifecycle, edge, passed guard, and an evidence-backed rationale
   sufficient to audit the decision;
 - invalidated artifacts and why they became stale;
-- next actor role, abstract model tier, and resolved runtime details when known;
+- next actor role, initial abstract model tier, and resolved runtime details
+  when known. A fresh assignment's initial tier is always `fast`;
 - creation time and Git HEAD.
 
 Use this decision shape:
@@ -189,7 +197,7 @@ routing_signals:
 escalation: null
 next_actor:
   role: implementer
-  model_tier: standard
+  model_tier: fast
 created_at: <ISO-8601 UTC>
 git_head: <commit-or-null>
 ```
@@ -233,7 +241,8 @@ and route dispositions. Show:
 - each lifecycle visit and its checkpoint outcome;
 - every proposed node-to-node route, including rejected proposals;
 - the selected guard and concise rationale;
-- task revision, invocation ID, model tier, risk, confidence, and scope;
+- task revision, assignment ID, invocation ID, attempt number, attempted model
+  tiers, runtime enforcement, risk, confidence, and scope;
 - invalidated artifacts, blockers, and approval disposition;
 - relative links to the full immutable records.
 
@@ -298,7 +307,9 @@ After an actor returns any lifecycle result and before the router selects the ne
 1. Resolve and create the lifecycle directory and required artifact directories.
 2. Write the canonical `handoff.md` with:
    - task objective and acceptance criteria;
-   - lifecycle, task revision, actor outcome, and exit-gate result;
+   - lifecycle, task revision, assignment ID, invocation ID, attempt number,
+     current tier, attempted tiers, resolved runtime details, runtime
+     enforcement, actor outcome, and exit-gate result;
    - lifecycle output summary;
    - decisions, assumptions, and constraints;
    - canonical artifacts and evidence;
@@ -306,7 +317,9 @@ After an actor returns any lifecycle result and before the router selects the ne
    - changed files and Git HEAD when applicable;
    - validation performed;
    - risks, blockers, and unresolved questions;
-   - inputs the router needs for its next decision.
+   - model-insufficiency signals and evidence, the next sequential tier when
+     eligible, and inputs the lifecycle router needs when escalation is not
+     eligible.
    Express each item as current state. Replace superseded values instead of
    appending a correction or change narrative.
 3. Write optional detailed material to `context.md` and supporting files to `artifacts/`.
@@ -326,6 +339,7 @@ After an actor returns any lifecycle result and before the router selects the ne
    - relative path to the latest handoff;
    - Git HEAD and dirty-worktree status;
    - pending transition, if any;
+   - active assignment ID, active attempt, and attempted model tiers;
    - the committed checkpoint sequence;
    - relative path to the latest snapshot manifest;
    - update time.
@@ -339,6 +353,12 @@ After an actor returns any lifecycle result and before the router selects the ne
 Persist the canonical handoff, immutable snapshot, and state index as one
 complete checkpoint. Do not mark the lifecycle checkpointed or append its
 history pointer when validation fails.
+
+When the orchestrator selects a replacement attempt, keep the canonical
+lifecycle unchanged, update `state.md` to `lifecycle_active`, and persist the
+next invocation with exactly the next tier. The completed checkpoint is the
+immutable escalation decision evidence. Do not create a lifecycle route record
+or self-edge for this invocation-control action.
 
 `AWAITING_INPUT`, `COMPLETED`, and `CANCELLED` have no worker actor result. Persist their pause or terminal result immediately after committing entry into the lifecycle.
 

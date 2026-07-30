@@ -36,9 +36,15 @@ Treat the reference as the normative execution protocol. If another instruction 
 
 Use the runtime's native mechanisms for actor delegation, filesystem access, Git, and pull-request delivery.
 
-- Keep lifecycle roles provider-neutral. Resolve `standard` and `high_reasoning` through `MODEL_TIERS.md` only at the actor-dispatch boundary.
+- Keep lifecycle roles provider-neutral. Resolve `fast`, `standard`, and `high`
+  through `MODEL_TIERS.md` only at the actor-dispatch boundary.
 - Include the bounded lifecycle role and mutation authority in every tier-worker assignment.
-- Persist both the selected abstract tier and its resolved runtime, worker profile, concrete model, and effort.
+- Start every fresh bounded assignment at `fast`. Escalate a replacement attempt
+  by exactly one tier only when the prior attempt has persisted evidence of
+  model insufficiency.
+- Persist the assignment ID, attempt number, selected abstract tier, resolved
+  runtime, worker profile, concrete model, effort, enforcement status, and any
+  escalation rationale.
 
 ## Reload
 

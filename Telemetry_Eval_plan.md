@@ -336,6 +336,8 @@ needed to understand a run.
 - route reversal rate;
 - invalid or inconclusive routing rate;
 - model-tier escalation rate;
+- `fast` → `standard` and `standard` → `high` escalation rates;
+- exit-gate pass rate and wall time by assignment attempt and tier;
 - time spent awaiting input.
 
 ### Reliability
