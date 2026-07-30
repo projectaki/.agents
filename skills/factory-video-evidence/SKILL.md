@@ -1,12 +1,13 @@
 ---
 name: factory-video-evidence
-description: "Create one reviewer-facing video for one supplied video-required UI workflow in an existing evidence run. Use only when regression scope explains why automation is insufficient or the human explicitly requires video."
+description: "Create one reviewer-facing video for one supplied video-required UI workflow in an existing evidence run. Use only when implementation review explains why automation is insufficient or the human explicitly requires video."
 ---
 
 # Factory Video Evidence
 
 Turn 1 supplied UI workflow into 1 repeatable script and 1 compact video. Do not
-accept multiple workflows, change product code, or discover regression scope.
+accept multiple workflows, change product code, or perform implementation
+review.
 
 When orchestrated, the primary thread must delegate this skill to the routed
 tier worker. That worker must not spawn another lifecycle actor.

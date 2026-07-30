@@ -60,7 +60,7 @@ resolve_lifecycle_slug() {
 
   lifecycle_slug="$(slugify "$lifecycle_name")"
   case "$lifecycle_slug" in
-    intake|context-gathering|analysis|replication|test-scope|planning|implementation|regression-scope|review|video-evidence|verification|delivery|awaiting-input|completed|cancelled)
+    intake|context-gathering|analysis|replication|planning|implementation|review|video-evidence|verification|delivery|awaiting-input|completed|cancelled)
       printf '%s' "$lifecycle_slug"
       ;;
     *)

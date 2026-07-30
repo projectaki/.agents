@@ -1,6 +1,6 @@
 ---
 name: factory-verify
-description: "Use only when the human explicitly starts final verification for a completed implementation with a current factory-regression-scope packet and change-assurance report. Prove every changed path, acceptance criterion, and scoped risk with final-revision evidence; return a PR-ready report without modifying implementation."
+description: "Use only when the human explicitly starts final verification for a reviewed implementation with a current change-assurance report. Prove every changed path, acceptance criterion, and reviewed risk with final-revision evidence; return a PR-ready report without modifying implementation."
 ---
 
 # Factory Verify
@@ -12,11 +12,12 @@ tier worker. That worker must not spawn another lifecycle actor.
 
 ## Input
 
-Read the task, criteria, context, approved plan, implementation packet, current
-diff, review, bug baseline, current regression scope, and applicable visual
-evidence. Require `change-assurance-report.md` with base, head, fingerprint,
-groups, and paths matching the final change. Missing, stale, or contradictory
-required input yields `inconclusive` or `blocked`.
+Read the task, criteria, analysis, approved plan, implementation packet, current
+diff, implementation review, bug baseline, and applicable visual evidence.
+Require a review covering final-diff regression risks and a
+`change-assurance-report.md` with base, head, fingerprint, groups, and paths
+matching the final change. Missing, stale, or contradictory required input
+yields `inconclusive` or `blocked`.
 
 ## Workflow
 

@@ -1,6 +1,0 @@
-interface:
-  display_name: "Factory Regression Scope"
-  short_description: "Map a final diff to regression risks"
-  default_prompt: "Use $factory-regression-scope to map the completed change set to regression risks and evidence gaps."
-policy:
-  allow_implicit_invocation: false

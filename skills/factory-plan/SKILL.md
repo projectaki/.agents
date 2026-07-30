@@ -1,6 +1,6 @@
 ---
 name: factory-plan
-description: "Use only when the human explicitly starts planning with change context and a current factory-test-scope packet. Produce an implementation-ready plan without editing files or implementing."
+description: "Use only when the human explicitly starts planning with a current factory-analysis packet. Produce an implementation-ready plan without editing files or implementing."
 ---
 
 # Factory Plan
@@ -12,7 +12,7 @@ tier worker. That worker must not spawn another lifecycle actor.
 
 ## Inputs
 
-Require a current `factory-test-scope` packet for the proposed change. Return
+Require a current `factory-analysis` packet for the proposed change. Return
 the exact blocker if it is missing, stale, or based on materially different
 acceptance criteria.
 
@@ -21,7 +21,7 @@ acceptance criteria.
 1. Read supplied context and repository instructions.
 2. Inspect only enough current code to ground the plan.
 3. Define ordered, concrete implementation steps.
-4. Map every behavioral path and test-scope risk ID to corroborated inspection,
+4. Map every behavioral path and analysis risk ID to corroborated inspection,
    targeted automation, visual evidence only when automation is insufficient,
    or a human-approved evidence exception.
 5. Record assumptions, risks, dependencies, and blockers.

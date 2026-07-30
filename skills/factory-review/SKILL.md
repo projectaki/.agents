@@ -24,11 +24,15 @@ Report every supported finding with severity, exact location, evidence, impact,
 smallest safe recommendation, and confidence.
 
 For implementation review, reconcile the whole base-to-head diff with the
-canonical assurance report. Confirm every diff region belongs to a coherent
-change group; every group maps to a behavioral path or justified non-behavioral
-class; boundary evidence reaches that path; and assertions prove the claimed
-outcome. Treat omissions, implicit paths, unsupported inspection claims, and
-overstated evidence as blocking completeness findings.
+canonical assurance report. Trace each change group through callers, consumers,
+data, permissions, side effects, and observable behavior. Identify direct and
+adjacent regression risks, then map each risk to current evidence as
+`sufficient`, `missing`, `stale`, `failed`, or `inaccessible`. Require the
+cheapest sufficient proof. Recommend visual evidence only when automation
+cannot prove the property.
+
+Treat unaccounted diff regions, implicit paths, unsupported claims, missing
+material evidence, and overstated evidence as blocking findings.
 
 Return `incomplete` when required context is unavailable. Do not retry,
 substitute a model, inspect another reviewer's result, or start another
@@ -44,6 +48,8 @@ Return an agent result with:
 - numbered findings with severity, location, evidence, impact, recommendation,
   and confidence
 - questions, evidence gaps, and residual risk
+- for implementation review: complete diff accountability, regression risks,
+  evidence status, and the smallest next proof for each gap
 
 When orchestrated, also write one human `report.md` with numbered, descriptive
 findings, concrete locations, impact, and the smallest safe recommendation.

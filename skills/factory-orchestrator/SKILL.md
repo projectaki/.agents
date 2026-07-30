@@ -20,16 +20,16 @@ steps.
 
 Choose the earliest missing or stale prerequisite, otherwise the next step:
 
-1. `CONTEXT_GATHERING` — `factory-context`
-2. `REPLICATION` — `factory-replicate` for bugs
-3. `TEST_SCOPE` — `factory-test-scope`
-4. `PLANNING` — `factory-plan`
-5. `REVIEW` — `factory-review` when the plan needs independent review
-6. `IMPLEMENTATION` — `factory-implement`
-7. `REGRESSION_SCOPE` — `factory-regression-scope`
-8. `REVIEW` — `factory-review` for the complete change
-9. `VIDEO_EVIDENCE` — `factory-video-evidence` only when required by regression
-   scope
+1. `INTAKE` — `factory-intake`
+2. `CONTEXT_GATHERING` — `factory-context`
+3. `REPLICATION` — `factory-replicate` for bugs
+4. `ANALYSIS` — `factory-analysis`, including test scope
+5. `PLANNING` — `factory-plan`
+6. `REVIEW` — `factory-review` when the plan needs independent review
+7. `IMPLEMENTATION` — `factory-implement`
+8. `REVIEW` — `factory-review`, including final-diff regression analysis
+9. `VIDEO_EVIDENCE` — `factory-video-evidence` only when review shows automation
+   cannot prove a required visual behavior
 10. `VERIFICATION` — `factory-verify`
 11. `DELIVERY` — `factory-draft-pr`
 12. `COMPLETED`
@@ -46,6 +46,8 @@ checkpoints, and reports.
 
 - Supply the skill, bounded objective, mutation authority, canonical inputs,
   and required output.
+- During `INTAKE`, relay the worker's questions to the human and resume intake
+  with the answers.
 - Use 1 implementer. Reviewers and verifiers must be independent.
 - Start each assignment with `fast-worker`. Escalate only after a checkpointed
   reasoning-quality failure: `fast-worker` → `standard-worker` → `high-worker`.

@@ -1,11 +1,11 @@
 ---
 name: factory-context
-description: "Use only when the human explicitly starts the context lifecycle for a software change or investigation. Research the issue, codebase, and relevant local or authoritative online documentation; return planning evidence or identify what is missing."
+description: "Use only when the human explicitly starts context gathering with an aligned task contract. Research the codebase and relevant local or authoritative online documentation; return evidence for analysis or identify what is missing."
 ---
 
 # Factory Context
 
-Build the evidence needed for planning. Do not plan or implement.
+Build the evidence needed for analysis. Do not analyze, plan, or implement.
 
 When orchestrated, the primary thread must delegate this skill to the routed
 tier worker. That worker completes the workflow without spawning another
@@ -44,7 +44,7 @@ When orchestrated, keep exhaustive evidence in the agent packet and write one
 
 - Use plain language, short sentences, spacing, and descriptive headings.
 - Start with **At a glance** and the readiness.
-- Prefer **Ready for planning**, **Needs clarification**, or **Blocked**.
+- Prefer **Ready for analysis**, **Needs clarification**, or **Blocked**.
 - Do not use JSON, YAML, key-value fields, raw command output, or internal agent
   terms.
 - Use technical names only when they help verification, and explain why they
@@ -68,5 +68,5 @@ Use these headings when relevant:
 10. **Readiness**
 
 End **Readiness** with **Yes**, **Not yet**, or **Blocked**, followed by the
-reason. Mark **Ready for planning** only when a planner can proceed without
+reason. Mark **Ready for analysis** only when an analyst can proceed without
 repeating discovery.

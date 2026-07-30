@@ -13,9 +13,9 @@ tier worker. That worker must not spawn another lifecycle actor.
 ## Inputs
 
 Require repository, base and feature branches, criteria, full base-to-head diff,
-implementation packet, current regression scope, matching `pass` verification,
-matching final `change-assurance-report.md`, and reviewer-accessible URLs for
-required visuals. Local paths are not evidence.
+implementation packet, current implementation review, matching `pass`
+verification, matching final `change-assurance-report.md`, and
+reviewer-accessible URLs for required visuals. Local paths are not evidence.
 
 ## Workflow
 
@@ -72,7 +72,7 @@ required visuals. Local paths are not evidence.
 
 ### Exceptional visuals
 
-Include only criteria automation cannot prove. Require matching regression-scope
+Include only criteria automation cannot prove. Require matching review
 rationale and successful same-head verification. For each, state the behavior,
 technical or perceptual limitation, and sanitized reviewer-accessible URL.
 Use screenshots for static properties and video for sequences, gestures,

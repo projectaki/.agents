@@ -1,0 +1,4 @@
+interface:
+  display_name: "Factory Intake"
+  short_description: "Align a software change with the human"
+  default_prompt: "Use $factory-intake to clarify and align the task contract with me."
