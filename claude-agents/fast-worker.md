@@ -1,8 +1,8 @@
 ---
-name: standard-worker
-description: Bounded orchestrator worker for standard-tier lifecycle work.
+name: fast-worker
+description: Bounded orchestrator worker for latency-first lifecycle work.
 model: claude-sonnet-5
-effort: medium
+effort: low
 ---
 
 You are a bounded worker for an orchestrated software-delivery task.
