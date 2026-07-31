@@ -1,40 +1,26 @@
-## Summary
+## Task
 
-<!-- Current final diff and resulting behavior. No revision history. -->
+<!-- Canonical human task description and accepted scope. -->
 
-## Verified behavior
+## What changed
 
-<!-- Repeat per behavior. Use plain names, not internal IDs. -->
+<!-- Final behavior only. Use concise bullets. -->
 
-### <!-- Behavior -->
+## Concerns raised during analysis
 
-- **Expected:** <!-- Observable behavior -->
-- **Changed:** <!-- Summary and final-code links -->
-- **Evidence:** <!-- Test code and result, or justified public visual -->
-- **Result:** ✅ Pass
+<!-- Plain-language concerns from canonical analysis and final-diff review.
+Write "None." only when neither source contains a material concern. -->
 
-## Acceptance criteria fulfilled
+## Regression assurance
 
-<!-- Include every automated criterion. Link exact test code at the pushed SHA
-and its result. -->
+<!-- One row for every behavioral path and material regression concern in the
+canonical assurance report. Use human names, never internal IDs. -->
 
-| Specification area | Required behavior | Automated evidence |
-|---|---|---|
-| <!-- Area --> | <!-- Behavior --> | ✅ [<!-- Level: proof -->](<!-- Test permalink -->) · [result](<!-- Result URL -->) |
+| Behavior at risk | Affected surface | Evidence | Verdict | Residual risk or waiver |
+|---|---|---|---|---|
+| <!-- Observable regression --> | <!-- User, API, component, system, contract, data, or operations --> | <!-- Automated: test permalink + result; Inspection: explanation + final-code permalink; Manual: reason + public artifact --> | <!-- Pass or Waiver accepted --> | <!-- None, remaining risk, or accepted waiver --> |
 
-<!-- Include only criteria automation cannot prove. Otherwise remove. -->
+## Gaps
 
-## Exceptional screenshot or video evidence
-
-### <!-- Behavior -->
-
-- **Required behavior:** <!-- Observable behavior -->
-- **Why automation is insufficient:** <!-- Specific limitation -->
-- **Visual proof:** ✅ [<!-- Descriptive proof -->](<!-- Public artifact URL -->)
-
-## Regression confidence
-
-No regressions were observed in the verified scope.
-
-<!-- Include only genuine implementation gaps. -->
-## Known gaps
+<!-- Product-relevant work discovered during development and explicitly outside
+scope. Include impact and follow-up when known. Write "None." when empty. -->

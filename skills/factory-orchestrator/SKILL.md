@@ -46,6 +46,12 @@ checkpoints, and reports.
 
 - Supply the skill, bounded objective, mutation authority, canonical inputs,
   and required output.
+- For `DELIVERY`, explicitly require the PR sections `Task`, `What changed`,
+  `Concerns raised during analysis`, `Regression assurance`, and `Gaps`.
+  Require every assurance path and material concern to map to a plain-language
+  regression row with affected surface, evidence, verdict, and residual risk or
+  waiver. Require published-body read-back validation. Do not expect the worker
+  to rediscover these requirements from earlier artifacts.
 - During `INTAKE`, relay the worker's questions to the human and resume intake
   with the answers.
 - Use 1 implementer. Reviewers and verifiers must be independent.
@@ -72,4 +78,8 @@ and full mappings in agent records; keep `report.md` concise and plain.
 
 Mark `COMPLETED` only when the final diff is fully accounted for, independent
 review and final-revision verification pass, required exceptions are approved,
-and a draft PR exists for that revision.
+and a draft PR exists for that revision. The published PR body must exactly
+match the validated delivery body and include complete plain-language
+traceability from every assurance path and material concern to evidence.
+Treat a missing row, required section, evidence link, verdict, or residual-risk
+statement as delivery failure.

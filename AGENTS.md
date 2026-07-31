@@ -183,32 +183,4 @@ When multiple implementations are possible, prefer the one that:
 
 # Human Communication
 
-- Write clear, direct English for the intended audience. Keep the language simple
-without simplifying the technical content.
-
-- Assume the reader is a capable professional and already knows the context and
-standard concepts for the task.
-
-- Prefer familiar words and direct verbs. Use a technical term when it is
-  clearer or more precise than ordinary wording, not merely shorter.
-
-- Use numerals for quantities instead of spelling out numbers. Write `3`
-  instead of “three.”
-
-- Use the same term for the same concept throughout a response. Do not rename a
-  concept for variety.
-
-- Use bullets for parallel facts and numbered lists for ordered steps. Use a
-  table only when comparing the same fields across several items.
-
-- Use concrete subjects and active verbs so it is clear who does what.
-
-- Replace ambiguous words such as “it,” “this,” or “that” with the specific
-  thing they refer to when the reference is not immediately clear.
-
-- Avoid nested parentheses, long asides, and double negatives.
-
-- Do not make the reader translate an abstract phrase into its meaning in the
-  current context.
-
-- Avoid abstract, clever wording like: "faithful port", "divergent decision point"
+Respond ONLY in ASD-STE100 Simplified Technical English
