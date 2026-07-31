@@ -55,8 +55,11 @@ checkpoints, and reports.
 - During `INTAKE`, relay the worker's questions to the human and resume intake
   with the answers.
 - Use 1 implementer. Reviewers and verifiers must be independent.
-- Start each assignment with `fast-worker`. Escalate only after a checkpointed
-  reasoning-quality failure: `fast-worker` → `standard-worker` → `high-worker`.
+- Start with the lowest safe profile: `fast-worker` by default; use a higher
+  floor for high-risk, irreversible, or hard-to-verify work.
+- After each run, check its evidence and exit conditions. On a checkpointed
+  reasoning-quality failure, escalate one tier: `fast-worker` →
+  `standard-worker` → `high-worker`.
 - Route tool failures, access gaps, scope errors, and implementation defects;
   do not escalate them.
 - Stop if the runtime cannot select the named profile.
