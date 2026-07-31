@@ -40,33 +40,30 @@ correction history.
 ## Human report
 
 When orchestrated, keep exhaustive evidence in the agent packet and write one
-`report.md` without internal IDs or bookkeeping.
+`report.md` without internal IDs or bookkeeping. Follow the shared pattern in
+`../factory-handoff/references/human-report-patterns.md` and use its Context
+gathering guidance.
 
 - Use plain language, short sentences, spacing, and descriptive headings.
-- Start with **At a glance** and the readiness.
 - Prefer **Ready for analysis**, **Needs clarification**, or **Blocked**.
-- Do not use JSON, YAML, key-value fields, raw command output, or internal agent
-  terms.
+- Do not use JSON, YAML, raw command output, internal bookkeeping fields, or
+  internal agent terms.
 - Use technical names only when they help verification, and explain why they
   matter.
 - Use bullets for facts and numbered lists only for ordered steps or questions.
-  Avoid dense tables.
 - Label **Confirmed**, **Likely**, and **Still unknown** clearly.
 - Omit empty sections.
 
-Use these headings when relevant:
+After the shared headings, use these headings when relevant:
 
-1. **At a glance**
-2. **What needs to change**
-3. **What success looks like**
-4. **What is and is not included**
-5. **How it works today**
-6. **Where the change is likely to happen**
-7. **Important constraints**
-8. **Evidence reviewed**
-9. **What is still unclear**
-10. **Readiness**
+1. **What needs to change**
+2. **What success looks like**
+3. **What is and is not included**
+4. **How it works today**
+5. **Where the change is likely to happen**
+6. **Important constraints**
+7. **Evidence reviewed**
+8. **What is still unclear**
 
-End **Readiness** with **Yes**, **Not yet**, or **Blocked**, followed by the
-reason. Mark **Ready for analysis** only when an analyst can proceed without
-repeating discovery.
+Mark **Ready for analysis** only when an analyst can proceed without repeating
+discovery.

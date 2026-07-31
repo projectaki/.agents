@@ -72,7 +72,7 @@ After the worker returns:
 
 1. Check the skill output and exit conditions.
 2. Use `factory-handoff` to persist the result, `report.md`, artifacts, exit
-   outcome, and route reasoning.
+   outcome, and route reasoning. Apply its shared human report pattern.
 3. Verify the checkpoint.
 4. Commit the next lifecycle or pause state, then return control.
 

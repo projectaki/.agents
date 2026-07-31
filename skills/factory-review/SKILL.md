@@ -53,7 +53,9 @@ Return an agent result with:
 
 When orchestrated, also write one human `report.md` with numbered, descriptive
 findings, concrete locations, impact, and the smallest safe recommendation.
-Keep stable IDs and wide mappings in the agent result.
+Keep stable IDs and wide mappings in the agent result. Follow the shared
+pattern in `../factory-handoff/references/human-report-patterns.md` and use its
+Review guidance.
 
 If there are no findings, state what was inspected and what remains uncertain.
 Do not fix findings.

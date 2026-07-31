@@ -40,7 +40,9 @@ yields `inconclusive` or `blocked`.
 
 Keep IDs, fingerprints, and full mappings in the packet and assurance report.
 Name behaviors, risks, and checks directly in `report.md`. Report only current
-scope, evidence, and gaps.
+scope, evidence, and gaps. Follow the shared pattern in
+`../factory-handoff/references/human-report-patterns.md` and use its
+Verification guidance.
 
 ## Verdicts
 

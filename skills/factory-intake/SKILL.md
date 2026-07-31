@@ -40,5 +40,7 @@ Return:
 - unanswered questions
 
 When orchestrated, also write one concise human `report.md` containing the
-current understanding and any questions. Do not research the codebase, plan,
-implement, or invent requirements.
+current understanding and any questions. Follow the shared pattern in
+`../factory-handoff/references/human-report-patterns.md` and use its Intake
+guidance. Do not research the codebase, plan, implement, or invent
+requirements.

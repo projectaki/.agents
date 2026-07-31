@@ -63,7 +63,8 @@ writable, report the blocker and do not advance.
     ├── context.md
     └── artifacts/
         ├── images/
-        └── diagrams/
+        ├── diagrams/
+        └── examples/
 ```
 
 - `state.md`: canonical task state and latest-handoff pointer.
@@ -72,7 +73,9 @@ writable, report the blocker and do not advance.
 - `handoff.md`: replaceable latest result for 1 lifecycle.
 - `report.md`: that lifecycle's only human document; no internal bookkeeping.
 - `context.md`: optional detail that would bloat `handoff.md`.
-- `artifacts/`: supporting files; put media in `images/` or `diagrams/`.
+- `artifacts/`: supporting files; put media in `images/` or `diagrams/`, and
+  redacted code, payload, schema, event, or configuration samples in
+  `examples/`.
 - `history/checkpoints/`: append-only observations; never route from them.
 - `history/routes/`: append-only decisions and dispositions, including rejected
   proposals.
@@ -252,8 +255,10 @@ canonical evidence. Otherwise report a mismatch. Never rewrite route records.
 ## Persist a lifecycle result
 
 Each lifecycle directory requires `handoff.md`, `report.md`, `context.md`, and
-`artifacts/images/` and `artifacts/diagrams/`. `report.md` is the human entry
-point. `handoff.md` links it first without duplicating it. Agent detail stays in
+`artifacts/images/`, `artifacts/diagrams/`, and `artifacts/examples/`.
+`report.md` is the human entry point. Write it with
+[the shared human report pattern](references/human-report-patterns.md).
+`handoff.md` links it first without duplicating it. Agent detail stays in
 `handoff.md`, `context.md`, canonical packets, and artifacts. For `ANALYSIS`,
 keep stable-ID traceability in `context.md`, not `report.md`.
 

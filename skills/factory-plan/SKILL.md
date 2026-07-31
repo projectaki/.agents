@@ -45,7 +45,17 @@ Return a self-contained agent plan with:
 
 When orchestrated, also write one human `report.md` for approval. Use plain
 behavior and risk names, ordered steps, and small sections. Keep IDs and full
-mappings in the agent plan; avoid tables wider than 4 columns.
+mappings in the agent plan; avoid tables wider than 4 columns. Follow the
+shared human report pattern in
+`../factory-handoff/references/human-report-patterns.md`.
+
+For a code or system-structure change, add a **Design preview** to the human
+report. Show the proposed structure with a small Mermaid diagram and one or two
+grounded code examples. Show only key files, types, signatures, composition, or
+control flow. Keep each example below 25 lines and label it as proposed. Put a
+larger reusable example in `artifacts/examples/`. Do not write the
+implementation in the plan. For a documentation or simple configuration
+change, state why a diagram or code example does not help.
 
 Return a specific blocker instead of inventing a material decision. Stop after
 the plan or blocker.

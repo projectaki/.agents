@@ -45,6 +45,8 @@ Return:
 
 Keep stable IDs and complete mappings in `context.md`. When orchestrated, also
 write one plain-language `report.md` that explains impact, risks, required
-proof, and readiness for planning.
+proof, and readiness for planning. Follow the shared pattern in
+`../factory-handoff/references/human-report-patterns.md` and use its Analysis
+guidance.
 
 Do not plan production changes, edit files, implement tests, or run checks.

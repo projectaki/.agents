@@ -50,7 +50,9 @@ Return an agent packet with:
 
 When orchestrated, also write one plain-language `report.md`: what changed,
 what did not, checks run, current risks, and readiness. Keep internal IDs,
-fingerprints, and exhaustive mappings in the assurance report.
+fingerprints, and exhaustive mappings in the assurance report. Follow the
+shared pattern in `../factory-handoff/references/human-report-patterns.md` and
+use its Implementation guidance.
 
 Describe only current state. Mention plan divergence only when it leaves active
 scope, risk, or a decision. Stop when the approved scope and targeted tests are

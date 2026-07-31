@@ -1,27 +1,22 @@
-# PR Verification Report
+# Verification: <short outcome>
 
-## Readiness
+## At a glance
 
-<Pass, fail, blocked, or more evidence needed, with reason.>
+| | |
+| --- | --- |
+| Status | <Pass, fail, blocked, or more evidence needed> |
+| Scope | <intended and affected behavior> |
+| Revision | <short commit when useful> |
+| Decision | <approval, exception, or more work> |
 
-- **Intended outcome:** <behavior>
-- **Implemented:** <behavior>
-- **Affected:** <users, systems, contracts, data, and operations>
-- **Verified revision:** <short commit when useful>
-
-Lead with failures, unverified behavior, and accepted exceptions.
+Lead with failures, unverified behavior, and accepted exceptions. Keep full
+path, risk, and criterion mappings in the agent packet and assurance report.
 
 ## Verified behavior
 
-<!-- Repeat per distinct behavior. Do not combine consumers or expose IDs. -->
-
-### <Behavior>
-
-- **Expected:** <observable claim>
-- **Affected boundary:** <caller, API, component, or user boundary>
-- **Result:** <Pass, fail, unverified, or exception accepted>
-- **Evidence:** <final code and inspection, or exact test code and result>
-- **Remaining risk:** <risk or none>
+| Behavior | Result | Evidence | Remaining risk |
+| --- | --- | --- | --- |
+| <observable behavior> | <Pass, fail, unverified, or exception accepted> | <current proof> | <risk or none> |
 
 ## Acceptance criteria
 
@@ -29,14 +24,9 @@ Lead with failures, unverified behavior, and accepted exceptions.
 
 ## Regression risks
 
-<!-- Repeat per material risk. -->
-
-### <Risk>
-
-- **Could affect:** <behavior and failure mode>
-- **Result:** <Pass, fail, or unverified>
-- **Evidence:** <test, inspection, or observation>
-- **Remaining gap:** <next proof or none>
+| Risk | Result | Evidence or gap |
+| --- | --- | --- |
+| <behavior and failure mode> | <Pass, fail, or unverified> | <proof or next proof> |
 
 ## Checks run
 
@@ -60,10 +50,15 @@ Lead with failures, unverified behavior, and accepted exceptions.
 - **Review:** <verdict and open findings>
 - **Verification verdict:** <pass/fail/inconclusive/blocked>
 - **Regression statement:** <no regressions observed in scope, or failures>
-- **Evidence gaps:** <missing or stale evidence>
-- **Residual risk:** <unknowns>
-- **Next work:** <specific work>
-- **Human decision:** <approval, exception, or more work>
+- **Evidence gaps:** <missing or stale evidence, or none>
+
+## Remaining risk
+
+<State active unknowns or "None identified.">
+
+## Next action
+
+<Give one owner and action, or state that verification is complete.>
 
 Describe only the current verified change. Omit revision history, removed risks,
 earlier failures, corrected mistakes, superseded scope, and internal IDs.
