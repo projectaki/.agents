@@ -39,6 +39,47 @@ authority, required input, unavailable dependencies, or ambiguity to
 `AWAITING_INPUT`. Use `CANCELLED` only on explicit cancellation. Mark downstream
 artifacts stale when inputs change; later artifacts never excuse a prerequisite.
 
+## Assess
+
+Before every dispatch, the orchestrator selects the lowest safe worker tier from
+current canonical evidence. Reassess from zero for each lifecycle; a higher tier
+does not carry forward.
+
+Evaluate:
+
+- impact: consequence, reversibility, and blast radius
+- uncertainty: evidence quality, conflicts, assumptions, and material unknowns
+- reasoning difficulty: novelty, coupled decisions, and architectural reach
+- proof difficulty: how directly the result can be tested or inspected
+- input gaps: missing, stale, incomplete, or unapproved required artifacts
+
+Classify each signal as `low`, `medium`, or `high`. Do not average signals or let
+low signals cancel a high one. Missing evidence belongs to the earliest lifecycle
+that can obtain it, or `AWAITING_INPUT` when human or external input is required;
+a stronger worker does not replace missing evidence.
+
+Select:
+
+- `fast-worker` when all signals are low. Prefer it for bounded implementation of
+  a complete approved plan and for procedural delivery.
+- `standard-worker` when any signal is medium and no high-tier condition applies.
+- `high-worker` for high reasoning difficulty; cross-system architectural
+  judgment; plan synthesis; or high-impact work combined with material
+  uncertainty or difficult proof. Security, authorization, sensitive data,
+  destructive migrations, concurrency, public contracts, and irreversible
+  external effects require explicit high-tier consideration, not automatic
+  inheritance by every later lifecycle.
+
+Analysis, planning, review, and verification are sensitive to uncertainty,
+reasoning difficulty, and proof difficulty. Implementation is usually fast when
+the approved plan has already resolved those concerns. Select review and
+verification tiers independently from the implementer tier.
+
+Persist the signals, selected tier, concise evidence-backed rationale, and
+assignment-specific escalation triggers. For a replacement attempt in the same
+lifecycle, persist the new assessment in the handoff and checkpoint rather than
+creating a self-route.
+
 ## Dispatch
 
 Delegate to a fresh native subagent. The primary thread only routes,
@@ -55,13 +96,17 @@ checkpoints, and reports.
 - During `INTAKE`, relay the worker's questions to the human and resume intake
   with the answers.
 - Use 1 implementer. Reviewers and verifiers must be independent.
-- Start with the lowest safe profile: `fast-worker` by default; use a higher
-  floor for high-risk, irreversible, or hard-to-verify work.
-- After each run, check its evidence and exit conditions. On a checkpointed
-  reasoning-quality failure, escalate one tier: `fast-worker` →
-  `standard-worker` → `high-worker`.
-- Route tool failures, access gaps, scope errors, and implementation defects;
-  do not escalate them.
+- Workers return bounded evidence. They do not select or recommend tiers, assess
+  their own sufficiency, route work, or decide escalation.
+- A worker stops and reports facts when continuing would exceed its assignment
+  or authority. The orchestrator classifies the result and decides whether to
+  accept it, replace the attempt, route backward, or enter `AWAITING_INPUT`.
+- After each run, the orchestrator checks the evidence and exit conditions. On a
+  checkpointed reasoning-quality failure, it may escalate exactly one tier:
+  `fast-worker` → `standard-worker` → `high-worker`.
+- Route missing information, tool failures, access gaps, scope changes, invalid
+  prerequisites, and ordinary implementation defects to their owning lifecycle;
+  do not treat them as model-tier failures.
 - Stop if the runtime cannot select the named profile.
 - Resolve model and effort from the runtime profile. Before spawning, state the
   lifecycle, worker, model, and effort. Confirm only after spawning succeeds.

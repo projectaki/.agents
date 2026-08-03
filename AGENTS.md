@@ -84,8 +84,10 @@ Prefer:
 - early returns
 - shallow control flow
 - explicit behavior
+- self explaining code without code comments
 
 Avoid deep nesting whenever possible.
+Avoid writing comments in code. The only time comments are acceptable is when they explain some workaround or some decision that is not self explanatory.
 
 ---
 

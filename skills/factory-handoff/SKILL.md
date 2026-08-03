@@ -127,6 +127,13 @@ resolved_effort: medium
 dispatch_mechanism: native_profile
 runtime_enforcement: confirmed
 escalation_rationale: Fast attempt omitted required acceptance-criteria evidence.
+selection_rationale: Medium reasoning difficulty requires evidence reconciliation.
+worker_assessment:
+  impact: low
+  uncertainty: low
+  reasoning_difficulty: medium
+  proof_difficulty: low
+  input_gaps: low
 actor_outcome: succeeded
 exit_gate: passed
 git_head: <commit-or-null>
@@ -157,8 +164,8 @@ After every route evaluation, allocate `route_sequence + 1` and write
   earlier sequential escalation
 - selected lifecycle, edge, passed guard, and auditable rationale
 - stale artifacts and reasons
-- next role, initial abstract tier, and runtime details when known; a fresh
-  assignment always starts at `fast`
+- next role, orchestrator-selected abstract tier, worker assessment, and runtime
+  details when known
 - UTC creation time and Git HEAD
 
 Use this shape:
@@ -187,6 +194,15 @@ routing_signals:
   risk: medium
   confidence: high
   scope: local
+worker_assessment:
+  impact: medium
+  uncertainty: low
+  reasoning_difficulty: low
+  proof_difficulty: medium
+  input_gaps: low
+  selected_tier: fast
+  rationale: The approved plan resolves design decisions and bounds the change.
+  escalation_triggers: [unexpected public contract, plan-invalidating dependency]
 escalation: null
 next_actor:
   role: implementer
@@ -280,11 +296,13 @@ After any actor result and before routing:
    - first link to `report.md`
    - objective and acceptance criteria
    - lifecycle, revision, assignment, invocation, attempt, current and attempted
-     tiers, runtime details, dispatch, enforcement, outcome, and exit gate
+     tiers, worker assessment, selection rationale, runtime details, dispatch,
+     enforcement, outcome, and exit gate
    - output summary, decisions, assumptions, constraints, artifacts, evidence,
      assurance report once implementation begins, changed files, Git HEAD,
      validation, risks, blockers, and open questions
-   - model-insufficiency evidence, next eligible tier, or routing inputs when
+   - worker evidence, orchestrator exit-gate assessment, failure classification,
+     model-insufficiency evidence, next eligible tier, or routing inputs when
      escalation is ineligible
 4. Put optional detail in `context.md` and supporting files in `artifacts/`.
 5. Allocate the next checkpoint, create its snapshot and manifest, and fail if
@@ -306,8 +324,9 @@ Treat the handoff, snapshot, and state index as 1 atomic checkpoint. Do not inde
 or mark checkpointed if validation fails.
 
 For a replacement attempt, keep the lifecycle unchanged, set state to
-`lifecycle_active`, and persist the next invocation at exactly the next tier.
-The prior checkpoint is escalation evidence. Do not create a route or self-edge.
+`lifecycle_active`, and persist the orchestrator's new assessment. A
+reasoning-quality escalation selects exactly the next tier. The prior checkpoint
+is escalation evidence. Do not create a route or self-edge.
 
 `AWAITING_INPUT`, `COMPLETED`, and `CANCELLED` have no worker result. Persist
 them immediately after lifecycle entry.
