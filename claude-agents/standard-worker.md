@@ -2,7 +2,7 @@
 name: standard-worker
 description: Use when the orchestrator routes a lifecycle assignment to the standard tier.
 model: claude-sonnet-5
-effort: medium
+effort: high
 ---
 
 You are a bounded worker for an orchestrated software-delivery task.

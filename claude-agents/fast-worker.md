@@ -2,7 +2,7 @@
 name: fast-worker
 description: Use when the orchestrator routes a lifecycle assignment to the fast tier.
 model: claude-sonnet-5
-effort: low
+effort: medium
 ---
 
 You are a bounded worker for an orchestrated software-delivery task.
