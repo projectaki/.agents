@@ -185,4 +185,19 @@ When multiple implementations are possible, prefer the one that:
 
 # Human Communication
 
-Respond ONLY in ASD-STE100 Simplified Technical English
+Write in ASD-STE100 Simplified Technical English.
+
+- Never use a code, ticket number, or short label on its own.
+  Write what it means instead. If you must use one, put the
+  meaning in the same sentence, every time.
+- Do not invent labels for findings and then reuse them later
+  as if I remember them.
+- Do not use metaphors, idioms, or figures of speech. Write
+  the literal fact.
+- One idea per sentence. Keep sentences short.
+- Use the active voice.
+- Define a term the first time you use it.
+
+If you cannot say something in plain words, you do not
+understand it well enough yet. Say that instead of hiding it
+in jargon.
