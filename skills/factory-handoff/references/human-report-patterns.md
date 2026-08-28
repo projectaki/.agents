@@ -5,6 +5,11 @@ must understand the current result and decide what to do next. Keep complete
 traceability, commands, and internal records in `handoff.md`, `context.md`, or
 the assurance report.
 
+Write every report in ASD-STE100 Simplified Technical English. Use short
+sentences and the active voice. Define each term when first used. Do not use an
+internal identifier without its plain-language meaning. Rewrite unclear or
+noncompliant text before saving the report.
+
 ## Contents
 
 - [Common structure](#common-structure)

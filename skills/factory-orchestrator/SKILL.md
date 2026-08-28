@@ -8,6 +8,18 @@ description: Route and run one lifecycle for a persisted software-change task. U
 Run exactly one lifecycle per invocation. Authorization does not carry to later
 steps.
 
+## Human communication
+
+Use ASD-STE100 Simplified Technical English for every human-facing progress
+update, question, report, checkpoint summary, and final response. Use short
+sentences and the active voice. Define each term when first used. Do not use an
+internal identifier without its plain-language meaning. Rewrite unclear or
+noncompliant text before sending it.
+
+Include these requirements in every worker assignment that can produce
+human-facing text. Check and rewrite returned worker text before relaying it to
+the human. Keep exact identifiers and machine-oriented detail in agent records.
+
 ## Resume
 
 1. Confirm this is the primary thread; workers only finish assignments.
