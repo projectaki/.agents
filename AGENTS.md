@@ -201,3 +201,29 @@ Write in ASD-STE100 Simplified Technical English.
 If you cannot say something in plain words, you do not
 understand it well enough yet. Say that instead of hiding it
 in jargon.
+
+## Keep Documents as Current-State Snapshots
+
+Treat each document as a description of the current state.
+This rule applies to issue descriptions, pull request
+descriptions, plans, code comments, and similar text.
+
+- Edit or replace obsolete text when facts or decisions change.
+- Do not append progress updates that turn the document into a
+  chronological log.
+- Remove superseded options, assumptions, and implementation
+  details when they no longer help a reader understand the
+  current state.
+- State the selected behavior or implementation directly. Do
+  not describe it as a change from an earlier option.
+- Make the text understandable without access to chat history,
+  agent context, unpublished research, or prior document
+  versions.
+- Include the evidence or reasoning that a reader needs to
+  understand a current decision. Do not refer only to
+  "research," "discussion," or "the context above."
+- Preserve history, rejected alternatives, or migration details
+  only when the user explicitly requests them or when they are
+  necessary to understand a current constraint.
+- After each edit, reread the complete document as a new reader.
+  Ensure that it is coherent, self-contained, and accurate now.
