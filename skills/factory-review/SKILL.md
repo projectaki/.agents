@@ -34,6 +34,15 @@ cannot prove the property.
 Treat unaccounted diff regions, implicit paths, unsupported claims, missing
 material evidence, and overstated evidence as blocking findings.
 
+Reconcile the proof ledger with the accepted task, analysis, plan, diff, and
+assurance report. Treat an open universal inventory, proof substitution without
+an accepted exception, overbroad waiver, duplicate mapping, or evidence for a
+different revision as a blocking finding.
+
+When the orchestrator supplies Factory telemetry context, record material
+inspection or validation, unavailable checks, failures, retries, and recovery
+with the best-effort writer. Telemetry failure never changes the review verdict.
+
 Return `incomplete` when required context is unavailable. Do not retry,
 substitute a model, inspect another reviewer's result, or start another
 lifecycle. Review only the supplied revision unless history is an explicit

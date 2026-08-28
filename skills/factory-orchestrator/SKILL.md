@@ -28,6 +28,21 @@ the human. Keep exact identifiers and machine-oriented detail in agent records.
    worktree.
 4. On interruption or state conflict, checkpoint `AWAITING_INPUT`; do not guess.
 
+## Telemetry
+
+When `factory-telemetry` is available, emit best-effort noncanonical events for
+the orchestrator run, actor dispatch and result, interruptions, resumptions,
+material operations, failures, retries, recovery, waits, and external actions.
+Also record material workspace or artifact changes made between actor results.
+Create a new `run_id` for each invocation and pass it, the assignment and
+invocation IDs, and the writer command to the worker. A resumed invocation names
+the earlier run but gets a new identifier.
+
+Telemetry is optional. Never read it for routing or resume, include it in a
+checkpoint, validate it as a lifecycle gate, or fail work because it cannot be
+written. Canonical state and telemetry share a task root but have no state
+dependency.
+
 ## Route
 
 Choose the earliest missing or stale prerequisite, otherwise the next step:
@@ -98,7 +113,7 @@ Delegate to a fresh native subagent. The primary thread only routes,
 checkpoints, and reports.
 
 - Supply the skill, bounded objective, mutation authority, canonical inputs,
-  and required output.
+  required output, and optional telemetry context.
 - For `DELIVERY`, explicitly require the PR sections `Task`, `What changed`,
   `Concerns raised during analysis`, `Regression assurance`, and `Gaps`.
   Require every assurance path and material concern to map to a plain-language
@@ -130,7 +145,7 @@ After the worker returns:
 1. Check the skill output and exit conditions.
 2. Use `factory-handoff` to persist the result, `report.md`, artifacts, exit
    outcome, and route reasoning. Apply its shared human report pattern.
-3. Verify the checkpoint.
+3. Validate the canonical proof ledger and verify the checkpoint.
 4. Commit the next lifecycle or pause state, then return control.
 
 Worker recommendations are evidence, not routing commands. Keep internal IDs

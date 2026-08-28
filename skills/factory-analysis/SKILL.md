@@ -32,6 +32,14 @@ stale, or contradictory.
 5. State the implementation and verification implications without choosing an
    implementation approach.
 
+Update the canonical proof-ledger data. Preserve each accepted claim and its
+required proof. Add path and risk IDs. Close the inventory behind every
+universal claim or block planning when it cannot be bounded.
+
+When the orchestrator supplies Factory telemetry context, record material
+investigations, unavailable evidence sources, failures, retries, and recovery
+with the best-effort writer. Telemetry failure never changes analysis status.
+
 ## Output
 
 Return:

@@ -26,6 +26,15 @@ acceptance criteria.
    or a human-approved evidence exception.
 5. Record assumptions, risks, dependencies, and blockers.
 
+Update each proof obligation with the planned proof. Reject the plan when the
+planned method weakens or substitutes the required method without an accepted,
+claim-specific and path-specific human exception. Do not let related wording
+extend an exception.
+
+When the orchestrator supplies Factory telemetry context, record material
+repository operations, failures, retries, recovery, and waits with the
+best-effort writer. Telemetry failure never changes planning status.
+
 Do not edit, implement, add unsupported requirements, or plan speculative
 refactors. Describe current requirements and constraints without revision
 history or discarded approaches.

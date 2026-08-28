@@ -41,6 +41,7 @@ writable, report the blocker and do not advance.
 ~/.agents-db/<project_slug>/<branch_slug>/
 ├── state.md
 ├── change-assurance-report.md
+├── proof-ledger.yaml
 ├── history/
 │   ├── timeline.md
 │   ├── checkpoints/
@@ -48,6 +49,7 @@ writable, report the blocker and do not advance.
 │   │       ├── manifest.md
 │   │       └── snapshot/
 │   │           ├── change-assurance-report.md
+│   │           ├── proof-ledger.yaml
 │   │           └── <lifecycle_slug>/
 │   │               ├── handoff.md
 │   │               ├── report.md
@@ -57,6 +59,10 @@ writable, report the blocker and do not advance.
 │       └── 000001-<from_lifecycle>--<to_lifecycle>/
 │           ├── decision.md
 │           └── disposition.md
+├── telemetry/
+│   ├── events.jsonl
+│   ├── artifacts/
+│   └── summary.md
 └── <lifecycle_slug>/
     ├── handoff.md
     ├── report.md
@@ -80,6 +86,19 @@ writable, report the blocker and do not advance.
 - `history/routes/`: append-only decisions and dispositions, including rejected
   proposals.
 - `history/timeline.md`: rebuildable, noncanonical view of immutable history.
+- `proof-ledger.yaml`: canonical acceptance claim, path, proof, evidence, and
+  waiver record. Use the [proof ledger contract](references/proof-ledger.md).
+- `telemetry/`: optional, append-only operational observations for later
+  analysis. It is noncanonical and owned by `factory-telemetry`.
+
+Never route, checkpoint, resume, or determine task success from `telemetry/`.
+Never copy it into a checkpoint or include it in checkpoint checksums. Missing,
+invalid, or unwritable telemetry does not block Factory work.
+
+Create the proof ledger during intake for new tasks. For a legacy active task,
+derive it from the accepted contract and current canonical packets before the
+next planning, verification, or delivery gate. Completed legacy tasks do not
+require backfill.
 
 Link artifacts from `handoff.md` with lifecycle-relative paths. A checkpoint
 snapshot must copy the canonical handoff and every mutable branch-task file it
@@ -88,15 +107,29 @@ permanent URL references external. Import mutable files outside the task root
 into canonical artifacts first. Never persist secrets or unredacted sensitive
 data.
 
+Copy the current proof ledger into every checkpoint after it exists. Include its
+checksum in the manifest. This preserves claim, proof, evidence, and waiver
+changes without putting historical text in the canonical ledger.
+
 Use canonical names only; no timestamps or ad hoc handoff names. One active task
 is allowed per project and branch. Resume an existing `state.md`; replace its
 objective only after explicit archive or clear.
 
+Keep `state.md` as YAML front matter only. Use the
+[current state contract](references/current-state.md). Do not store lifecycle
+narrative, resolved findings, retry history, external-action history, or
+telemetry in it. Validate it before indexing a checkpoint.
+
+For legacy state without `schema_version`, inspect with `--allow-legacy` and
+derive the normal canonical resume packet. Replace it with schema version 1 at
+the next successful checkpoint. Do not copy legacy narrative into the new
+state. Preserve still-current facts in the applicable handoff first.
+
 ## Checkpoints
 
 Use 1 monotonically increasing `checkpoint_sequence` per branch task. Repeated
-lifecycle runs still get new sequences. Store only current counters and pointers
-in `state.md`:
+lifecycle runs still get new sequences. Store only the structured current fields,
+counters, and pointers defined by the state contract:
 
 ```yaml
 checkpoint_sequence: 3
@@ -233,8 +266,8 @@ Never replace a disposition. New evidence requires a new route sequence.
 
 ## Timeline
 
-Rebuild `history/timeline.md` after every history event from manifests,
-decisions, and dispositions. Include:
+Rebuild `history/timeline.md` after every canonical history event from manifests,
+decisions, and dispositions. Do not include telemetry facts. Include:
 
 - visit and edge counts, rework loops, rejected routes, escalations, and
   `AWAITING_INPUT` entries
@@ -246,7 +279,12 @@ decisions, and dispositions. Include:
 Order by time and include sequence IDs. Use a compact table with time, ID, event,
 lifecycle or movement, outcome or guard, rationale, and record link. Keep detail
 in immutable records. The timeline may not add facts. Missing or stale timeline
-is an observability defect, not routing authority.
+is an observability defect, not routing authority. `telemetry/summary.md` is a
+separate analytical view and cannot supply missing canonical facts.
+
+Use the bundled `rebuild-timeline.py` so counts and rows come from the same
+records. Validate lifecycle verdicts, sequences, and dispositions with
+`validate-history.py` before accepting the rebuilt view.
 
 ## Record a route
 
@@ -299,7 +337,8 @@ After any actor result and before routing:
      tiers, worker assessment, selection rationale, runtime details, dispatch,
      enforcement, outcome, and exit gate
    - output summary, decisions, assumptions, constraints, artifacts, evidence,
-     assurance report once implementation begins, changed files, Git HEAD,
+     proof ledger, assurance report once implementation begins, changed files,
+     Git HEAD,
      validation, risks, blockers, and open questions
    - worker evidence, orchestrator exit-gate assessment, failure classification,
      model-insufficiency evidence, next eligible tier, or routing inputs when
@@ -316,8 +355,9 @@ After any actor result and before routing:
    - `lifecycle_active` for `AWAITING_INPUT`
    - `terminal` for `COMPLETED` or `CANCELLED`
 8. Rebuild the timeline.
-9. Verify state, canonical handoff, manifest, timeline, and every referenced
-   canonical and historical artifact are readable.
+9. Validate `proof-ledger.yaml` when the task has acceptance claims. Verify
+   state, canonical handoff, manifest, timeline, and every referenced canonical
+   and historical artifact are readable.
 10. Return the task root, canonical handoff, human report, and snapshot manifest.
 
 Treat the handoff, snapshot, and state index as 1 atomic checkpoint. Do not index
@@ -348,6 +388,9 @@ them immediately after lifecycle entry.
    and no conflict exists; otherwise block. Never overwrite or delete it.
 8. Return lifecycle, revision, latest outcome, artifacts, snapshot, history
    mismatches, blockers, and pending transition.
+
+Do not read or validate `telemetry/` during resume. Its presence and condition
+cannot change the resume packet.
 
 If legacy `transition_history` exists, require migration. Import each entry into
 an immutable route record using only available facts, mark

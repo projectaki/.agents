@@ -1,0 +1,4 @@
+interface:
+  display_name: "Factory Telemetry"
+  short_description: "Record and analyze Factory runtime activity"
+  default_prompt: "Use $factory-telemetry to record or analyze noncanonical Factory runtime events."

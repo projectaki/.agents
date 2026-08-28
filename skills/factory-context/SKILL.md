@@ -22,6 +22,11 @@ lifecycle actor.
 4. Resolve discoverable gaps, then return one self-contained context packet or
    the smallest set of blocking questions.
 
+When the orchestrator supplies Factory telemetry context, record material
+research operations, unavailable tools or sources, retries, waits, and costly
+fallbacks with the best-effort writer. Telemetry failure never changes the
+context result.
+
 ## Context packet
 
 Include:

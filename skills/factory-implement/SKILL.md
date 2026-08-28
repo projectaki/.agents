@@ -28,7 +28,9 @@ required input is missing.
    working diff, map every group to behavioral paths or a precise
    non-behavioral classification, and record current evidence.
 5. Run reachable targeted checks.
-6. Return the implementation packet and remaining verification work.
+6. Attach current evidence to the canonical proof obligations without changing
+   their required or planned method.
+7. Return the implementation packet and remaining verification work.
 
 Investigate failed checks; treat unrun checks as unknown. Report inaccessible
 required checks. If evidence invalidates the plan, request a revision instead
@@ -36,6 +38,15 @@ of expanding scope.
 
 For optional tools, check availability once and try once. Do not install tools
 or seek elevated access only to run them.
+
+When the orchestrator supplies Factory telemetry context, record service and
+Docker startup, builds, tests, static analysis, material operations, every
+failure, retry, recovery, interruption, and wait with the best-effort writer.
+Record one workspace event after each material change batch, with the current
+diff fingerprint and changed file names when available.
+Do not repeat a failed operation with unchanged preconditions unless the failure
+can be transient. Record why the retry is justified and what changed. Telemetry
+failure never changes implementation status or evidence.
 
 ## Output
 

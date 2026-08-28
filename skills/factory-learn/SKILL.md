@@ -12,7 +12,10 @@ tier worker. That worker must not spawn another lifecycle actor.
 
 ## Workflow
 
-1. Read the outcome and evidence. Inspect project guidance only to find
+1. Read the outcome and canonical evidence. When available, also read
+   `telemetry/events.jsonl` or its noncanonical summary for time, failures,
+   retries, recovery, waits, and interruptions. Treat missing telemetry as an
+   analytics gap, not a task defect. Inspect project guidance only to find
    duplication or conflicts.
 2. Propose learning only when it preserves a decision, preference, or
    repository constraint; prevents repetition; or changes safety or

@@ -35,6 +35,11 @@ essential condition is inaccessible, return `inconclusive` or `blocked`, not
 Get approval before destructive, irreversible, credentialed, production-data,
 or externally consequential steps.
 
+When the orchestrator supplies Factory telemetry context, record every
+reproduction attempt, environment startup, failure, retry, recovery, and wait
+with the best-effort writer. Use timestamps and one operation identity across
+retries. Telemetry failure never changes the replication verdict.
+
 ## Verdicts
 
 - `reproduced`: reliable evidence captured the failure.

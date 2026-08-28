@@ -38,9 +38,15 @@ Return:
 - authority, approvals, dependencies, and assumptions
 - expected deliverable
 - unanswered questions
+- initial proof-ledger claims, with stable claim and proof identifiers, original
+  required proof, and a closed inventory for each accepted universal claim
 
 When orchestrated, also write one concise human `report.md` containing the
 current understanding and any questions. Follow the shared pattern in
 `../factory-handoff/references/human-report-patterns.md` and use its Intake
 guidance. Do not research the codebase, plan, implement, or invent
 requirements.
+
+When the orchestrator supplies Factory telemetry context, record material
+operations, failures, retries, waits, and recovery with the best-effort writer.
+Telemetry failure never changes intake status or output.

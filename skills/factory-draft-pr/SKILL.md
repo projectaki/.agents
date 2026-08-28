@@ -71,6 +71,14 @@ The delivery assignment must name these mandatory PR sections in this order:
     Missing traceability is a delivery failure even when the branch was pushed
     and the PR exists.
 
+Use the verified proof ledger as the canonical input to the internal coverage
+ledger. Do not widen a waiver or combine proof obligations with different
+surfaces, evidence, verdicts, or residual risks.
+
+When the orchestrator supplies Factory telemetry context, record push and pull
+request operations, failures, retries, fallbacks, and read-back checks with the
+best-effort writer. Telemetry failure never changes delivery status.
+
 ## Content
 
 ### Task

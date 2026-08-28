@@ -65,6 +65,11 @@ tier worker. That worker must not spawn another lifecycle actor.
 9. Review the whole video for the expected result, compactness, and sensitive
    data. Report and retain failed recordings. Confirm all 3 sessions are closed.
 
+When the orchestrator supplies Factory telemetry context, record browser and
+environment startup, authentication recovery, workflow attempts, failures,
+retries, recording, and waits with the best-effort writer. Telemetry failure
+never changes the evidence result.
+
 ## Output
 
 Return the run path, auth profile name without secrets, risk and path IDs,

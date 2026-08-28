@@ -35,7 +35,10 @@ yields `inconclusive` or `blocked`.
 5. Finalize the assurance report. Give every path a verdict and durable evidence.
    Inspection needs a concise reason and available corroborating signal.
    Exceptions block until the human accepts their residual risk.
-6. Return the agent packet and human report defined in
+6. Finalize the proof ledger. Give every active claim and proof obligation an
+   allowed verdict. Reject proof substitution, stale evidence, incomplete
+   universal inventories, and exceptions outside their exact claim and path.
+7. Return the agent packet and human report defined in
    [references/pr-confidence-report.md](references/pr-confidence-report.md).
 
 Keep IDs, fingerprints, and full mappings in the packet and assurance report.
@@ -59,3 +62,8 @@ impossible.
 
 Stop after the report. Do not fix, create a PR, merge, release, or start another
 lifecycle.
+
+When the orchestrator supplies Factory telemetry context, record environment
+startup, every evidence-bearing check, failure, retry, recovery, interruption,
+and wait with the best-effort writer. Telemetry failure never changes the
+verification verdict.
