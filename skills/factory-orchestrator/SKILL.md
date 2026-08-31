@@ -35,8 +35,33 @@ the orchestrator run, actor dispatch and result, interruptions, resumptions,
 material operations, failures, retries, recovery, waits, and external actions.
 Also record material workspace or artifact changes made between actor results.
 Create a new `run_id` for each invocation and pass it, the assignment and
-invocation IDs, and the writer command to the worker. A resumed invocation names
-the earlier run but gets a new identifier.
+invocation IDs, the writer command, and a telemetry assignment to the worker. A
+resumed invocation names the earlier run but gets a new identifier.
+
+The orchestrator owns telemetry policy. Work skills do not depend on telemetry.
+Add these observations to the applicable worker assignment:
+
+- Intake: material operations, failures, retries, waits, and recovery.
+- Context gathering: material research, unavailable sources, failures, retries,
+  waits, and costly fallbacks.
+- Replication: every attempt, environment startup, failure, retry, recovery,
+  and wait. Keep one operation identity across retries.
+- Analysis: material investigations, unavailable evidence, failures, retries,
+  and recovery.
+- Planning: material repository operations, failures, retries, recovery, and
+  waits.
+- Implementation: environment and Docker startup, builds, tests, static
+  analysis, material operations, every failure, retry, recovery, interruption,
+  wait, and material workspace change batch. Include the Git head, diff
+  fingerprint, and changed file names when available.
+- Review: material inspection or validation, unavailable checks, failures,
+  retries, and recovery.
+- Video evidence: browser and environment startup, authentication recovery,
+  workflow attempts, failures, retries, recording, and waits.
+- Verification: environment startup, every evidence-bearing check, failure,
+  retry, recovery, interruption, and wait.
+- Delivery: push and pull request operations, failures, retries, fallbacks, and
+  read-back checks.
 
 Telemetry is optional. Never read it for routing or resume, include it in a
 checkpoint, validate it as a lifecycle gate, or fail work because it cannot be
@@ -65,6 +90,61 @@ Route failures to the earliest lifecycle that owns them. Route missing
 authority, required input, unavailable dependencies, or ambiguity to
 `AWAITING_INPUT`. Use `CANCELLED` only on explicit cancellation. Mark downstream
 artifacts stale when inputs change; later artifacts never excuse a prerequisite.
+
+## Compose
+
+The orchestrator owns lifecycle order and input composition. A work skill knows
+only the semantic inputs that it receives.
+
+1. Restore the current task contract and persisted step results through
+   `factory-handoff`.
+2. Select the next lifecycle from the route rules.
+3. Read the selected work skill's declared input contract.
+   Validate all work-skill contracts when they changed:
+
+   ```bash
+   python3 <skill-directory>/scripts/validate-step-contracts.py
+   ```
+
+4. Map persisted results and current workspace facts into those semantic inputs.
+   Supply complete data, not only storage paths. Include provenance when it is
+   necessary to validate revision or evidence freshness.
+5. Supply required capabilities, mutation authority, safety limits, and human
+   decisions.
+6. Validate that every required input is present, current, and consistent. Route
+   a missing input to its owner or enter `AWAITING_INPUT`.
+7. Require the declared structured result, human summary, artifacts, side-effect
+   account, and failure status.
+
+For an active legacy task without an acceptance-proof record, derive one from
+the accepted task contract and current persisted results before an assignment
+requires it. Persist it through `factory-handoff`. Do not backfill a completed
+legacy task.
+
+Use these mappings:
+
+- `INTAKE`: request, supplied artifacts, and human access.
+- `CONTEXT_GATHERING`: task contract, repository, linked artifacts, and permitted
+  sources.
+- `REPLICATION`: bug report, environment, known steps, evidence, capabilities,
+  and safety limits.
+- `ANALYSIS`: task contract, evidence packet, and applicable reproduction result.
+- `PLANNING`: task contract, evidence packet, impact analysis, paths, risks,
+  acceptance-proof record, repository, and human decisions.
+- `REVIEW`: bounded subject, focus, criteria, context, revision, and evidence.
+- `IMPLEMENTATION`: approved plan, repository, acceptance criteria, decisions,
+  paths, risks, acceptance-proof record, proof requirements, applicable
+  reproduction result, and mutation authority.
+- `VIDEO_EVIDENCE`: one visual workflow, identifiers, rationale, evidence
+  workspace, environment, authentication, setup, cleanup, and tool capability.
+- `VERIFICATION`: task contract, analysis, approved plan, change revision, diff,
+  implementation result, change-assurance record, independent review,
+  acceptance-proof record, applicable reproduction result, evidence, and check
+  capabilities.
+- `DELIVERY`: repository, branches, exact revision, publication authority,
+  draft-state policy, task and scope, final behavior, diff, finalized assurance
+  and proof records, material concerns, review findings, product gaps,
+  publication eligibility verdict, and reviewer-accessible evidence links.
 
 ## Assess
 
@@ -112,14 +192,11 @@ creating a self-route.
 Delegate to a fresh native subagent. The primary thread only routes,
 checkpoints, and reports.
 
-- Supply the skill, bounded objective, mutation authority, canonical inputs,
-  required output, and optional telemetry context.
-- For `DELIVERY`, explicitly require the PR sections `Task`, `What changed`,
-  `Concerns raised during analysis`, `Regression assurance`, and `Gaps`.
-  Require every assurance path and material concern to map to a plain-language
-  regression row with affected surface, evidence, verdict, and residual risk or
-  waiver. Require published-body read-back validation. Do not expect the worker
-  to rediscover these requirements from earlier artifacts.
+- Supply the skill, bounded objective, composed semantic inputs, capabilities,
+  mutation authority, declared output contract, human-summary requirements, and
+  optional telemetry assignment.
+- Do not duplicate the work skill's implementation rules in the assignment.
+  Require its complete declared result.
 - During `INTAKE`, relay the worker's questions to the human and resume intake
   with the answers.
 - Use 1 implementer. Reviewers and verifiers must be independent.
@@ -143,10 +220,15 @@ checkpoints, and reports.
 After the worker returns:
 
 1. Check the skill output and exit conditions.
-2. Use `factory-handoff` to persist the result, `report.md`, artifacts, exit
-   outcome, and route reasoning. Apply its shared human report pattern.
-3. Validate the canonical proof ledger and verify the checkpoint.
-4. Commit the next lifecycle or pause state, then return control.
+2. Convert the returned human summary into the lifecycle `report.md`. Apply the
+   shared human report pattern without changing the result's meaning.
+3. Use `factory-handoff` to persist the structured result, `report.md`,
+   artifacts, side-effect account, exit outcome, route reasoning, and applicable
+   complete acceptance-proof and change-assurance records. Require handoff to
+   persist those records before it creates the immutable snapshot.
+4. Validate the persisted proof ledger and assurance record. Verify the complete
+   checkpoint and immutable snapshot.
+5. Commit the next lifecycle or pause state, then return control.
 
 Worker recommendations are evidence, not routing commands. Keep internal IDs
 and full mappings in agent records; keep `report.md` concise and plain.

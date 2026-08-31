@@ -1,6 +1,6 @@
 interface:
   display_name: "Factory Implement"
-  short_description: "Implement an approved plan"
-  default_prompt: "Use $factory-implement to implement an approved factory plan."
+  short_description: "Implement a supplied approved change plan"
+  default_prompt: "Use $factory-implement to implement the supplied approved plan and return complete change assurance data."
 policy:
   allow_implicit_invocation: false

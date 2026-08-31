@@ -99,5 +99,5 @@ failures, retries, time by category, recorded run time, pause time, and
 unobserved interruption gaps. A missing finish event produces a lower-bound
 duration. A next-day gap is pause or unobserved time, never active work.
 
-Treat the summary as an analytical view. `factory-learn` can use it with the
-canonical history, but it remains optional and noncanonical.
+Treat the summary as an analytical view. A caller can supply it with canonical
+history to a separate analysis operation. It remains optional and noncanonical.

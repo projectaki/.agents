@@ -1,74 +1,61 @@
 ---
 name: factory-context
-description: "Use only when the human explicitly starts context gathering with an aligned task contract. Research the codebase and relevant local or authoritative online documentation; return evidence for analysis or identify what is missing."
+description: "Research a supplied software-change brief in the codebase and relevant authoritative documentation. Return a self-contained evidence packet or the exact missing information without analyzing, planning, or implementing."
 ---
 
 # Factory Context
 
-Build the evidence needed for analysis. Do not analyze, plan, or implement.
+## Purpose
 
-When orchestrated, the primary thread must delegate this skill to the routed
-tier worker. That worker completes the workflow without spawning another
-lifecycle actor.
+Build a reliable evidence packet for a supplied software-change brief.
 
-## Workflow
+## Inputs
 
-1. Read the complete request and linked artifacts. Extract the outcome, scope,
-   acceptance criteria, constraints, and open decisions.
+Require the task contract, linked artifacts, repository or workspace, permitted
+information sources, and current external documentation when applicable.
+
+## Operation
+
+1. Read the complete inputs. Extract the outcome, scope, acceptance criteria,
+   constraints, and open decisions.
 2. Trace relevant code, tests, configuration, history, and repository
-   documentation. Use authoritative online sources when current external APIs,
+   documentation.
+3. Use authoritative online sources when current external interfaces,
    libraries, standards, or behavior matter.
-3. Separate confirmed facts, reasonable inferences, conflicts, and unknowns.
-4. Resolve discoverable gaps, then return one self-contained context packet or
-   the smallest set of blocking questions.
-
-When the orchestrator supplies Factory telemetry context, record material
-research operations, unavailable tools or sources, retries, waits, and costly
-fallbacks with the best-effort writer. Telemetry failure never changes the
-context result.
-
-## Context packet
-
-Include:
-
-- requested change, outcome, scope, and acceptance criteria
-- current behavior and relevant architecture
-- relevant files, symbols, entry points, tests, reliable observable boundaries,
-  side effects, consumers, and documentation
-- project conventions, constraints, and authoritative sources
-- facts, inferences, conflicts, assumptions, unknowns, and material questions
+4. Separate confirmed facts, reasonable inferences, conflicts, and unknowns.
+5. Resolve discoverable gaps. Return the smallest set of blocking questions
+   when required information is not discoverable.
 
 Include history only when it still defines behavior, compatibility, migration,
 or an open decision. Omit superseded requirements, discarded approaches, and
 correction history.
 
-## Human report
+## Outputs
 
-When orchestrated, keep exhaustive evidence in the agent packet and write one
-`report.md` without internal IDs or bookkeeping. Follow the shared pattern in
-`../factory-handoff/references/human-report-patterns.md` and use its Context
-gathering guidance.
+Return a structured evidence packet and a concise human summary with:
 
-- Use plain language, short sentences, spacing, and descriptive headings.
-- Prefer **Ready for analysis**, **Needs clarification**, or **Blocked**.
-- Do not use JSON, YAML, raw command output, internal bookkeeping fields, or
-  internal agent terms.
-- Use technical names only when they help verification, and explain why they
-  matter.
-- Use bullets for facts and numbered lists only for ordered steps or questions.
-- Label **Confirmed**, **Likely**, and **Still unknown** clearly.
-- Omit empty sections.
+- requested change, outcome, scope, and acceptance criteria
+- current behavior and relevant architecture
+- relevant files, symbols, entry points, tests, observable seams, side effects,
+  consumers, and documentation
+- project conventions, constraints, and authoritative sources
+- confirmed facts, inferences, conflicts, assumptions, unknowns, and material
+  questions
+- status: `ready`, `needs-input`, or `blocked`
 
-After the shared headings, use these headings when relevant:
+Use plain language in the human summary. Label confirmed, likely, and unknown
+information. Use technical names only when they help verification.
 
-1. **What needs to change**
-2. **What success looks like**
-3. **What is and is not included**
-4. **How it works today**
-5. **Where the change is likely to happen**
-6. **Important constraints**
-7. **Evidence reviewed**
-8. **What is still unclear**
+## Side effects
 
-Mark **Ready for analysis** only when an analyst can proceed without repeating
-discovery.
+Read local and permitted remote sources. Do not change the repository or remote
+systems.
+
+## Failure results
+
+Return `needs-input` for a missing decision or fact that the caller can supply.
+Return `blocked` when a required source is inaccessible.
+
+## Non-goals
+
+Do not analyze impact, select an implementation, create a plan, or implement.

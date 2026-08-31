@@ -1,6 +1,6 @@
 interface:
   display_name: "Factory Draft PR"
-  short_description: "Publish a traceable, human-readable draft PR"
-  default_prompt: "Use $factory-draft-pr to publish the verified change with a deterministic plain-language description and evidence for every regression concern."
+  short_description: "Publish a supplied change as a draft PR"
+  default_prompt: "Use $factory-draft-pr to publish the supplied change package with a validated plain-language body and durable evidence."
 policy:
   allow_implicit_invocation: false

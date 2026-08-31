@@ -1,34 +1,38 @@
 ---
 name: factory-intake
-description: "Use only when the human explicitly starts intake for a software change. Ask concise questions to align on the feature, implementation expectations, scope, and success criteria; return an agreed task contract without researching, planning, or implementing."
+description: "Align a software-change request with the human. Accept the request and supplied artifacts, ask the smallest necessary questions, and return an agreed task contract without researching, planning, or implementing."
 ---
 
 # Factory Intake
 
-Align with the human before research or planning.
+## Purpose
 
-When orchestrated, the primary thread delegates intake to the routed worker.
-The worker must not spawn another lifecycle actor.
+Align the requested software change with the human.
 
-## Workflow
+## Inputs
+
+Require the request, supplied artifacts, and either direct access to the human
+or a caller that can relay questions and answers.
+
+## Operation
 
 1. Read the request and supplied artifacts.
-2. State the intended feature and any requested implementation direction in
-   plain language.
-3. Ask the human the smallest set of questions needed to align on behavior,
-   scope, acceptance criteria, constraints, implementation preferences,
-   authority, and deliverable. Do not ask questions answerable from the
-   repository.
-4. Incorporate the answers and ask again only when material ambiguity remains.
-5. Return `aligned` only after the human has had an opportunity to correct the
-   task contract. Do not infer agreement from silence.
+2. State the intended feature and requested implementation direction in plain
+   language.
+3. Ask the smallest set of questions needed to align behavior, scope,
+   acceptance criteria, constraints, implementation preferences, authority,
+   dependencies, and deliverable. Do not ask questions that the repository can
+   answer.
+4. Incorporate each answer. Ask again only when material ambiguity remains.
+5. Return `aligned` only after the human can correct the complete task contract.
+   Do not infer agreement from silence.
 
-If the worker cannot talk to the human directly, return the exact questions for
-the primary thread to ask. Resume intake with the answers.
+If direct human access is unavailable, return the exact questions. Accept the
+relayed answers as additional input and continue the same operation.
 
-## Output
+## Outputs
 
-Return:
+Return a structured result and a concise human summary with:
 
 - status: `aligned` or `needs-input`
 - objective and expected behavior
@@ -38,15 +42,19 @@ Return:
 - authority, approvals, dependencies, and assumptions
 - expected deliverable
 - unanswered questions
-- initial proof-ledger claims, with stable claim and proof identifiers, original
+- an acceptance-proof record with stable claim and proof identifiers, original
   required proof, and a closed inventory for each accepted universal claim
 
-When orchestrated, also write one concise human `report.md` containing the
-current understanding and any questions. Follow the shared pattern in
-`../factory-handoff/references/human-report-patterns.md` and use its Intake
-guidance. Do not research the codebase, plan, implement, or invent
-requirements.
+## Side effects
 
-When the orchestrator supplies Factory telemetry context, record material
-operations, failures, retries, waits, and recovery with the best-effort writer.
-Telemetry failure never changes intake status or output.
+Ask the human questions when direct access is available. Make no repository or
+external-system changes.
+
+## Failure results
+
+Return `needs-input` with the exact unresolved question when agreement, required
+authority, or a material fact is missing.
+
+## Non-goals
+
+Do not research the codebase, plan, implement, or invent requirements.

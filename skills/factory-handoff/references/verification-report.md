@@ -10,7 +10,8 @@
 | Decision | <approval, exception, or more work> |
 
 Lead with failures, unverified behavior, and accepted exceptions. Keep full
-path, risk, and criterion mappings in the agent packet and assurance report.
+path, risk, and criterion mappings in the structured result and assurance
+report.
 
 ## Verified behavior
 
@@ -30,7 +31,7 @@ path, risk, and criterion mappings in the agent packet and assurance report.
 
 ## Checks run
 
-<!-- Name result, scope, source, and revision. Mark remote CI pending. -->
+<!-- Name result, scope, source, and revision. Mark remote continuous integration pending. -->
 
 - **<Check> — <Pass, fail, or not run>.** <Scope and source.>
 
@@ -48,7 +49,7 @@ path, risk, and criterion mappings in the agent packet and assurance report.
 ## Review and confidence
 
 - **Review:** <verdict and open findings>
-- **Verification verdict:** <pass/fail/inconclusive/blocked>
+- **Verification verdict:** <pass, fail, inconclusive, or blocked>
 - **Regression statement:** <no regressions observed in scope, or failures>
 - **Evidence gaps:** <missing or stale evidence, or none>
 
@@ -61,4 +62,4 @@ path, risk, and criterion mappings in the agent packet and assurance report.
 <Give one owner and action, or state that verification is complete.>
 
 Describe only the current verified change. Omit revision history, removed risks,
-earlier failures, corrected mistakes, superseded scope, and internal IDs.
+earlier failures, corrected mistakes, superseded scope, and internal identifiers.

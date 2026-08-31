@@ -1,62 +1,61 @@
 ---
 name: factory-replicate
-description: "Use only when the human explicitly starts replication for a reported bug. Reproduce the unchanged failure, minimize the steps, capture a safe pre-fix baseline, and report confidence without diagnosing or fixing it."
+description: "Reproduce a supplied bug report without changing product code. Minimize the steps, capture a safe baseline, and return the observed result, evidence, and confidence without diagnosing or fixing the bug."
 ---
 
 # Factory Replicate
 
-Create a trustworthy pre-fix baseline.
+## Purpose
 
-When orchestrated, the primary thread must delegate this skill to the routed
-tier worker. That worker owns reproduction, including the user perspective for
-visible behavior, and must not spawn another lifecycle actor.
+Create a trustworthy baseline for a reported bug.
 
-## Input
+## Inputs
 
-Require expected and observed behavior, environment, known steps, evidence, and
-safety limits. Reject non-bug work or report missing input.
+Require expected behavior, observed behavior, environment, known steps,
+available evidence, execution capabilities, and safety limits. Reject work that
+does not describe a possible bug.
 
-## Workflow
+## Operation
 
-1. Read the context and repository instructions.
+1. Read the supplied evidence and repository instructions.
 2. Choose the smallest safe reproduction surface.
-3. Try without editing product code, at most 3 times unless context sets another
-   limit.
-4. Record environment, inputs, steps, result, frequency, and evidence.
-5. Minimize reliable steps and identify the observed boundary. Label unproven
+3. Try without editing product code. Make at most three attempts unless an
+   input sets another limit.
+4. Record the environment, inputs, steps, result, frequency, and evidence.
+5. Minimize reliable steps and identify the observed seam. Label unproven
    causes as hypotheses.
 6. Sanitize evidence and keep temporary artifacts outside tracked files.
 
-For conditional tools, check once and try once, then use a reachable fallback.
-Do not install tools or seek elevated access for optional evidence. If an
-essential condition is inaccessible, return `inconclusive` or `blocked`, not
-`not-reproduced`.
+For an optional tool, check once and try once. Then use a reachable fallback.
+Do not install tools or seek elevated access for optional evidence. Get human
+approval before a destructive, irreversible, credentialed, production-data, or
+externally consequential action.
 
-Get approval before destructive, irreversible, credentialed, production-data,
-or externally consequential steps.
+## Outputs
 
-When the orchestrator supplies Factory telemetry context, record every
-reproduction attempt, environment startup, failure, retry, recovery, and wait
-with the best-effort writer. Use timestamps and one operation identity across
-retries. Telemetry failure never changes the replication verdict.
+Return a structured result and a concise human summary with:
 
-## Verdicts
-
-- `reproduced`: reliable evidence captured the failure.
-- `not-reproduced`: a representative reachable environment did not show it.
-- `inconclusive`: evidence or environment was insufficient.
-- `blocked`: a required condition was not safely accessible.
-
-## Output
-
-Return:
-
-- verdict, expected and actual behavior, environment, and preconditions
+- verdict: `reproduced`, `not-reproduced`, `inconclusive`, or `blocked`
+- expected and actual behavior, environment, and preconditions
 - minimal steps, attempts, frequency, and confidence
 - evidence, redactions, retention, and cleanup
 - skipped methods, gaps, safety limits, and residual risk
-- observed boundary, hypotheses, and required user decisions
+- observed seam, hypotheses, and required human decisions
 
-Describe the current baseline and attempt data, not issue history or discarded
-ideas. Do not diagnose beyond evidence, edit product code, fix the bug, or start
-another lifecycle.
+Use `not-reproduced` only when a representative reachable environment did not
+show the failure. Use `inconclusive` or `blocked` when evidence or access was
+insufficient.
+
+## Side effects
+
+Start permitted environments. Interact with the application. Create sanitized
+temporary evidence outside tracked files. Clean up as specified by the inputs.
+
+## Failure results
+
+Return `inconclusive` for insufficient evidence. Return `blocked` when a
+required condition is not safely accessible.
+
+## Non-goals
+
+Do not diagnose beyond evidence, edit product code, or fix the bug.

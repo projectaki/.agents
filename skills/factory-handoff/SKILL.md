@@ -74,8 +74,8 @@ writable, report the blocker and do not advance.
 ```
 
 - `state.md`: canonical task state and latest-handoff pointer.
-- `change-assurance-report.md`: replaceable current diff/path/evidence record,
-  created during implementation.
+- `change-assurance-report.md`: replaceable persisted representation of the
+  current change-assurance record supplied by the orchestrator.
 - `handoff.md`: replaceable latest result for 1 lifecycle.
 - `report.md`: that lifecycle's only human document; no internal bookkeeping.
 - `context.md`: optional detail that would bloat `handoff.md`.
@@ -86,8 +86,9 @@ writable, report the blocker and do not advance.
 - `history/routes/`: append-only decisions and dispositions, including rejected
   proposals.
 - `history/timeline.md`: rebuildable, noncanonical view of immutable history.
-- `proof-ledger.yaml`: canonical acceptance claim, path, proof, evidence, and
-  waiver record. Use the [proof ledger contract](references/proof-ledger.md).
+- `proof-ledger.yaml`: persisted canonical representation of the current
+  acceptance-proof record supplied by the orchestrator. Use the
+  [proof ledger contract](references/proof-ledger.md).
 - `telemetry/`: optional, append-only operational observations for later
   analysis. It is noncanonical and owned by `factory-telemetry`.
 
@@ -95,10 +96,10 @@ Never route, checkpoint, resume, or determine task success from `telemetry/`.
 Never copy it into a checkpoint or include it in checkpoint checksums. Missing,
 invalid, or unwritable telemetry does not block Factory work.
 
-Create the proof ledger during intake for new tasks. For a legacy active task,
-derive it from the accepted contract and current canonical packets before the
-next planning, verification, or delivery gate. Completed legacy tasks do not
-require backfill.
+Persist a proof ledger when the orchestrator first supplies an acceptance-proof
+record. Replace it only with a complete newer representation for the same task
+revision. The orchestrator owns legacy derivation and decides when a missing
+record blocks an assignment. Completed legacy tasks do not require backfill.
 
 Link artifacts from `handoff.md` with lifecycle-relative paths. A checkpoint
 snapshot must copy the canonical handoff and every mutable branch-task file it
@@ -308,9 +309,13 @@ canonical evidence. Otherwise report a mismatch. Never rewrite route records.
 
 ## Persist a lifecycle result
 
+Accept the structured step result, human summary, artifacts, side-effect
+account, orchestrator assessment, and applicable complete acceptance-proof and
+change-assurance records.
+
 Each lifecycle directory requires `handoff.md`, `report.md`, `context.md`, and
 `artifacts/images/`, `artifacts/diagrams/`, and `artifacts/examples/`.
-`report.md` is the human entry point. Write it with
+`report.md` is the human entry point. Format the supplied human summary with
 [the shared human report pattern](references/human-report-patterns.md).
 `handoff.md` links it first without duplicating it. Agent detail stays in
 `handoff.md`, `context.md`, canonical packets, and artifacts. For `ANALYSIS`,
@@ -320,7 +325,7 @@ Derive current state from inputs. Omit superseded wording, mistakes, discarded
 approaches, and version narrative. Keep active decisions, constraints, risks,
 blockers, provenance, Git state, revision, validation, and artifact references.
 
-After any actor result and before routing:
+After any step result and before routing:
 
 1. Resolve and create the lifecycle and artifact directories.
 2. Write the lifecycle's single `report.md`, then run:
@@ -336,29 +341,30 @@ After any actor result and before routing:
    - lifecycle, revision, assignment, invocation, attempt, current and attempted
      tiers, worker assessment, selection rationale, runtime details, dispatch,
      enforcement, outcome, and exit gate
-   - output summary, decisions, assumptions, constraints, artifacts, evidence,
-     proof ledger, assurance report once implementation begins, changed files,
-     Git HEAD,
+   - complete structured result, output summary, decisions, assumptions,
+     constraints, artifacts, evidence, side effects, applicable proof ledger and
+     assurance report, changed files, Git HEAD,
      validation, risks, blockers, and open questions
    - worker evidence, orchestrator exit-gate assessment, failure classification,
      model-insufficiency evidence, next eligible tier, or routing inputs when
      escalation is ineligible
 4. Put optional detail in `context.md` and supporting files in `artifacts/`.
-5. Allocate the next checkpoint, create its snapshot and manifest, and fail if
+5. When supplied, persist and validate the complete `proof-ledger.yaml` and
+   `change-assurance-report.md` representations.
+6. Allocate the next checkpoint, create its snapshot and manifest, and fail if
    the directory exists.
-6. Verify the manifest, copied files, relative links, and checksums.
-7. Update `state.md` with project and branch slugs, objective, revision, status,
+7. Verify the manifest, copied files, relative links, and checksums.
+8. Update `state.md` with project and branch slugs, objective, revision, status,
    current and last-checkpointed lifecycle, latest handoff, Git state, pending
    transition, active assignment and attempt, attempted tiers, checkpoint
    sequence, snapshot manifest, and update time. Use:
    - `lifecycle_checkpointed` for an actor result
    - `lifecycle_active` for `AWAITING_INPUT`
    - `terminal` for `COMPLETED` or `CANCELLED`
-8. Rebuild the timeline.
-9. Validate `proof-ledger.yaml` when the task has acceptance claims. Verify
-   state, canonical handoff, manifest, timeline, and every referenced canonical
-   and historical artifact are readable.
-10. Return the task root, canonical handoff, human report, and snapshot manifest.
+9. Rebuild the timeline.
+10. Verify state, canonical handoff, manifest, timeline, and every referenced
+    canonical and historical artifact are readable.
+11. Return the task root, canonical handoff, human report, and snapshot manifest.
 
 Treat the handoff, snapshot, and state index as 1 atomic checkpoint. Do not index
 or mark checkpointed if validation fails.

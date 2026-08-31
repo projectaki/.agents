@@ -83,7 +83,19 @@ mockup or user example only when it is an input to the task.
 
 Show the current system boundary with a small Mermaid flow diagram when three
 or more components interact. Useful artifacts are a current-state diagram and
-redacted request, response, event, or data examples.
+redacted request, response, event, or data examples. Use **Ready for analysis**,
+**Needs clarification**, or **Blocked** as the result. Mark the report ready only
+when analysis can proceed without repeated discovery. Use these headings when
+they contain useful information:
+
+1. **What needs to change**
+2. **What success looks like**
+3. **What is and is not included**
+4. **How it works today**
+5. **Where the change is likely to happen**
+6. **Important constraints**
+7. **Evidence reviewed**
+8. **What is still unclear**
 
 ### Replication
 
@@ -95,7 +107,8 @@ redacted log excerpt. Do not attach raw logs.
 
 Show affected users, components, contracts, data, and operations. Use a flow or
 state diagram when behavior crosses boundaries. Useful artifacts are an impact
-map, a state transition diagram, and redacted contract examples.
+map, a state transition diagram, and redacted contract examples. Explain the
+impact, risks, required proof, and readiness for planning.
 
 ### Planning
 
@@ -139,7 +152,8 @@ automated check proves the same property.
 
 Use a behavior-to-evidence table with result and remaining gap. Link visual
 evidence beside the behavior that it proves. Keep exact commands and full test
-output outside the report.
+output outside the report. Use the detailed
+[verification report pattern](verification-report.md).
 
 ### Delivery
 

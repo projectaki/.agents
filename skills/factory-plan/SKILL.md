@@ -1,70 +1,74 @@
 ---
 name: factory-plan
-description: "Use only when the human explicitly starts planning with a current factory-analysis packet. Produce an implementation-ready plan without editing files or implementing."
+description: "Create an implementation-ready plan from supplied requirements, evidence, impact analysis, risks, and proof requirements. Do not edit files or implement the plan."
 ---
 
 # Factory Plan
 
-Create the smallest complete implementation plan.
+## Purpose
 
-When orchestrated, the primary thread must delegate this skill to the routed
-tier worker. That worker must not spawn another lifecycle actor.
+Create the smallest complete implementation plan.
 
 ## Inputs
 
-Require a current `factory-analysis` packet for the proposed change. Return
-the exact blocker if it is missing, stale, or based on materially different
-acceptance criteria.
+Require the task contract, current evidence, impact analysis, behavioral paths,
+risks, acceptance-proof record, repository or workspace, and applicable human
+decisions. Return the exact blocker when an input is missing, stale, or based on
+different acceptance criteria.
 
-## Workflow
+## Operation
 
-1. Read supplied context and repository instructions.
+1. Read the supplied inputs and repository instructions.
 2. Inspect only enough current code to ground the plan.
-3. Define ordered, concrete implementation steps.
-4. Map every behavioral path and analysis risk ID to corroborated inspection,
+3. Define ordered and concrete implementation steps.
+4. Map every supplied path and risk identifier to corroborated inspection,
    targeted automation, visual evidence only when automation is insufficient,
    or a human-approved evidence exception.
 5. Record assumptions, risks, dependencies, and blockers.
+6. Produce a complete updated acceptance-proof record with the planned proof.
 
-Update each proof obligation with the planned proof. Reject the plan when the
-planned method weakens or substitutes the required method without an accepted,
-claim-specific and path-specific human exception. Do not let related wording
-extend an exception.
+Reject the plan when the planned method weakens or substitutes required proof
+without an accepted exception for the exact claim and path. Do not let related
+wording extend an exception.
 
-When the orchestrator supplies Factory telemetry context, record material
-repository operations, failures, retries, recovery, and waits with the
-best-effort writer. Telemetry failure never changes planning status.
+Do not add unsupported requirements or speculative refactors. Describe current
+requirements and constraints without revision history or discarded approaches.
 
-Do not edit, implement, add unsupported requirements, or plan speculative
-refactors. Describe current requirements and constraints without revision
-history or discarded approaches.
+## Outputs
 
-## Output
-
-Return a self-contained agent plan with:
+Return a structured plan and a concise human summary with:
 
 - objective, scope, and acceptance criteria
 - current behavior and relevant architecture
 - ordered steps with expected files, symbols, and logic
 - relevant errors, edge cases, migrations, observability, and rollback
-- risk IDs mapped to test level, work, and expected result
-- path IDs mapped to implementation steps and cheapest sufficient proof
+- risks mapped to test level, work, and expected result
+- paths mapped to implementation steps and cheapest sufficient proof
 - justified non-automated exceptions
+- complete updated acceptance-proof record
 - assumptions, risks, dependencies, blockers, and required decisions
+- status: `ready`, `needs-input`, or `blocked`
 
-When orchestrated, also write one human `report.md` for approval. Use plain
-behavior and risk names, ordered steps, and small sections. Keep IDs and full
-mappings in the agent plan; avoid tables wider than 4 columns. Follow the
-shared human report pattern in
-`../factory-handoff/references/human-report-patterns.md`.
+For a code or system-structure change, include a design preview in the human
+summary. Use a small Mermaid diagram and one or two grounded proposed code
+examples. Show only key files, types, interfaces, composition, or control flow.
+Keep each example below 25 lines. Return larger reusable examples as artifacts.
+For a documentation or simple configuration change, state why a diagram or
+code example does not help.
 
-For a code or system-structure change, add a **Design preview** to the human
-report. Show the proposed structure with a small Mermaid diagram and one or two
-grounded code examples. Show only key files, types, signatures, composition, or
-control flow. Keep each example below 25 lines and label it as proposed. Put a
-larger reusable example in `artifacts/examples/`. Do not write the
-implementation in the plan. For a documentation or simple configuration
-change, state why a diagram or code example does not help.
+Keep stable identifiers and complete mappings in the structured result. Use
+plain behavior and risk names in the human summary.
 
-Return a specific blocker instead of inventing a material decision. Stop after
-the plan or blocker.
+## Side effects
+
+Read the repository. Create only requested planning artifacts outside product
+files. Do not change product or test files.
+
+## Failure results
+
+Return `needs-input` for an unresolved material decision. Return `blocked` for
+missing, stale, or contradictory required inputs.
+
+## Non-goals
+
+Do not edit product files, implement the plan, or invent a material decision.

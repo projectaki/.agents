@@ -1,60 +1,65 @@
 ---
 name: factory-analysis
-description: "Use only when the human explicitly starts analysis with an aligned task contract and current context. Determine system impact, behavioral paths, risks, and the smallest sufficient test and evidence scope without planning or editing files."
+description: "Analyze supplied software-change requirements and evidence. Return system impact, behavioral paths, risks, and the smallest sufficient proof requirements without selecting an implementation or editing files."
 ---
 
 # Factory Analysis
 
-Analyze the proposed change before planning. Remain read-only.
+## Purpose
 
-When orchestrated, the primary thread delegates analysis to the routed worker.
-The worker must not spawn another lifecycle actor.
+Determine the impact, risks, and proof requirements for a proposed change.
 
-## Input
+## Inputs
 
-Require an aligned task contract, current context packet, and replication
-baseline for a bug. Return the exact blocker when a required input is missing,
-stale, or contradictory.
+Require a task contract and current evidence packet. Require a reproduction
+result when the change addresses a reported bug. Return the exact blocker when
+an input is missing, stale, or contradictory.
 
-## Workflow
+## Operation
 
 1. Trace each affected behavior from its highest relevant caller to the
-   observable result, including data, permissions, side effects, integrations,
+   observable result. Include data, permissions, side effects, integrations,
    and consumers.
-2. Identify affected surfaces, boundaries, dependencies, unknowns, and direct
-   or adjacent regression risks.
-3. Group the change into stable behavioral paths and give material risks stable
-   IDs for downstream traceability.
+2. Identify affected surfaces, seams, dependencies, unknowns, and direct or
+   adjacent regression risks.
+3. Group the change into stable behavioral paths. Give material risks stable
+   identifiers for traceability.
 4. Inspect existing coverage. Map every path, acceptance criterion, and risk to
-   the cheapest sufficient proof: inspection for simple non-behavioral work,
-   otherwise focused automated tests, and visual evidence only when automation
-   cannot prove the property.
-5. State the implementation and verification implications without choosing an
+   the cheapest sufficient proof. Use inspection for simple non-behavioral
+   work. Otherwise require focused automated tests. Require visual evidence
+   only when automation cannot prove the property.
+5. State implementation and verification constraints without selecting an
    implementation approach.
+6. Produce a complete acceptance-proof record. Preserve supplied claims and
+   their required proof. Add path and risk identifiers. Close the inventory for
+   every universal claim or return a blocker when it cannot be bounded.
 
-Update the canonical proof-ledger data. Preserve each accepted claim and its
-required proof. Add path and risk IDs. Close the inventory behind every
-universal claim or block planning when it cannot be bounded.
+## Outputs
 
-When the orchestrator supplies Factory telemetry context, record material
-investigations, unavailable evidence sources, failures, retries, and recovery
-with the best-effort writer. Telemetry failure never changes analysis status.
+Return a structured result and a concise human summary with:
 
-## Output
-
-Return:
-
-- system impact, affected behavior, boundaries, dependencies, and consumers
+- system impact, affected behavior, seams, dependencies, and consumers
 - behavioral paths and observable outcomes
 - ordered risks, failure modes, impact, and uncertainty
 - existing coverage and required tests or evidence
-- acceptance criteria and risks mapped to planned proof
-- assumptions, exclusions, unknowns, blockers, and planning implications
+- acceptance criteria and risks mapped to required proof
+- complete updated acceptance-proof record
+- assumptions, exclusions, unknowns, blockers, and implementation constraints
+- status: `ready`, `needs-input`, or `blocked`
 
-Keep stable IDs and complete mappings in `context.md`. When orchestrated, also
-write one plain-language `report.md` that explains impact, risks, required
-proof, and readiness for planning. Follow the shared pattern in
-`../factory-handoff/references/human-report-patterns.md` and use its Analysis
-guidance.
+Keep stable identifiers and complete mappings in the structured result. Use
+plain behavior and risk names in the human summary.
 
-Do not plan production changes, edit files, implement tests, or run checks.
+## Side effects
+
+Read supplied sources and the repository. Make no file or external-system
+changes.
+
+## Failure results
+
+Return `needs-input` for a missing human decision. Return `blocked` for missing,
+stale, contradictory, or inaccessible required evidence.
+
+## Non-goals
+
+Do not select production changes, edit files, implement tests, or run checks.
