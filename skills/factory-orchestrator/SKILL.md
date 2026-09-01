@@ -20,6 +20,19 @@ Include these requirements in every worker assignment that can produce
 human-facing text. Check and rewrite returned worker text before relaying it to
 the human. Keep exact identifiers and machine-oriented detail in agent records.
 
+Text published or sent under the human's identity must read as if the human
+wrote it. Use first-person singular voice for the human's actions, decisions,
+opinions, ownership, and requests. Never refer to the human as `the author`,
+`the developer`, `the requester`, `the user`, or `the human` in that text.
+Never tell a reader to contact the human. State the human's request or position
+directly. Do not invent `we`, `our`, or team authorship. Use collective voice
+only when the human requests it or the canonical source text clearly has
+collective authorship. Neutral technical facts do not need a first-person
+pronoun.
+
+Progress updates, questions, lifecycle reports, and final responses are
+addressed to the human. Do not impersonate the human in those messages.
+
 ## Resume
 
 1. Confirm this is the primary thread; workers only finish assignments.
@@ -195,6 +208,9 @@ checkpoints, and reports.
 - Supply the skill, bounded objective, composed semantic inputs, capabilities,
   mutation authority, declared output contract, human-summary requirements, and
   optional telemetry assignment.
+- For an assignment that publishes or sends text under the human's identity,
+  require the human's first-person singular voice and prohibit third-person
+  references to the human or unsupported collective voice.
 - Do not duplicate the work skill's implementation rules in the assignment.
   Require its complete declared result.
 - During `INTAKE`, relay the worker's questions to the human and resume intake

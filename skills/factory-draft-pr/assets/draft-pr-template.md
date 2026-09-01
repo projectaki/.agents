@@ -1,10 +1,12 @@
 ## Task
 
-<!-- Canonical human task description and accepted scope. -->
+<!-- Canonical task description and accepted scope. Use first-person singular
+for the developer's actions, decisions, opinions, ownership, or requests. -->
 
 ## What changed
 
-<!-- Final behavior only. Use concise bullets. -->
+<!-- Final behavior only. Use concise bullets. Do not refer to the developer in
+the third person or invent a collective team voice. -->
 
 ## Concerns raised during analysis
 

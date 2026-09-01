@@ -70,6 +70,29 @@ class ValidatePrDescriptionTest(unittest.TestCase):
         errors = VALIDATOR.validate(body)
         self.assertTrue(any("requires at least 2 durable link" in error for error in errors))
 
+    def test_rejects_third_person_reference_to_author(self) -> None:
+        body = VALID_BODY.replace(
+            "- Session renewal now retains the pending destination.",
+            "- Session renewal now retains the pending destination. Tell the author if you disagree.",
+        )
+        errors = VALIDATOR.validate(body)
+        self.assertTrue(any("third-person author voice" in error for error in errors))
+
+    def test_rejects_invented_team_request(self) -> None:
+        body = VALID_BODY.replace(
+            "- Renewal could discard the destination when requests overlap.",
+            "- Four checks the team asks a reviewer to make.",
+        )
+        errors = VALIDATOR.validate(body)
+        self.assertTrue(any("third-person author voice" in error for error in errors))
+
+    def test_accepts_first_person_developer_position(self) -> None:
+        body = VALID_BODY.replace(
+            "- Renewal could discard the destination when requests overlap.",
+            "- I kept renewal atomic because partial renewal could discard the destination.",
+        )
+        self.assertEqual([], VALIDATOR.validate(body))
+
     def test_normalizes_line_endings_and_trailing_newline(self) -> None:
         self.assertEqual(
             VALIDATOR.normalize(VALID_BODY),

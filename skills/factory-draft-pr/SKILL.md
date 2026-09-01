@@ -26,6 +26,28 @@ Write all human-facing text in ASD-STE100 Simplified Technical English.
 - Rewrite text that is not clear before you publish or report it.
 - Say when you cannot explain something in plain words.
 
+Write the pull request title and body in the developer's voice. The developer
+will publish this text under their identity.
+
+- Use first-person singular words such as `I`, `me`, and `my` for the
+  developer's actions, decisions, opinions, ownership, and requests.
+- Never refer to the developer as `the author`, `the developer`, `the
+  requester`, `the user`, or `the human` in the published text.
+- Never tell a reviewer to ask, tell, contact, or notify the developer. State
+  the developer's question, request, or position directly.
+- Do not invent a collective voice such as `we`, `our`, or `the team`. Use it
+  only when the developer requests it or the canonical source text clearly has
+  collective authorship.
+- Keep neutral technical facts direct. Do not add first-person words when the
+  text does not refer to the developer.
+
+For example, do not write `Tell the author if you disagree.` Write `If you
+disagree, please explain why.` Do not write `Four checks the team asks a
+reviewer to make:` Write `Please check these four points:`
+
+The structured result and human summary are addressed to the developer. Report
+those results directly. Do not write them in the developer's voice.
+
 ## Inputs
 
 Require:
@@ -67,7 +89,8 @@ does not match the branch head.
    mapping when rebuilding its assurance rows.
 8. Build the complete body with
    [assets/draft-pr-template.md](assets/draft-pr-template.md). Do not add
-   top-level sections.
+   top-level sections. Rewrite any third-person reference to the developer in
+   the developer's first-person singular voice.
 9. Validate the body:
 
    ```bash
@@ -168,6 +191,8 @@ request is not success.
 ## Safety and quality
 
 - Trace every claim to the supplied diff, task, documentation, or evidence.
+- Read the complete title and body as the developer before publication. Remove
+  third-person references to the developer and unsupported collective voice.
 - Describe only the supplied revision. Exclude revision history, prior errors,
   discarded approaches, agent details, local machine state, and troubleshooting.
 - Remove template comments and placeholders.

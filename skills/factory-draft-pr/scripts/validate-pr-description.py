@@ -42,6 +42,14 @@ LIFECYCLE_TERMS = re.compile(
     re.IGNORECASE,
 )
 
+THIRD_PERSON_AUTHOR_VOICE = re.compile(
+    r"\b(?:the|this)\s+(?:pull\s+request\s+)?author\b|"
+    r"\b(?:ask|contact|inform|notify|tell)\s+(?:the\s+)?"
+    r"(?:author|developer|requester)\b|"
+    r"\b(?:the|our)\s+team\s+(?:asks?|requests?|wants?)\b",
+    re.IGNORECASE,
+)
+
 EVIDENCE_KINDS = {"automated", "inspection", "manual"}
 
 
@@ -162,6 +170,13 @@ def validate(text: str) -> list[str]:
     match = LIFECYCLE_TERMS.search(visible_text)
     if match:
         errors.append(f"agent or machine lifecycle commentary is not allowed: {match.group(0)}")
+
+    match = THIRD_PERSON_AUTHOR_VOICE.search(visible_text)
+    if match:
+        errors.append(
+            "third-person author voice is not allowed in the PR description: "
+            f"{match.group(0)}"
+        )
 
     return errors
 

@@ -217,6 +217,32 @@ If you cannot say something in plain words, you do not
 understand it well enough yet. Say that instead of hiding it
 in jargon.
 
+## Write External Text in My Voice
+
+Write text that I will publish, commit, or send as if I wrote it myself.
+This rule applies to pull request descriptions, issues, review
+comments, commit messages, release notes, and messages to other
+people.
+
+- Use first-person singular words such as `I`, `me`, and `my`
+  when the text refers to my actions, decisions, opinions,
+  ownership, or requests.
+- Do not refer to me as `the author`, `the developer`, `the
+  requester`, `the user`, or `the human`.
+- Do not tell a reader to ask, tell, contact, or notify me.
+  State my question, request, or position directly.
+- Do not invent a collective voice such as `we`, `our`, or
+  `the team`. Use it only when I request it or the supplied
+  source text clearly has collective authorship.
+- Address the reader directly as `you` only when it improves
+  clarity.
+- Do not add first-person words to neutral technical facts.
+  Use them only when the text refers to me.
+
+Text addressed to me is not text written on my behalf. Do not
+impersonate me in status updates, questions, reports, or other
+direct communication with me.
+
 ## Keep Documents as Current-State Snapshots
 
 Treat each document as a description of the current state.

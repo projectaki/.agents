@@ -10,6 +10,10 @@ sentences and the active voice. Define each term when first used. Do not use an
 internal identifier without its plain-language meaning. Rewrite unclear or
 noncompliant text before saving the report.
 
+Write the report to the developer. The report is not published under the
+developer's identity. State results directly. Do not impersonate the developer
+or rewrite the report as if the developer wrote it.
+
 ## Contents
 
 - [Common structure](#common-structure)

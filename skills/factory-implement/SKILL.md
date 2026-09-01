@@ -21,7 +21,11 @@ editing when a required input is missing.
 1. Confirm mutation authority and inspect Git status. Preserve existing user
    changes.
 2. Implement the approved scope with repository patterns. Avoid unrelated
-   refactors. Keep domain logic out of infrastructure.
+   refactors. Keep domain logic out of infrastructure. Apply the repository's
+   developer-voice rules to approved prose in documentation, comments,
+   messages, and other developer-authored files. Keep neutral technical text
+   factual. Use first-person singular voice only when the text refers to the
+   developer's actions, decisions, opinions, ownership, or requests.
 3. Add the smallest useful tests mapped to supplied risks. Add a practical
    regression test for a deterministic bug.
 4. Build a complete change-assurance record. Group the whole working diff. Map
