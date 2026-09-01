@@ -1,17 +1,16 @@
-## Task
-
-<!-- Canonical task description and accepted scope. Use first-person singular
-for the developer's actions, decisions, opinions, ownership, or requests. -->
-
 ## What changed
 
-<!-- Final behavior only. Use concise bullets. Do not refer to the developer in
-the third person or invent a collective team voice. -->
+<!-- Final behavior only, as concise bullets. Include compatibility or migration
+work. Do not list files or work history. State the accepted scope of the change
+here. Do not refer to the developer in the third person or invent a collective
+team voice. -->
 
-## Concerns raised during analysis
+## Blast radius
 
-<!-- Plain-language concerns from canonical analysis and final-diff review.
-Write "None." only when neither source contains a material concern. -->
+<!-- State which surfaces the change reaches and how far a failure would spread.
+State the widest single code path the change touches. State what a failure looks
+like for a user. State whether rollback rewrites data, whether a database
+migration ships, and whether redeploying the previous build is sufficient. -->
 
 ## Regression assurance
 
@@ -22,7 +21,9 @@ canonical assurance report. Use human names, never internal IDs. -->
 |---|---|---|---|---|
 | <!-- Observable regression --> | <!-- User, API, component, system, contract, data, or operations --> | <!-- Automated: test permalink + result; Inspection: explanation + final-code permalink; Manual: reason + public artifact --> | <!-- Pass or Waiver accepted --> | <!-- None, remaining risk, or accepted waiver --> |
 
-## Gaps
+## Manual test steps
 
-<!-- Product-relevant work discovered during development and explicitly outside
-scope. Include impact and follow-up when known. Write "None." when empty. -->
+<!-- Optional. Remove this heading when no manual check is needed. Include it
+only for behavior without automated coverage or for a check that a reviewer
+must do before approval. Split the checks into "### Developer checks" and
+"### Reviewer checks". Make each step one concrete, observable check. -->

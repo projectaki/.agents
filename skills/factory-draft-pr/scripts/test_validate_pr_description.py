@@ -15,17 +15,16 @@ SPEC.loader.exec_module(VALIDATOR)
 
 
 VALID_BODY = """\
-## Task
-
-Keep signed-in users on the requested page when their session is renewed.
-
 ## What changed
 
-- Session renewal now retains the pending destination.
+- Signed-in users now stay on the requested page when their session is renewed.
+- Existing session data remains compatible without migration.
 
-## Concerns raised during analysis
+## Blast radius
 
-- Renewal could discard the destination when requests overlap.
+- The widest code path is session renewal through signed-in navigation.
+- A failure sends a signed-in user to the default page instead of the requested page.
+- Rollback does not rewrite data or require a database migration. Redeploying the previous build is sufficient.
 
 ## Regression assurance
 
@@ -33,9 +32,15 @@ Keep signed-in users on the requested page when their session is renewed.
 |---|---|---|---|---|
 | Concurrent renewal retains destination | Signed-in navigation | Automated — [test](https://example.test/code) · [result](https://example.test/run) | Pass | None |
 
-## Gaps
+## Manual test steps
 
-None.
+### Developer checks
+
+1. Renew a session and confirm that the requested page opens.
+
+### Reviewer checks
+
+1. Renew a session and confirm that the requested page opens.
 """
 
 
@@ -53,14 +58,51 @@ class ValidatePrDescriptionTest(unittest.TestCase):
         self.assertTrue(any("empty field" in error for error in errors))
 
     def test_rejects_extra_section(self) -> None:
-        body = VALID_BODY.replace("## Gaps", "## Validation\n\nPassed.\n\n## Gaps")
+        body = VALID_BODY.replace(
+            "## Manual test steps",
+            "## Validation\n\nPassed.\n\n## Manual test steps",
+        )
         errors = VALIDATOR.validate(body)
         self.assertTrue(any("level-2 sections" in error for error in errors))
 
     def test_rejects_template_comments(self) -> None:
-        body = VALID_BODY.replace("None.", "<!-- Add gaps. -->\nNone.")
+        body = VALID_BODY.replace(
+            "- Existing session data remains compatible without migration.",
+            "<!-- Add compatibility details. -->\n"
+            "- Existing session data remains compatible without migration.",
+        )
         errors = VALIDATOR.validate(body)
         self.assertTrue(any("template comments" in error for error in errors))
+
+    def test_accepts_body_without_manual_test_steps(self) -> None:
+        body = VALID_BODY.split("\n## Manual test steps", maxsplit=1)[0] + "\n"
+        self.assertEqual([], VALIDATOR.validate(body))
+
+    def test_rejects_missing_blast_radius(self) -> None:
+        blast_radius = """\
+## Blast radius
+
+- The widest code path is session renewal through signed-in navigation.
+- A failure sends a signed-in user to the default page instead of the requested page.
+- Rollback does not rewrite data or require a database migration. Redeploying the previous build is sufficient.
+
+"""
+        errors = VALIDATOR.validate(VALID_BODY.replace(blast_radius, ""))
+        self.assertTrue(any("level-2 sections" in error for error in errors))
+
+    def test_rejects_manual_test_steps_before_regression_assurance(self) -> None:
+        regression_start = VALID_BODY.index("## Regression assurance")
+        manual_start = VALID_BODY.index("## Manual test steps")
+        regression_section = VALID_BODY[regression_start:manual_start]
+        manual_section = VALID_BODY[manual_start:]
+        body = (
+            VALID_BODY[:regression_start]
+            + manual_section.rstrip()
+            + "\n\n"
+            + regression_section
+        )
+        errors = VALIDATOR.validate(body)
+        self.assertTrue(any("level-2 sections" in error for error in errors))
 
     def test_requires_test_and_result_links_for_automated_evidence(self) -> None:
         body = VALID_BODY.replace(
@@ -72,15 +114,16 @@ class ValidatePrDescriptionTest(unittest.TestCase):
 
     def test_rejects_third_person_reference_to_author(self) -> None:
         body = VALID_BODY.replace(
-            "- Session renewal now retains the pending destination.",
-            "- Session renewal now retains the pending destination. Tell the author if you disagree.",
+            "- Signed-in users now stay on the requested page when their session is renewed.",
+            "- Signed-in users now stay on the requested page when their session is renewed. "
+            "Tell the author if you disagree.",
         )
         errors = VALIDATOR.validate(body)
         self.assertTrue(any("third-person author voice" in error for error in errors))
 
     def test_rejects_invented_team_request(self) -> None:
         body = VALID_BODY.replace(
-            "- Renewal could discard the destination when requests overlap.",
+            "- The widest code path is session renewal through signed-in navigation.",
             "- Four checks the team asks a reviewer to make.",
         )
         errors = VALIDATOR.validate(body)
@@ -88,7 +131,7 @@ class ValidatePrDescriptionTest(unittest.TestCase):
 
     def test_accepts_first_person_developer_position(self) -> None:
         body = VALID_BODY.replace(
-            "- Renewal could discard the destination when requests overlap.",
+            "- The widest code path is session renewal through signed-in navigation.",
             "- I kept renewal atomic because partial renewal could discard the destination.",
         )
         self.assertEqual([], VALIDATOR.validate(body))

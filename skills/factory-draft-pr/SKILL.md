@@ -59,7 +59,6 @@ Require:
 - complete diff and change-assurance record for the supplied revision
 - acceptance-proof record with claims, paths, risks, evidence, and waivers
 - material concerns and review findings
-- product-relevant gaps
 - publication eligibility verdict for the supplied revision
 - reviewer-accessible URLs for required visual evidence
 
@@ -113,25 +112,22 @@ does not match the branch head.
 
 ## Pull request content
 
-Use these level-two sections once and in this order.
-
-### Task
-
-Copy the canonical human task description and accepted scope. Apply accepted
-clarifications. Do not replace the task with an implementation summary. Demote
-embedded headings below level two.
+Use the required level-two sections once and in this order. Include the
+optional `Manual test steps` section only at the end.
 
 ### What changed
 
-Use concise bullets to describe the final behavior. Include relevant
-compatibility or migration work. Do not list files or work history.
+Use concise bullets to describe the final behavior. Include compatibility or
+migration work. Do not list files or work history. State the accepted scope of
+the change here because there is no separate `Task` section.
 
-### Concerns raised during analysis
+### Blast radius
 
-List each supplied material feature, behavior, security, data, compatibility,
-or operational concern. Use descriptive names. Include resolved concerns so
-reviewers can find their evidence. Write `None.` only when the supplied change
-package contains no material concern.
+State which surfaces the change reaches and how far a failure would spread.
+State the widest single code path the change touches. State what a failure
+looks like for a user. State what rolling back costs. Include whether data is
+rewritten, whether a database migration ships, and whether redeploying the
+previous build is sufficient.
 
 ### Regression assurance
 
@@ -151,16 +147,16 @@ assignment, or lifecycle identifiers. Use stable human descriptions.
 
 An accepted waiver must identify the residual risk and the human decision.
 Missing, stale, failed, inaccessible, or local-only evidence blocks publication.
+Required evidence gaps block publication.
 
-### Gaps
+### Manual test steps
 
-List only supplied product work that remains outside the task scope. State its
-user or system impact. State the intended follow-up when known. Write `None.`
-when there are no gaps.
-
-Do not use `Gaps` for failed checks, environment problems, tool limits, upload
-problems, evidence limits, agent constraints, or work history. Required
-evidence gaps block publication.
+This section is optional and must always be last. Include it only when a
+behavior has no automated coverage or when a reviewer must confirm something
+by hand before approval. Split it into the steps that the developer ran and
+the steps that the reviewer should run. Make each step one concrete,
+observable check. Remove the heading when there is nothing to check by hand.
+Do not write `None.`
 
 ## Outputs
 

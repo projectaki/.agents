@@ -10,12 +10,11 @@ from pathlib import Path
 
 
 REQUIRED_SECTIONS = [
-    "Task",
     "What changed",
-    "Concerns raised during analysis",
+    "Blast radius",
     "Regression assurance",
-    "Gaps",
 ]
+OPTIONAL_TRAILING_SECTION = "Manual test steps"
 
 EXPECTED_TABLE_HEADER = [
     "Behavior at risk",
@@ -70,19 +69,24 @@ def section_bodies(lines: list[str]) -> tuple[list[str], dict[str, list[str]], l
         found.append(heading)
         positions[heading] = index
 
-    if found != REQUIRED_SECTIONS:
+    allowed_sections = [
+        REQUIRED_SECTIONS,
+        [*REQUIRED_SECTIONS, OPTIONAL_TRAILING_SECTION],
+    ]
+    if found not in allowed_sections:
         errors.append(
             "level-2 sections must appear exactly once in this order: "
             + ", ".join(REQUIRED_SECTIONS)
+            + f"; {OPTIONAL_TRAILING_SECTION} may appear once at the end"
         )
         return found, {}, errors
 
     bodies: dict[str, list[str]] = {}
-    for index, heading in enumerate(REQUIRED_SECTIONS):
+    for index, heading in enumerate(found):
         start = positions[heading] + 1
         end = (
-            positions[REQUIRED_SECTIONS[index + 1]]
-            if index + 1 < len(REQUIRED_SECTIONS)
+            positions[found[index + 1]]
+            if index + 1 < len(found)
             else len(lines)
         )
         bodies[heading] = lines[start:end]
