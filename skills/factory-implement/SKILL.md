@@ -1,81 +1,66 @@
 ---
 name: factory-implement
-description: "Implement a supplied approved plan in a scoped repository or worktree. Add targeted tests, account for the complete working diff, run reachable focused checks, and return implementation and assurance results."
+description: "Implement one triaged Factory software change, add the smallest sufficient tests, run focused checks, account for the complete diff, and create the authorized local commit for independent assurance."
 ---
 
 # Factory Implement
 
 ## Purpose
 
-Implement only the supplied approved plan.
+Produce one clean committed revision that implements the accepted task.
 
 ## Inputs
 
-Require an approved plan, repository or worktree, acceptance criteria, required
-decisions, behavioral paths, risks, acceptance-proof record, proof requirements,
-and mutation authority. Require a reproduction result for a bug fix. Stop before
-editing when a required input is missing.
+Require an aligned task contract, ready triage result, current assurance record,
+approved behavioral paths and proof, repository, clean starting worktree, and
+edit, test, and commit authority. Require an approved plan-assurance result when
+triage marked it necessary.
 
 ## Operation
 
-1. Confirm mutation authority and inspect Git status. Preserve existing user
-   changes.
-2. Implement the approved scope with repository patterns. Avoid unrelated
-   refactors. Keep domain logic out of infrastructure. Apply the repository's
-   developer-voice rules to approved prose in documentation, comments,
-   messages, and other developer-authored files. Keep neutral technical text
-   factual. Use first-person singular voice only when the text refers to the
-   developer's actions, decisions, opinions, ownership, or requests.
-3. Add the smallest useful tests mapped to supplied risks. Add a practical
-   regression test for a deterministic bug.
-4. Build a complete change-assurance record. Group the whole working diff. Map
-   every group to behavioral paths or a precise non-behavioral classification.
-   Record current evidence.
-5. Run reachable targeted checks.
-6. Attach current evidence to the acceptance-proof record without changing the
-   required or planned proof method.
-7. Return the implementation result and all remaining proof work.
+1. Confirm the task revision, authority, Git head, branch, and clean worktree.
+2. Implement only the accepted scope with repository patterns.
+3. For a deterministic bug, add the permanent regression test, confirm that it
+   fails for the reported behavior, apply the fix, and rerun it. Use separate
+   reproduction only when triage requires it.
+4. For a feature, add the smallest acceptance tests that prove the new behavior
+   and relevant failure paths. Confirm a preimplementation failure when that
+   signal is meaningful and practical.
+5. Run the smallest focused checks mapped to the accepted paths and risks.
+6. Inspect the complete diff. Map every change group to an accepted path or an
+   explicit non-behavioral reason.
+7. Stop for scope growth, a higher risk class, a contract-invalidating finding,
+   or inaccessible required proof.
+8. Create one local commit after focused checks pass. Return the exact commit
+   and a clean worktree.
 
-Investigate failed checks. Treat unrun checks as unknown. Report inaccessible
-required checks. If evidence invalidates the plan, stop and return the required
-plan decision instead of expanding scope.
-
-For an optional tool, check availability once and try once. Do not install a
-tool or seek elevated access only to run it. Do not repeat a failed operation
-with unchanged preconditions unless the failure can be transient. State why a
-retry is justified and what changed.
+Retry a failed operation only after a changed precondition or when the failure
+is plausibly transient. Make at most two attempts for the same blocker.
 
 ## Outputs
 
-Return a structured result and a concise human summary with:
+Return:
 
 - status: `complete`, `needs-input`, or `blocked`
-- changed files and behavior
-- complete working-diff accountability in a change-assurance record
-- tests mapped to supplied risks
-- commands, results, and exact covered revision or diff
-- complete updated acceptance-proof record
-- skipped checks, fallbacks, uncovered risks, and residual risk
-- unimplemented scope, unresolved risks, and required decisions
-- current readiness facts without a lifecycle recommendation
-
-Keep internal identifiers, fingerprints, and exhaustive mappings in the
-structured result. Use plain behavior names in the human summary. Describe only
-the current state. Mention plan divergence only when it leaves active scope,
-risk, or a decision.
+- exact base and committed revision, branch, and clean-worktree result
+- changed behavior, files, and complete diff groups
+- tests and checks with results and covered revision
+- updated paths, risks, evidence, exceptions, and residual risk
+- skipped or inaccessible required checks
+- scope or risk changes and the exact decision they require
 
 ## Side effects
 
-Modify approved product, test, configuration, migration, and documentation
-files. Start permitted local environments. Run builds, tests, static analysis,
-and other targeted checks. Do not write to remote systems unless the inputs
-grant that authority.
+Modify approved local files, run local checks, and create one local commit. Do
+not push, publish, amend, rebase, or change unrelated user work.
 
 ## Failure results
 
-Return `needs-input` for a plan-invalidating decision or missing authority.
-Return `blocked` for an inaccessible required dependency or check.
+Return `needs-input` for missing authority or a material decision. Return
+`blocked` for an inaccessible required dependency or proof. Leave no commit
+when required focused checks fail.
 
 ## Non-goals
 
-Do not expand scope, perform independent review, or claim final verification.
+Do not expand scope, approve your own implementation, push, publish, merge, or
+release.

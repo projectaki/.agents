@@ -1,0 +1,6 @@
+interface:
+  display_name: "Factory Triage"
+  short_description: "Bound and prepare a software change"
+  default_prompt: "Use $factory-triage to research, classify, and prepare this software change for implementation."
+policy:
+  allow_implicit_invocation: false

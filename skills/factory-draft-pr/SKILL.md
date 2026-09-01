@@ -1,204 +1,68 @@
 ---
 name: factory-draft-pr
-description: "Publish a supplied change package as a GitHub draft pull request. Build and validate a deterministic plain-language body, map every regression concern to durable evidence, push the supplied revision, and verify the published result."
+description: "Publish one independently assured Factory change as a GitHub draft pull request. Push the exact clean commit, create or update the draft, and verify the published result."
 ---
 
 # Factory Draft PR
 
 ## Purpose
 
-Publish one evidence-backed draft pull request for the supplied change package.
-The description is a reviewer document about the current feature. It is not a
-development record.
-
-## Human communication
-
-Write all human-facing text in ASD-STE100 Simplified Technical English.
-
-- Use short sentences.
-- Use the active voice.
-- Put one idea in each sentence.
-- Define each term when you first use it.
-- Do not use a code, ticket number, short label, or internal identifier alone.
-  Give its plain-language meaning each time.
-- Do not invent labels for findings.
-- Do not use metaphors, idioms, or figures of speech.
-- Rewrite text that is not clear before you publish or report it.
-- Say when you cannot explain something in plain words.
-
-Write the pull request title and body in the developer's voice. The developer
-will publish this text under their identity.
-
-- Use first-person singular words such as `I`, `me`, and `my` for the
-  developer's actions, decisions, opinions, ownership, and requests.
-- Never refer to the developer as `the author`, `the developer`, `the
-  requester`, `the user`, or `the human` in the published text.
-- Never tell a reviewer to ask, tell, contact, or notify the developer. State
-  the developer's question, request, or position directly.
-- Do not invent a collective voice such as `we`, `our`, or `the team`. Use it
-  only when the developer requests it or the canonical source text clearly has
-  collective authorship.
-- Keep neutral technical facts direct. Do not add first-person words when the
-  text does not refer to the developer.
-
-For example, do not write `Tell the author if you disagree.` Write `If you
-disagree, please explain why.` Do not write `Four checks the team asks a
-reviewer to make:` Write `Please check these four points:`
-
-The structured result and human summary are addressed to the developer. Report
-those results directly. Do not write them in the developer's voice.
+Publish the requested exact revision as one verified draft pull request.
 
 ## Inputs
 
-Require:
+Require the aligned task contract, repository and branches, exact clean commit,
+push and draft-pull-request authority, final assurance verdict, current
+assurance record, final behavior, material risk, and reviewer-accessible
+evidence links.
 
-- repository, base branch, feature branch, and exact change revision
-- publication authority and draft-state policy
-- canonical human task description and accepted scope
-- final behavior and compatibility or migration details
-- complete diff and change-assurance record for the supplied revision
-- acceptance-proof record with claims, paths, risks, evidence, and waivers
-- material concerns and review findings
-- publication eligibility verdict for the supplied revision
-- reviewer-accessible URLs for required visual evidence
-
-The publication eligibility verdict must permit delivery. Every required proof
-must have current evidence or an accepted waiver. Local paths are not reviewer
-evidence. Stop when requested changes are uncommitted or the supplied revision
-does not match the branch head.
+Stop when change assurance did not pass, the worktree is dirty, the branch head
+differs from the assured commit, or required evidence is local-only.
 
 ## Operation
 
-1. Confirm the repository, branches, authentication, clean worktree, exact
-   revision, and publication authority.
-2. Read every supplied input. Do not infer scope from commit messages.
-3. Build an internal coverage ledger from the acceptance-proof and
-   change-assurance records. Map each behavioral path, material concern,
-   acceptance criterion, and regression area to one `Regression assurance` row.
-   Combine records only when their behavior, affected surface, evidence,
-   verdict, and residual risk are the same. Do not widen a waiver.
-4. Compare the coverage ledger with the complete diff and all supplied
-   evidence. Stop for an unaccounted change, missing or duplicate mapping,
-   unsupported claim, unaccepted exception, or missing evidence.
-5. Push the supplied revision with branch tracking. Do not force-push unless the
-   human explicitly requests it.
-6. Create durable evidence links that contain the pushed commit hash. Pair each
-   automated test link with its current result link.
-7. Find an existing pull request for the branch. Preserve each current evidence
-   mapping when rebuilding its assurance rows.
-8. Build the complete body with
-   [assets/draft-pr-template.md](assets/draft-pr-template.md). Do not add
-   top-level sections. Rewrite any third-person reference to the developer in
-   the developer's first-person singular voice.
-9. Validate the body:
+1. Confirm repository, authentication, branches, clean worktree, exact head,
+   authority, and passing assurance.
+2. Build a concise body from
+   [the draft pull request template](assets/draft-pr-template.md). Describe only
+   the current change. Do not include Factory process history.
+3. Map each material behavior at risk to evidence, verdict, and residual risk.
+4. Validate the body:
 
    ```bash
    python3 <skill-directory>/scripts/validate-pr-description.py <body-file>
    ```
 
-10. Update the existing pull request or create a draft pull request against the
-    requested or default base branch.
-11. Read the pull request through GitHub. Compare the published body with the
-    validated body and validate it again:
+5. Push without force. Create or update one draft pull request.
+6. Read the published title, body, draft state, branches, and revision back from
+   GitHub. Compare the body with the validated source and validate it again.
 
-    ```bash
-    python3 <skill-directory>/scripts/validate-pr-description.py \
-      <published-body-file> --expected <validated-body-file>
-    ```
-
-12. Reconcile the coverage ledger with the published body. Return success only
-    when the draft state, exact body, required sections, evidence links, and all
-    mappings pass.
-
-## Pull request content
-
-Use the required level-two sections once and in this order. Include the
-optional `Manual test steps` section only at the end.
-
-### What changed
-
-Use concise bullets to describe the final behavior. Include compatibility or
-migration work. Do not list files or work history. State the accepted scope of
-the change here because there is no separate `Task` section.
-
-### Blast radius
-
-State which surfaces the change reaches and how far a failure would spread.
-State the widest single code path the change touches. State what a failure
-looks like for a user. State what rolling back costs. Include whether data is
-rewritten, whether a database migration ships, and whether redeploying the
-previous build is sufficient.
-
-### Regression assurance
-
-Use one compact row for each distinct behavior at risk. Each row must state the
-behavior, affected surface, evidence, verdict, and residual risk or accepted
-waiver.
-
-Do not show internal path, risk, finding, acceptance criterion, fingerprint,
-assignment, or lifecycle identifiers. Use stable human descriptions.
-
-- Automated evidence must link the exact test at the pushed commit and its
-  current result.
-- Inspection evidence must explain why the regression cannot occur. It must
-  link the final code and an available supporting signal.
-- Manual evidence is permitted only when automation cannot prove the behavior.
-  It must explain why and link a sanitized, reviewer-accessible artifact.
-
-An accepted waiver must identify the residual risk and the human decision.
-Missing, stale, failed, inaccessible, or local-only evidence blocks publication.
-Required evidence gaps block publication.
-
-### Manual test steps
-
-This section is optional and must always be last. Include it only when a
-behavior has no automated coverage or when a reviewer must confirm something
-by hand before approval. Split it into the steps that the developer ran and
-the steps that the reviewer should run. Make each step one concrete,
-observable check. Remove the heading when there is nothing to check by hand.
-Do not write `None.`
+Write published text in the developer's first-person singular voice when it
+describes their actions, decisions, ownership, or requests. Keep neutral facts
+direct. Use ASD-STE100 Simplified Technical English.
 
 ## Outputs
 
-Return a structured result and a concise human summary with:
+Return:
 
 - status: `published` or `blocked`
-- pull request URL and number
-- base branch, feature branch, and published revision
-- draft state and publication action
-- exact validated body
-- published-body read-back comparison and validation result
-- coverage-ledger reconciliation result
-- external checks reported separately from the pull request body
-- blockers and residual risk
+- pull request URL, number, branches, and exact revision
+- created or updated action and draft state
+- exact validated body and read-back result
+- evidence mapping result, external checks, blockers, and residual risk
 
 ## Side effects
 
-Push the supplied revision. Create or update one GitHub pull request. Read the
-published result back through GitHub. Do not perform any other remote write.
+Push the exact supplied commit. Create or update one GitHub draft pull request.
+Make no other local or remote change.
 
 ## Failure results
 
-Return `blocked` for missing authority, invalid or stale inputs, publication
-conflicts, failed evidence validation, failed push, failed GitHub write, or
-failed read-back comparison. A pushed branch without a valid published pull
-request is not success.
-
-## Safety and quality
-
-- Trace every claim to the supplied diff, task, documentation, or evidence.
-- Read the complete title and body as the developer before publication. Remove
-  third-person references to the developer and unsupported collective voice.
-- Describe only the supplied revision. Exclude revision history, prior errors,
-  discarded approaches, agent details, local machine state, and troubleshooting.
-- Remove template comments and placeholders.
-- Exclude secrets, tokens, private URLs, customer data, and duplicate text.
-- Keep the pull request in draft state unless the human requests otherwise.
-- Do not stage, commit, amend, rebase, or otherwise change the supplied revision.
-- Do not add visual evidence to the repository only for the pull request.
-- Report remote checks separately. Do not add routine successful continuous
-  integration checks to the body.
+Return `blocked` for missing authority, stale inputs, a dirty or different
+revision, missing evidence, push failure, publication failure, or read-back
+mismatch. A pushed branch without a valid draft pull request is not success.
 
 ## Non-goals
 
-Do not implement, review, verify, merge, release, or change product files.
+Do not edit, stage, commit, amend, rebase, force-push, merge, release, or change
+product files.

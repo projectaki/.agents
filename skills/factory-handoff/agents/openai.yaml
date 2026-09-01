@@ -1,4 +1,6 @@
 interface:
   display_name: "Factory Handoff"
-  short_description: "Persist and inspect lifecycle run history"
-  default_prompt: "Use $factory-handoff to persist or inspect lifecycle checkpoints, route reasoning, and the current task state."
+  short_description: "Persist compact Factory task state"
+  default_prompt: "Use $factory-handoff to persist or resume the compact Factory task records."
+policy:
+  allow_implicit_invocation: false

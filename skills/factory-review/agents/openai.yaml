@@ -1,6 +1,0 @@
-interface:
-  display_name: "Factory Review"
-  short_description: "Run one bounded read-only review"
-  default_prompt: "Use $factory-review to perform one bounded read-only review of the supplied subject."
-policy:
-  allow_implicit_invocation: false

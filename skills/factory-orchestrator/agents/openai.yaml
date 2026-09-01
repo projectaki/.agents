@@ -1,6 +1,6 @@
 interface:
   display_name: "Factory Orchestrator"
-  short_description: "Route and run the next Factory step"
-  default_prompt: "Use $factory-orchestrator to restore this task and run its next valid lifecycle step."
+  short_description: "Run or resume a guarded Factory task"
+  default_prompt: "Use $factory-orchestrator to restore this task and run its next guarded Factory lifecycle."
 policy:
   allow_implicit_invocation: false

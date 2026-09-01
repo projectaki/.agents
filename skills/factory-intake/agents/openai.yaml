@@ -1,4 +1,6 @@
 interface:
   display_name: "Factory Intake"
-  short_description: "Align a software change with the human"
-  default_prompt: "Use $factory-intake to clarify and align the task contract with me."
+  short_description: "Create a compact software-change contract"
+  default_prompt: "Use $factory-intake to create the compact task contract for this software change."
+policy:
+  allow_implicit_invocation: false

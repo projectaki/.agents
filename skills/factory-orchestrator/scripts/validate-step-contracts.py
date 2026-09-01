@@ -11,16 +11,10 @@ from pathlib import Path
 
 WORK_SKILLS = (
     "factory-intake",
-    "factory-context",
-    "factory-replicate",
-    "factory-analysis",
-    "factory-plan",
+    "factory-triage",
     "factory-implement",
-    "factory-review",
-    "factory-video-evidence",
-    "factory-verify",
+    "factory-assure",
     "factory-draft-pr",
-    "factory-learn",
 )
 
 REQUIRED_HEADINGS = (
@@ -39,7 +33,7 @@ FORBIDDEN_PATTERNS = {
     "handoff dependency": re.compile(r"\bfactory-handoff\b", re.IGNORECASE),
     "telemetry dependency": re.compile(r"\bfactory-telemetry\b|\bbest-effort writer\b", re.IGNORECASE),
     "handoff file": re.compile(
-        r"`(?:report\.md|context\.md|proof-ledger\.yaml|change-assurance-report\.md)`",
+        r"`(?:task\.json|assurance\.json|report\.md|history\.jsonl)`",
         re.IGNORECASE,
     ),
     "lifecycle control": re.compile(

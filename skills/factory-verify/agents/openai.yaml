@@ -1,6 +1,0 @@
-interface:
-  display_name: "Factory Verify"
-  short_description: "Verify a supplied change and its evidence"
-  default_prompt: "Use $factory-verify to verify the supplied change revision, requirements, risks, and evidence."
-policy:
-  allow_implicit_invocation: false

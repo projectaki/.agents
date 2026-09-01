@@ -18,9 +18,9 @@ def resolve_task_root(explicit_root: str | None) -> Path:
     if explicit_root:
         return Path(explicit_root).expanduser().resolve()
 
-    resolver = Path(__file__).resolve().parents[2] / "factory-handoff" / "scripts" / "resolve-handoff-path.sh"
+    resolver = Path(__file__).resolve().parents[2] / "factory-handoff" / "scripts" / "resolve-task-root.sh"
     result = subprocess.run(
-        [str(resolver), "--root"],
+        [str(resolver)],
         check=True,
         capture_output=True,
         text=True,
@@ -119,7 +119,6 @@ def build_event(args: argparse.Namespace) -> dict[str, object]:
 def append_event(task_root: Path, event: dict[str, object]) -> Path:
     telemetry_root = task_root / "telemetry"
     telemetry_root.mkdir(parents=True, exist_ok=True, mode=0o700)
-    (telemetry_root / "artifacts").mkdir(exist_ok=True, mode=0o700)
     events_path = telemetry_root / "events.jsonl"
     line = json.dumps(event, ensure_ascii=False, separators=(",", ":")) + "\n"
 

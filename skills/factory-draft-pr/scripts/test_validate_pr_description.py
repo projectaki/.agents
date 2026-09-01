@@ -30,7 +30,7 @@ VALID_BODY = """\
 
 | Behavior at risk | Affected surface | Evidence | Verdict | Residual risk or waiver |
 |---|---|---|---|---|
-| Concurrent renewal retains destination | Signed-in navigation | Automated — [test](https://example.test/code) · [result](https://example.test/run) | Pass | None |
+| Concurrent renewal retains destination | Signed-in navigation | Automated — [test and command](https://example.test/code) passed locally at the supplied commit | Pass | None |
 
 ## Manual test steps
 
@@ -104,13 +104,13 @@ class ValidatePrDescriptionTest(unittest.TestCase):
         errors = VALIDATOR.validate(body)
         self.assertTrue(any("level-2 sections" in error for error in errors))
 
-    def test_requires_test_and_result_links_for_automated_evidence(self) -> None:
+    def test_requires_a_durable_link_for_automated_evidence(self) -> None:
         body = VALID_BODY.replace(
-            "[test](https://example.test/code) · [result](https://example.test/run)",
-            "[test](https://example.test/code)",
+            "[test and command](https://example.test/code) passed locally at the supplied commit",
+            "The test passed locally",
         )
         errors = VALIDATOR.validate(body)
-        self.assertTrue(any("requires at least 2 durable link" in error for error in errors))
+        self.assertTrue(any("requires at least 1 durable link" in error for error in errors))
 
     def test_rejects_third_person_reference_to_author(self) -> None:
         body = VALID_BODY.replace(

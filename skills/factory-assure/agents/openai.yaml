@@ -1,0 +1,6 @@
+interface:
+  display_name: "Factory Assure"
+  short_description: "Independently assure a plan or change"
+  default_prompt: "Use $factory-assure to independently review this plan or committed change and verify its evidence."
+policy:
+  allow_implicit_invocation: false

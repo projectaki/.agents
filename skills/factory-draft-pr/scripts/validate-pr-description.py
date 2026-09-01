@@ -140,7 +140,7 @@ def validate_regression_table(lines: list[str]) -> list[str]:
 
         evidence_kind = evidence_parts[0].casefold()
         link_count = len(re.findall(r"\[[^\]]+\]\(https?://[^)]+\)", evidence_parts[1]))
-        minimum_links = 2 if evidence_kind == "automated" else 1
+        minimum_links = 1
         if link_count < minimum_links:
             errors.append(
                 f"Regression assurance row {number} {evidence_kind} evidence "

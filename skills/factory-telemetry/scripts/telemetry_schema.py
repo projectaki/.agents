@@ -18,7 +18,7 @@ EVENT_TYPES = {
     "event_corrected",
 }
 CATEGORIES = {
-    "orchestration", "implementation", "verification", "review", "delivery",
+    "orchestration", "triage", "implementation", "assurance", "delivery",
     "environment_setup", "recovery", "human_wait", "external_wait",
     "external_action", "research", "other",
 }

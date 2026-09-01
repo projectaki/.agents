@@ -1,6 +1,0 @@
-interface:
-  display_name: "Factory Plan"
-  short_description: "Create an implementation-ready change plan"
-  default_prompt: "Use $factory-plan with the supplied requirements, evidence, risks, and proof needs to create an implementation-ready plan."
-policy:
-  allow_implicit_invocation: false

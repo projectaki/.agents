@@ -1,4 +1,0 @@
-interface:
-  display_name: "Factory Analysis"
-  short_description: "Analyze change impact, risks, and proof"
-  default_prompt: "Use $factory-analysis to analyze the change impact, risks, and required proof."

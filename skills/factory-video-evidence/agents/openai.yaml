@@ -1,6 +1,0 @@
-interface:
-  display_name: "Factory Video Evidence"
-  short_description: "Record one supplied UI workflow as video"
-  default_prompt: "Use $factory-video-evidence to create a repeatable script and video for the supplied user-interface workflow."
-policy:
-  allow_implicit_invocation: false

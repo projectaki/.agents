@@ -1,60 +1,52 @@
 ---
 name: factory-intake
-description: "Align a software-change request with the human. Accept the request and supplied artifacts, ask the smallest necessary questions, and return an agreed task contract without researching, planning, or implementing."
+description: "Create the compact Factory task contract for a software change. Use when a request first enters Factory or when changed scope, authority, acceptance criteria, or deliverables require a new task revision."
 ---
 
 # Factory Intake
 
 ## Purpose
 
-Align the requested software change with the human.
+Create an explicit task contract without researching or designing the change.
 
 ## Inputs
 
-Require the request, supplied artifacts, and either direct access to the human
-or a caller that can relay questions and answers.
+Require the request, supplied artifacts, and access to the human when a material
+decision is unresolved.
 
 ## Operation
 
-1. Read the request and supplied artifacts.
-2. State the intended feature and requested implementation direction in plain
-   language.
-3. Ask the smallest set of questions needed to align behavior, scope,
-   acceptance criteria, constraints, implementation preferences, authority,
-   dependencies, and deliverable. Do not ask questions that the repository can
-   answer.
-4. Incorporate each answer. Ask again only when material ambiguity remains.
-5. Return `aligned` only after the human can correct the complete task contract.
-   Do not infer agreement from silence.
-
-If direct human access is unavailable, return the exact questions. Accept the
-relayed answers as additional input and continue the same operation.
+1. Extract the objective, observable behavior, acceptance criteria, scope,
+   constraints, authority, and requested deliverable.
+2. Treat a clear request as aligned. Do not require confirmation when no
+   material ambiguity exists.
+3. Ask only questions that the repository cannot answer and whose answers can
+   change behavior, scope, risk, proof, authority, or delivery.
+4. Keep edit, test, commit, push, and draft-pull-request authority separate.
+5. Increment the task revision when accepted behavior, scope, proof, authority,
+   or deliverable changes.
 
 ## Outputs
 
-Return a structured result and a concise human summary with:
+Return:
 
 - status: `aligned` or `needs-input`
-- objective and expected behavior
-- acceptance criteria
-- in-scope and out-of-scope work
-- implementation expectations and constraints
-- authority, approvals, dependencies, and assumptions
-- expected deliverable
-- unanswered questions
-- an acceptance-proof record with stable claim and proof identifiers, original
-  required proof, and a closed inventory for each accepted universal claim
+- task revision, objective, acceptance criteria, included and excluded scope
+- constraints, human decisions, assumptions, and open decisions
+- authority for edit, test, commit, push, and draft pull request
+- requested deliverable: `local_commit` or `draft_pull_request`
+- initial acceptance claims and required proof methods
 
 ## Side effects
 
-Ask the human questions when direct access is available. Make no repository or
-external-system changes.
+Ask necessary questions. Make no repository or external-system changes.
 
 ## Failure results
 
-Return `needs-input` with the exact unresolved question when agreement, required
-authority, or a material fact is missing.
+Return `needs-input` with one exact material question when the contract cannot
+be aligned safely.
 
 ## Non-goals
 
-Do not research the codebase, plan, implement, or invent requirements.
+Do not research the repository, classify risk, plan, implement, or infer
+authority.

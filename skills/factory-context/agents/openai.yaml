@@ -1,6 +1,0 @@
-interface:
-  display_name: "Factory Context"
-  short_description: "Gather codebase and documentation evidence"
-  default_prompt: "Use $factory-context to research the supplied software-change brief and return an evidence packet."
-policy:
-  allow_implicit_invocation: false

@@ -19,7 +19,7 @@ canonical assurance report. Use human names, never internal IDs. -->
 
 | Behavior at risk | Affected surface | Evidence | Verdict | Residual risk or waiver |
 |---|---|---|---|---|
-| <!-- Observable regression --> | <!-- User, API, component, system, contract, data, or operations --> | <!-- Automated: test permalink + result; Inspection: explanation + final-code permalink; Manual: reason + public artifact --> | <!-- Pass or Waiver accepted --> | <!-- None, remaining risk, or accepted waiver --> |
+| <!-- Observable regression --> | <!-- User, API, component, system, contract, data, or operations --> | <!-- Automated: test permalink + command and result; Inspection: explanation + final-code permalink; Manual: reason + public artifact --> | <!-- Pass or Waiver accepted --> | <!-- None, remaining risk, or accepted waiver --> |
 
 ## Manual test steps
 
