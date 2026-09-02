@@ -16,13 +16,31 @@ REQUIRED_SECTIONS = [
 ]
 OPTIONAL_TRAILING_SECTION = "Manual test steps"
 
-EXPECTED_TABLE_HEADER = [
-    "Behavior at risk",
+EXPECTED_ENTRY_FIELDS = [
     "Affected surface",
     "Evidence",
     "Verdict",
     "Residual risk or waiver",
 ]
+ALLOWED_SURFACES = {"Data", "Component", "System"}
+EVIDENCE_PREFIXES = ("Automated — ", "Inspection — ")
+FIELD_LINE = re.compile(r"^- \*\*([^*]+):\*\* (.+)$")
+MARKDOWN_LINK = re.compile(r"\[[^\]]+\]\((https?://[^)]+)\)")
+PINNED_FILE_PERMALINK = re.compile(
+    r"https://github\.com/[^/]+/[^/]+/blob/[0-9a-fA-F]{40}/[^)\s]+"
+)
+WAIVER_ACCEPTOR = re.compile(
+    r"\b(?:I|the [A-Za-z][A-Za-z -]{1,60}) accepted\b|"
+    r"\baccepted by [A-Za-z][A-Za-z -]{1,60}\b",
+    re.IGNORECASE,
+)
+UNPROVEN_GAP = re.compile(
+    r"\b(?:unproven|unverified|untested|not proven|not verified|not tested|"
+    r"does not prove|do not prove|cannot prove|no (?:automated )?test|"
+    r"not covered)\b",
+    re.IGNORECASE,
+)
+WAIVER_REASON = re.compile(r"\b(?:because|due to)\b", re.IGNORECASE)
 
 INTERNAL_ID_PATTERNS = [
     re.compile(r"\bP-?\d+\b", re.IGNORECASE),
@@ -48,12 +66,6 @@ THIRD_PERSON_AUTHOR_VOICE = re.compile(
     r"\b(?:the|our)\s+team\s+(?:asks?|requests?|wants?)\b",
     re.IGNORECASE,
 )
-
-EVIDENCE_KINDS = {"automated", "inspection", "manual"}
-
-
-def parse_row(line: str) -> list[str]:
-    return [cell.strip() for cell in line.strip().strip("|").split("|")]
 
 
 def section_bodies(lines: list[str]) -> tuple[list[str], dict[str, list[str]], list[str]]:
@@ -101,52 +113,165 @@ def section_bodies(lines: list[str]) -> tuple[list[str], dict[str, list[str]], l
     return found, bodies, errors
 
 
-def validate_regression_table(lines: list[str]) -> list[str]:
+def trim_blank_lines(lines: list[str]) -> list[str]:
+    start = 0
+    end = len(lines)
+    while start < end and not lines[start].strip():
+        start += 1
+    while end > start and not lines[end - 1].strip():
+        end -= 1
+    return lines[start:end]
+
+
+def split_regression_entries(lines: list[str]) -> tuple[list[list[str]], list[str]]:
     errors: list[str] = []
-    table_lines = [line for line in lines if line.strip().startswith("|")]
+    separator_indexes = [
+        index for index, line in enumerate(lines) if line.strip() == "---"
+    ]
 
-    if len(table_lines) < 3:
-        return ["Regression assurance must contain a header and at least 1 evidence row"]
+    for index in separator_indexes:
+        if (
+            index == 0
+            or index == len(lines) - 1
+            or lines[index - 1].strip()
+            or lines[index + 1].strip()
+        ):
+            errors.append(
+                "Regression assurance entry separators must be a blank line, "
+                "'---', and a blank line"
+            )
 
-    if parse_row(table_lines[0]) != EXPECTED_TABLE_HEADER:
-        errors.append("Regression assurance table header does not match the required columns")
-    if parse_row(table_lines[1]) != ["---"] * len(EXPECTED_TABLE_HEADER):
-        errors.append("Regression assurance table separator must contain exactly 5 columns")
+    visible_lines = trim_blank_lines(lines)
+    if visible_lines and visible_lines[-1].strip() == "---":
+        errors.append("Regression assurance must not have a rule after the last entry")
 
-    data_rows = table_lines[2:]
-    for number, line in enumerate(data_rows, start=1):
-        cells = parse_row(line)
-        if len(cells) != len(EXPECTED_TABLE_HEADER):
-            errors.append(f"Regression assurance row {number} must have 5 columns")
+    entries: list[list[str]] = []
+    start = 0
+    for index in separator_indexes:
+        entries.append(trim_blank_lines(lines[start:index]))
+        start = index + 1
+    entries.append(trim_blank_lines(lines[start:]))
+
+    if any(not entry for entry in entries):
+        errors.append("Regression assurance separators must appear only between entries")
+
+    return [entry for entry in entries if entry], errors
+
+
+def validate_regression_entry(lines: list[str], number: int) -> list[str]:
+    errors: list[str] = []
+    field_start = next(
+        (index for index, line in enumerate(lines) if line.startswith("- **")),
+        None,
+    )
+    if field_start is None:
+        return [f"Regression assurance entry {number} has no labeled fields"]
+
+    behavior_block = lines[:field_start]
+    if not behavior_block or behavior_block[-1].strip():
+        errors.append(
+            f"Regression assurance entry {number} needs a blank line between "
+            "the behavior paragraph and its fields"
+        )
+        behavior_lines = behavior_block
+    else:
+        behavior_lines = behavior_block[:-1]
+
+    if not behavior_lines or any(not line.strip() for line in behavior_lines):
+        errors.append(
+            f"Regression assurance entry {number} must start with one behavior paragraph"
+        )
+    if any(re.match(r"\s*(?:#{1,6}\s|[-*+]\s|>\s|```)", line) for line in behavior_lines):
+        errors.append(
+            f"Regression assurance entry {number} behavior must not have a heading or list marker"
+        )
+
+    field_lines = lines[field_start:]
+    if len(field_lines) != len(EXPECTED_ENTRY_FIELDS):
+        errors.append(
+            f"Regression assurance entry {number} must have exactly 4 labeled fields"
+        )
+
+    values: dict[str, str] = {}
+    for index, expected_label in enumerate(EXPECTED_ENTRY_FIELDS):
+        if index >= len(field_lines):
+            break
+        match = FIELD_LINE.fullmatch(field_lines[index])
+        if not match or match.group(1) != expected_label:
+            errors.append(
+                f"Regression assurance entry {number} field {index + 1} must be "
+                f"'- **{expected_label}:** <value>'"
+            )
             continue
-        if any(not cell for cell in cells):
-            errors.append(f"Regression assurance row {number} contains an empty field")
-        if cells[3].casefold() not in {"pass", "waiver accepted"}:
-            errors.append(
-                f"Regression assurance row {number} verdict must be 'Pass' or 'Waiver accepted'"
-            )
-        if cells[3].casefold() == "waiver accepted" and cells[4].casefold() == "none":
-            errors.append(
-                f"Regression assurance row {number} must describe the accepted residual risk"
-            )
+        values[expected_label] = match.group(2)
 
-        evidence_parts = re.split(r"\s+[—-]\s+", cells[2], maxsplit=1)
-        if len(evidence_parts) != 2 or evidence_parts[0].casefold() not in EVIDENCE_KINDS:
-            errors.append(
-                f"Regression assurance row {number} evidence must start with "
-                "'Automated —', 'Inspection —', or 'Manual —'"
-            )
-            continue
+    surface = values.get("Affected surface")
+    if surface and surface not in ALLOWED_SURFACES:
+        errors.append(
+            f"Regression assurance entry {number} affected surface must be "
+            "Data, Component, or System"
+        )
 
-        evidence_kind = evidence_parts[0].casefold()
-        link_count = len(re.findall(r"\[[^\]]+\]\(https?://[^)]+\)", evidence_parts[1]))
-        minimum_links = 1
-        if link_count < minimum_links:
+    evidence = values.get("Evidence")
+    if evidence:
+        if not evidence.startswith(EVIDENCE_PREFIXES):
             errors.append(
-                f"Regression assurance row {number} {evidence_kind} evidence "
-                f"requires at least {minimum_links} durable link(s)"
+                f"Regression assurance entry {number} evidence must start with "
+                "'Automated — ' or 'Inspection — '"
             )
+        links = MARKDOWN_LINK.findall(evidence)
+        if not links:
+            errors.append(
+                f"Regression assurance entry {number} evidence requires at least "
+                "1 commit-pinned file permalink"
+            )
+        for link in links:
+            if not PINNED_FILE_PERMALINK.fullmatch(link):
+                errors.append(
+                    f"Regression assurance entry {number} evidence link is not a "
+                    f"commit-pinned file permalink: {link}"
+                )
 
+    verdict = values.get("Verdict")
+    if verdict and verdict not in {"Pass", "Waiver accepted"}:
+        errors.append(
+            f"Regression assurance entry {number} verdict must be exactly "
+            "'Pass' or 'Waiver accepted'"
+        )
+
+    residual_risk = values.get("Residual risk or waiver")
+    if verdict == "Waiver accepted" and residual_risk:
+        if residual_risk == "None":
+            errors.append(
+                f"Regression assurance entry {number} waiver must describe the unproven gap"
+            )
+        else:
+            if not WAIVER_ACCEPTOR.search(residual_risk):
+                errors.append(
+                    f"Regression assurance entry {number} waiver must say who accepted it"
+                )
+            if not UNPROVEN_GAP.search(residual_risk):
+                errors.append(
+                    f"Regression assurance entry {number} waiver must name what is unproven"
+                )
+            if not WAIVER_REASON.search(residual_risk):
+                errors.append(
+                    f"Regression assurance entry {number} waiver must say why it was accepted"
+                )
+
+    return errors
+
+
+def validate_regression_entries(lines: list[str]) -> list[str]:
+    if any(line.strip().startswith("|") for line in lines):
+        return ["Regression assurance must use stacked entries, not a table"]
+
+    entries, errors = split_regression_entries(lines)
+    if not entries:
+        return [*errors, "Regression assurance must contain at least 1 entry"]
+
+    for number, entry in enumerate(entries, start=1):
+        errors.extend(validate_regression_entry(entry, number))
     return errors
 
 
@@ -158,7 +283,7 @@ def validate(text: str) -> list[str]:
         errors.append("template comments and placeholders must be removed")
 
     if bodies:
-        errors.extend(validate_regression_table(bodies["Regression assurance"]))
+        errors.extend(validate_regression_entries(bodies["Regression assurance"]))
 
     without_comments = re.sub(r"<!--.*?-->", "", text, flags=re.DOTALL)
     visible_text = re.sub(

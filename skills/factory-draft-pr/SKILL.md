@@ -25,8 +25,12 @@ differs from the assured commit, or required evidence is local-only.
    authority, and passing assurance.
 2. Build a concise body from
    [the draft pull request template](assets/draft-pr-template.md). Describe only
-   the current change. Do not include Factory process history.
-3. Map each material behavior at risk to evidence, verdict, and residual risk.
+   the current change. Write a timeless body: omit claims that can change
+   without this branch, including another pull request's status and live diff
+   counts. State dependencies structurally and gates as preconditions. Do not
+   include Factory process history.
+3. Map each material behavior at risk to one stacked assurance entry. Do not
+   use a table or add entry headings.
 4. Validate the body:
 
    ```bash
