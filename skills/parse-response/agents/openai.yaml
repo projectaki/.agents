@@ -1,0 +1,4 @@
+interface:
+  display_name: "Parse Response"
+  short_description: "Step through dense responses one point at a time"
+  default_prompt: "Use $parse-response to break the previous response into clear points and guide me through them one at a time."
