@@ -8,6 +8,19 @@ description: "Run or resume a persisted Factory software-change task. Restore co
 Run the smallest safe workflow. Keep routing, authority, and stop decisions in
 the orchestrator. Keep product work in lifecycle workers.
 
+## Load engineering guidance
+
+At the start of every new or resumed orchestration run, read
+[`references/engineering-guidance.md`](references/engineering-guidance.md) in
+full. Do not rely on guidance retained from an earlier turn or a conversation
+summary.
+
+Before routing or dispatching work, also find and read every applicable
+`AGENTS.md` and `CLAUDE.md` file in the target repository. Apply files from the
+repository root through the directories that contain the files in scope.
+Repository-specific guidance supplements the bundled engineering guidance.
+Follow the normal instruction precedence when guidance conflicts.
+
 ## Continuation
 
 Use `supervised` mode by default while Factory is being tuned:
@@ -94,8 +107,10 @@ plan and change assurance independent from the implementer.
 
 Supply the selected skill, task contract, current assurance record, repository,
 authority, safety limits, required result contract, worker tier, and optional
-telemetry assignment. Workers do not route, change scope, or approve their own
-exceptions.
+telemetry assignment. Include the bundled engineering guidance and every
+applicable repository `AGENTS.md` and `CLAUDE.md` file in each worker dispatch.
+Require the worker to read them before it acts. Workers do not route, change
+scope, or approve their own exceptions.
 
 ## Persist and continue
 
