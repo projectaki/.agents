@@ -1,6 +1,6 @@
 name = "standard-worker"
 description = "Use when the orchestrator routes a lifecycle assignment to the standard tier."
-model = "gpt-5.6-terra"
+model = "gpt-6-astra"
 model_reasoning_effort = "medium"
 
 developer_instructions = """

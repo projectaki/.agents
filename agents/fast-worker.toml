@@ -1,6 +1,6 @@
 name = "fast-worker"
 description = "Use when the orchestrator routes a lifecycle assignment to the fast tier."
-model = "gpt-5.6-luna"
+model = "gpt-6-astra"
 model_reasoning_effort = "medium"
 
 developer_instructions = """
