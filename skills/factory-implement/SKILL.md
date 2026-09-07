@@ -5,8 +5,6 @@ description: "Implement one triaged Factory software change, add the smallest su
 
 # Factory Implement
 
-## Purpose
-
 Produce one clean committed revision that implements the accepted task.
 
 ## Inputs
@@ -43,24 +41,18 @@ Return:
 
 - status: `complete`, `needs-input`, or `blocked`
 - exact base and committed revision, branch, and clean-worktree result
-- changed behavior, files, and complete diff groups
-- tests and checks with results and covered revision
-- updated paths, risks, evidence, exceptions, and residual risk
-- skipped or inaccessible required checks
-- scope or risk changes and the exact decision they require
+- updated assurance record with complete diff groups, proof results and
+  revisions, uncovered behavior, exceptions, and residual risk
+- a short behavior summary and any scope or risk decision needed
 
 ## Side effects
 
 Modify approved local files, run local checks, and create one local commit. Do
-not push, publish, amend, rebase, or change unrelated user work.
+not amend, rebase, change unrelated user work, approve your implementation,
+or write to remote systems.
 
 ## Failure results
 
 Return `needs-input` for missing authority or a material decision. Return
 `blocked` for an inaccessible required dependency or proof. Leave no commit
 when required focused checks fail.
-
-## Non-goals
-
-Do not expand scope, approve your own implementation, push, publish, merge, or
-release.

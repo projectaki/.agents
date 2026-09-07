@@ -77,6 +77,73 @@ def git_facts(repository: Path) -> tuple[str | None, str | None, bool | None]:
     return head, branch, bool(status) if status is not None else None
 
 
+def git_base_revision(repository: Path, base_ref: object) -> str | None:
+    if not isinstance(base_ref, str) or not base_ref.strip():
+        return None
+    result = subprocess.run(
+        ["git", "-C", str(repository), "rev-parse", "--verify", "--end-of-options", f"{base_ref}^{{commit}}"],
+        text=True, capture_output=True, check=False,
+    )
+    return result.stdout.strip() if result.returncode == 0 else None
+
+
+def validate_acceptance(task: dict[str, Any], assurance: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    evidence: dict[str, dict[str, Any]] = {}
+    exceptions: dict[str, dict[str, Any]] = {}
+    for field, target in (("evidence", evidence), ("exceptions", exceptions)):
+        for item in assurance.get(field, []):
+            if not isinstance(item, dict) or not isinstance(item.get("id"), str) or not item["id"].strip():
+                errors.append(f"assurance.{field} entries require an id")
+                continue
+            if item["id"] in target:
+                errors.append(f"duplicate {field} reference: {item['id']}")
+            target[item["id"]] = item
+    paths = assurance.get("paths", [])
+    for behavior in task.get("acceptance_criteria", []):
+        matches = [path for path in paths if isinstance(path, dict) and path.get("behavior") == behavior]
+        if not matches:
+            errors.append(f"Acceptance behavior has no proof mapping: {behavior}")
+    for path in paths:
+        if not isinstance(path, dict):
+            errors.append("Each assurance path must be an object")
+            continue
+        behavior = path.get("behavior")
+        require_text(behavior, "path.behavior", errors)
+        refs = path.get("evidence", [])
+        require_text_list(refs, "path.evidence", errors)
+        if not isinstance(refs, list) or any(not isinstance(ref, str) for ref in refs):
+            continue
+        exception_ref = path.get("exception")
+        exception = exceptions.get(exception_ref) if isinstance(exception_ref, str) else None
+        if exception_ref is not None:
+            if not exception or exception.get("behavior") != behavior:
+                errors.append(f"Exception does not name this behavior: {behavior}")
+            else:
+                for field in ("approval", "residual_risk"):
+                    require_text(exception.get(field), f"exception.{field}", errors)
+                if any(exception.get(field) != assurance.get(field) for field in ("change_revision", "base_revision")):
+                    errors.append(f"Exception is stale: {behavior}")
+        if not refs and not exception:
+            errors.append(f"Acceptance behavior has no executed proof or exception: {behavior}")
+        for ref in refs:
+            item = evidence.get(ref)
+            if item is None:
+                errors.append(f"Missing evidence reference: {ref}")
+                continue
+            require_text(item.get("proof"), f"evidence {ref}.proof", errors)
+            if item.get("state") != "executed":
+                errors.append(f"Evidence was not executed: {ref}")
+            if item.get("result") != "pass" and not exception:
+                errors.append(f"Evidence did not pass: {ref}")
+            if item.get("revision") != assurance.get("change_revision") or item.get("base_revision") != assurance.get("base_revision"):
+                errors.append(f"Evidence is stale: {ref}")
+            if "carried_from" in item:
+                require_text(item.get("carried_from"), f"evidence {ref}.carried_from", errors)
+                require_text(item.get("reuse_reason"), f"evidence {ref}.reuse_reason", errors)
+    return errors
+
+
 def require_text(value: object, field: str, errors: list[str]) -> None:
     if not isinstance(value, str) or not value.strip():
         errors.append(f"{field} must be nonempty text")
@@ -122,6 +189,18 @@ def validate_task(task: dict[str, Any]) -> list[str]:
     if task.get("continuation_mode") not in {"supervised", "automatic"}:
         errors.append("task.continuation_mode must be supervised or automatic")
     require_text_list(task.get("open_decisions"), "task.open_decisions", errors)
+    if "base_ref" in task:
+        require_text(task["base_ref"], "task.base_ref", errors)
+    sessions = task.get("related_sessions", [])
+    if not isinstance(sessions, list):
+        errors.append("task.related_sessions must be a list")
+    else:
+        for session in sessions:
+            if not isinstance(session, dict):
+                errors.append("Each related session must be an object")
+                continue
+            for field in ("reference", "relationship"):
+                require_text(session.get(field), f"related session.{field}", errors)
     return errors
 
 
@@ -246,6 +325,7 @@ def validate_root(task_root: Path) -> list[str]:
     elif latest.get("report_sha256") != digest(report_path):
         errors.append("report.md changed after the latest checkpoint")
 
+    assurance = None
     assurance_path = task_root / "assurance.json"
     expected_assurance_hash = latest.get("assurance_sha256")
     if assurance_path.exists():
@@ -266,6 +346,15 @@ def validate_root(task_root: Path) -> list[str]:
 
     repository = Path(task["repository"])
     git_head, git_branch, worktree_dirty = git_facts(repository)
+    git_base = git_base_revision(repository, task.get("base_ref"))
+    if latest.get("git_base") != git_base:
+        errors.append("Git base changed after the latest checkpoint")
+    if latest.get("next_lifecycle") in {"CHANGE_ASSURANCE", "DELIVERY", "COMPLETED"} or latest.get("lifecycle") == "COMPLETED" and latest.get("status") == "terminal":
+        from routing import decide
+        decision = decide(task, assurance, records[:-1], latest["lifecycle"], latest["outcome"],
+                          git_head=git_head, git_branch=git_branch, git_base=git_base, worktree_dirty=worktree_dirty)
+        if decision.next_lifecycle != latest.get("next_lifecycle") or decision.stop != latest.get("stop"):
+            errors.append(f"Current records no longer support the checkpoint: {decision.reason}")
     if latest.get("git_head") != git_head:
         errors.append("Git head changed after the latest checkpoint")
     if latest.get("git_branch") != git_branch:

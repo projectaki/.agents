@@ -15,18 +15,16 @@ migration ships, and whether redeploying the previous build is sufficient. -->
 ## Regression assurance
 
 <!-- Use one stacked entry for every behavioral path and material regression
-concern in the canonical assurance report. Write the behavior as a paragraph,
-without a heading or internal ID. -->
+concern in the canonical assurance report. Identify the observable behavior. -->
 
 <!-- Observable behavior at risk. -->
 
-- **Affected surface:** <!-- Data, Component, or System -->
+- **Affected surface:** <!-- Name the affected data, component, or system. -->
 - **Evidence:** <!-- Automated — or Inspection — plus commit-pinned test or file links -->
 - **Verdict:** <!-- Pass or Waiver accepted -->
 - **Residual risk or waiver:** <!-- None, or the gap, acceptor, and reason -->
 
-<!-- Put a blank line, `---`, and a blank line between entries. Do not put a
-rule after the last entry. -->
+<!-- Separate entries with `---`. -->
 
 ## Manual test steps
 

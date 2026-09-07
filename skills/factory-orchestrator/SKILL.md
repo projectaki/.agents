@@ -49,7 +49,8 @@ failure back to its owner. Allow one automatic backward correction. A second
 backward correction requires human input.
 
 Use the route returned by the deterministic Factory checkpoint helper after
-each result. Do not override a stop result. Treat worker recommendations as
+each result. Before dispatching change assurance, require the helper to accept
+the implementation evidence. Do not override a stop result. Treat worker recommendations as
 evidence, not routing authority.
 
 ## Stop gate
@@ -115,22 +116,21 @@ scope, or approve their own exceptions.
 ## Persist and continue
 
 Use `factory-handoff` to restore and persist `task.json`, `assurance.json`,
-`report.md`, and one compact `history.jsonl` event. Checkpoint before returning,
-when awaiting input, after the implementation commit, before and after a remote
-write, and at a terminal result.
+`report.md`, and compact `history.jsonl` events at the handoff checkpoint
+boundaries.
 
 In supervised mode, return after the checkpoint. In automatic mode, run the
 route helper and continue unless it returns a stop or terminal result.
 
-Use `factory-telemetry` only for optional runtime observations. The
-orchestrator owns run and actor events. Workers own operation spans. Telemetry
-must never control routing or completion.
+Use `factory-telemetry` for optional runtime observations.
 
 ## Completion
 
 Complete a local task when independent change assurance passes for the exact
 clean committed revision. Complete a delivery task only after the requested
-draft pull request is published and read back for that revision. Require every
+draft pull request is published and read back for that revision. Validate
+current head, target base, branch, and worktree before accepting a persisted
+completion. Reopen authorized follow-up work with the handoff procedure. Require every
 active acceptance criterion and material risk to have current evidence or a
 human-accepted exception.
 

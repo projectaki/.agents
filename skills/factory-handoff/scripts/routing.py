@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from records import validate_acceptance
+
 
 @dataclass(frozen=True)
 class Decision:
@@ -20,6 +22,9 @@ def authority_allows(task: dict[str, Any], *actions: str) -> bool:
 
 
 def correction_count(history: list[dict[str, Any]], lifecycle: str, target: str) -> int:
+    reopened = [index for index, record in enumerate(history) if record.get("outcome") == "reopened" and record.get("next_lifecycle") in {"TRIAGE", "IMPLEMENTATION"}]
+    if reopened:
+        history = history[reopened[-1] + 1:]
     return sum(
         record.get("lifecycle") == lifecycle
         and record.get("next_lifecycle") == target
@@ -36,11 +41,11 @@ def decide(
     *,
     git_head: str | None = None,
     worktree_dirty: bool | None = None,
+    git_base: str | None = None,
+    git_branch: str | None = None,
 ) -> Decision:
     if lifecycle == "CANCELLED":
         return Decision(None, True, "The task is cancelled.")
-    if lifecycle == "COMPLETED":
-        return Decision(None, True, "The requested deliverable is complete.")
 
     routing = (assurance or {}).get("routing", {})
     stop_flags = [
@@ -55,6 +60,54 @@ def decide(
         return Decision("AWAITING_INPUT", True, "Current evidence passes a human stop gate.", lifecycle)
 
     normalized = outcome.replace("-", "_").casefold()
+    if lifecycle == "COMPLETED" and normalized == "reopened":
+        deliveries = [record for record in history if record.get("lifecycle") == "COMPLETED" and record.get("status") == "terminal"]
+        if not deliveries:
+            return Decision("AWAITING_INPUT", True, "Reopening requires an earlier completed delivery.", "TRIAGE")
+        if not authority_allows(task, "edit", "test", "commit"):
+            return Decision("AWAITING_INPUT", True, "Follow-up implementation authority is incomplete.", "IMPLEMENTATION")
+        if not assurance or assurance.get("verdict") != "unverified":
+            return Decision("AWAITING_INPUT", True, "Reset assurance before reopening authorized work.", "TRIAGE")
+        target = "TRIAGE" if task.get("task_revision") != deliveries[-1].get("task_revision") else "IMPLEMENTATION"
+        return Decision(target, False, "Authorized follow-up work reopened the task.")
+
+    accepting = (
+        lifecycle == "COMPLETED"
+        or lifecycle == "IMPLEMENTATION" and normalized == "complete"
+        or lifecycle == "CHANGE_ASSURANCE" and normalized == "pass"
+        or lifecycle == "DELIVERY" and normalized == "published"
+    )
+    if accepting:
+        if (
+            not assurance
+            or assurance.get("task_revision") != task.get("task_revision")
+            or not git_head or git_head != assurance.get("change_revision")
+            or not git_base or git_base != assurance.get("base_revision")
+            or not git_branch or git_branch != assurance.get("branch")
+            or worktree_dirty is not False
+        ):
+            return Decision("IMPLEMENTATION", False, "The task, head, base, branch, or clean worktree does not match assurance.")
+        errors = validate_acceptance(task, assurance)
+        if errors:
+            return Decision("IMPLEMENTATION", False, "; ".join(errors))
+        if lifecycle != "IMPLEMENTATION" and (assurance.get("verdict") != "pass" or assurance.get("blockers")):
+            return Decision("CHANGE_ASSURANCE", False, "Completion requires passing assurance without blockers.")
+
+    if lifecycle == "COMPLETED":
+        if task.get("deliverable") == "draft_pull_request" and not any(
+            record.get("lifecycle") == "DELIVERY"
+            and record.get("outcome") == "published"
+            and record.get("next_lifecycle") == "COMPLETED"
+            and record.get("git_head") == git_head
+            and record.get("git_base") == git_base
+            and record.get("task_revision") == task.get("task_revision")
+            for record in history
+        ):
+            if not authority_allows(task, "push", "draft_pull_request"):
+                return Decision("AWAITING_INPUT", True, "Delivery authority is incomplete.", "DELIVERY")
+            return Decision("DELIVERY", False, "The current revision has no successful delivery record.")
+        return Decision(None, True, "The requested deliverable is complete for the current revision.")
+
     if lifecycle == "INTAKE":
         if normalized == "aligned":
             return Decision("TRIAGE", False, "The task contract is aligned.")
@@ -84,17 +137,11 @@ def decide(
 
     if lifecycle == "IMPLEMENTATION":
         if normalized == "complete":
-            if not assurance or not assurance.get("change_revision"):
-                return Decision("AWAITING_INPUT", True, "Implementation did not provide a committed revision.", "IMPLEMENTATION")
-            if worktree_dirty is not False or git_head != assurance.get("change_revision"):
-                return Decision("AWAITING_INPUT", True, "Implementation did not leave the exact committed revision clean.", "IMPLEMENTATION")
             return Decision("CHANGE_ASSURANCE", False, "Implementation produced a committed revision.")
         return Decision("AWAITING_INPUT", True, "Implementation needs input or required evidence.", "IMPLEMENTATION")
 
     if lifecycle == "CHANGE_ASSURANCE":
         if normalized == "pass" and assurance and assurance.get("verdict") == "pass":
-            if worktree_dirty is not False or git_head != assurance.get("change_revision"):
-                return Decision("AWAITING_INPUT", True, "Assurance does not match the clean branch head.", "CHANGE_ASSURANCE")
             if task.get("deliverable") == "draft_pull_request":
                 if not authority_allows(task, "push", "draft_pull_request"):
                     return Decision("AWAITING_INPUT", True, "Delivery authority is incomplete.", "DELIVERY")
@@ -108,8 +155,6 @@ def decide(
 
     if lifecycle == "DELIVERY":
         if normalized == "published" and assurance and assurance.get("verdict") == "pass":
-            if worktree_dirty is not False or git_head != assurance.get("change_revision"):
-                return Decision("AWAITING_INPUT", True, "Delivery does not match the assured clean branch head.", "DELIVERY")
             return Decision("COMPLETED", False, "The assured commit was published as requested.")
         return Decision("AWAITING_INPUT", True, "Delivery did not publish the requested draft pull request.", "DELIVERY")
 

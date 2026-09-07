@@ -5,8 +5,6 @@ description: "Research, bound, classify, and prepare a Factory software change f
 
 # Factory Triage
 
-## Purpose
-
 Produce one implementation-ready change packet with proportional proof.
 
 ## Inputs
@@ -23,7 +21,10 @@ sources, and current task revision.
    when it can reproduce the reported behavior. Require separate reproduction
    only for intermittent, environment-specific, unclear, or unsafe failures.
 4. Trace each affected behavior through callers, data, permissions, side
-   effects, integrations, consumers, and observable outcomes.
+   effects, integrations, consumers, and observable outcomes. For migrations
+   and destructive operations, inspect source and destination validation,
+   intermediate states, interruption boundaries, and recovery. Map these risks
+   to proof within this triage; do not add a stage.
 5. Define the smallest implementation steps. Map each acceptance criterion,
    behavioral path, and material risk to the cheapest sufficient proof.
 6. Classify impact, uncertainty, reasoning difficulty, proof difficulty, and
@@ -51,28 +52,16 @@ material decision easier to verify.
 Return:
 
 - status: `ready`, `needs-input`, or `blocked`
-- current behavior, relevant precedent, affected surfaces, and consumers
-- ordered implementation steps with expected files and symbols
-- behavioral paths, observable outcomes, risks, and failure modes
-- tests and evidence mapped to every acceptance criterion and material risk
-- low-risk gate with every condition and its evidence
-- explicit sensitive-change result
-- risk signals and required worker tier
-- whether plan assurance is required and why
-- assumptions, exclusions, unknowns, blockers, and exact human decisions
-- complete current assurance record
+- current assurance record containing the affected behavior, implementation
+  steps, proof mappings, risk assessment, and plan-assurance decision
+- a short summary of material assumptions, blockers, and required decisions
 
 ## Side effects
 
-Read local and permitted authoritative sources. Make no repository or external
-system changes.
+Read local and permitted authoritative sources. Do not run mutating checks,
+approve the plan, or change repository or external-system state.
 
 ## Failure results
 
 Return `needs-input` for a material human decision. Return `blocked` for missing,
 stale, contradictory, or inaccessible required evidence.
-
-## Non-goals
-
-Do not edit files, run mutating checks, approve the plan, implement, commit, or
-publish.

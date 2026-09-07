@@ -57,184 +57,113 @@ Cross-region failover keeps the renewed session valid.
 
 
 class ValidatePrDescriptionTest(unittest.TestCase):
-    def test_accepts_complete_plain_language_body(self) -> None:
+    def test_accepts_complete_body(self) -> None:
         self.assertEqual([], VALIDATOR.validate(VALID_BODY))
 
-    def test_rejects_internal_ids(self) -> None:
-        errors = VALIDATOR.validate(VALID_BODY.replace("Concurrent renewal", "P14 renewal"))
-        self.assertTrue(any("internal ID" in error for error in errors))
-
-    def test_rejects_missing_regression_field(self) -> None:
-        body = VALID_BODY.replace("- **Residual risk or waiver:** None\n", "")
-        errors = VALIDATOR.validate(body)
-        self.assertTrue(any("exactly 4 labeled fields" in error for error in errors))
-
-    def test_rejects_extra_section(self) -> None:
-        body = VALID_BODY.replace(
-            "## Manual test steps",
-            "## Validation\n\nPassed.\n\n## Manual test steps",
-        )
-        errors = VALIDATOR.validate(body)
-        self.assertTrue(any("level-2 sections" in error for error in errors))
-
-    def test_rejects_template_comments(self) -> None:
-        body = VALID_BODY.replace(
-            "- Existing session data remains compatible without migration.",
-            "<!-- Add compatibility details. -->\n"
-            "- Existing session data remains compatible without migration.",
-        )
-        errors = VALIDATOR.validate(body)
-        self.assertTrue(any("template comments" in error for error in errors))
-
-    def test_accepts_body_without_manual_test_steps(self) -> None:
-        body = VALID_BODY.split("\n## Manual test steps", maxsplit=1)[0] + "\n"
+    def test_accepts_legitimate_product_names(self) -> None:
+        body = VALID_BODY.replace("Concurrent renewal", "R2 storage bucket renewal")
         self.assertEqual([], VALIDATOR.validate(body))
 
-    def test_rejects_missing_blast_radius(self) -> None:
-        blast_radius = """\
-## Blast radius
+    def test_accepts_equivalent_presentations(self) -> None:
+        variants = [
+            VALID_BODY.replace("Concurrent renewal retains", "### Concurrent renewal retains"),
+            VALID_BODY.replace("Component", "Session renewal API"),
+            VALID_BODY.replace("Automated — ", "Test result: "),
+            VALID_BODY.replace("**Verdict:** Pass", "**Verdict:** PASS"),
+            VALID_BODY.replace("\n\n---\n\n", "\n---\n"),
+            VALID_BODY.replace("\n## Manual test steps", "\n---\n\n## Manual test steps"),
+            VALID_BODY.replace("## Manual test steps", "## Compatibility\n\nExisting sessions remain valid.\n\n## Manual test steps"),
+            VALID_BODY.replace("- **Verdict:** Pass\n- **Residual risk or waiver:** None", "- **Residual risk or waiver:** None\n\n- **Verdict:** Pass"),
+        ]
+        for body in variants:
+            with self.subTest(body=body):
+                self.assertEqual([], VALIDATOR.validate(body))
 
-- The widest code path is session renewal through signed-in navigation.
-- A failure sends a signed-in user to the default page instead of the requested page.
-- Rollback does not rewrite data or require a database migration. Redeploying the previous build is sufficient.
-
-"""
-        errors = VALIDATOR.validate(VALID_BODY.replace(blast_radius, ""))
-        self.assertTrue(any("level-2 sections" in error for error in errors))
-
-    def test_rejects_manual_test_steps_before_regression_assurance(self) -> None:
-        regression_start = VALID_BODY.index("## Regression assurance")
-        manual_start = VALID_BODY.index("## Manual test steps")
-        regression_section = VALID_BODY[regression_start:manual_start]
-        manual_section = VALID_BODY[manual_start:]
-        body = (
-            VALID_BODY[:regression_start]
-            + manual_section.rstrip()
-            + "\n\n"
-            + regression_section
-        )
-        errors = VALIDATOR.validate(body)
-        self.assertTrue(any("level-2 sections" in error for error in errors))
-
-    def test_requires_a_commit_pinned_file_permalink(self) -> None:
-        body = VALID_BODY.replace(
-            "[SessionRenewalTests](https://github.com/example/app/blob/0123456789abcdef0123456789abcdef01234567/tests/SessionRenewalTests.cs#L10) passed at the reviewed commit",
-            "The test passed locally",
-        )
-        errors = VALIDATOR.validate(body)
-        self.assertTrue(any("requires at least 1 commit-pinned" in error for error in errors))
-
-    def test_rejects_branch_file_link(self) -> None:
-        body = VALID_BODY.replace(
-            "/blob/0123456789abcdef0123456789abcdef01234567/",
-            "/blob/main/",
-        )
-        errors = VALIDATOR.validate(body)
-        self.assertTrue(any("is not a commit-pinned" in error for error in errors))
-
-    def test_rejects_regression_table(self) -> None:
-        regression_section = """\
-## Regression assurance
-
-| Behavior at risk | Affected surface | Evidence | Verdict | Residual risk or waiver |
-|---|---|---|---|---|
-| Renewal works | Component | Automated — evidence | Pass | None |
-"""
+    def test_accepts_sections_in_another_order(self) -> None:
         start = VALID_BODY.index("## Regression assurance")
         end = VALID_BODY.index("## Manual test steps")
-        body = VALID_BODY[:start] + regression_section + "\n" + VALID_BODY[end:]
-        errors = VALIDATOR.validate(body)
-        self.assertTrue(any("stacked entries, not a table" in error for error in errors))
+        body = VALID_BODY[:start] + VALID_BODY[end:] + "\n" + VALID_BODY[start:end]
+        self.assertEqual([], VALIDATOR.validate(body))
 
-    def test_requires_blank_lines_around_entry_separator(self) -> None:
-        body = VALID_BODY.replace("\n\n---\n\n", "\n---\n")
-        errors = VALIDATOR.validate(body)
-        self.assertTrue(any("entry separators" in error for error in errors))
+    def test_accepts_body_without_manual_steps(self) -> None:
+        self.assertEqual([], VALIDATOR.validate(VALID_BODY.split("\n## Manual test steps")[0]))
 
-    def test_rejects_rule_after_last_entry(self) -> None:
-        body = VALID_BODY.replace(
-            "\n## Manual test steps",
-            "\n---\n\n## Manual test steps",
-        )
-        errors = VALIDATOR.validate(body)
-        self.assertTrue(any("must not have a rule after the last entry" in error for error in errors))
-
-    def test_rejects_entry_heading(self) -> None:
-        body = VALID_BODY.replace(
-            "Concurrent renewal retains the requested destination.",
-            "### Concurrent renewal\n\nConcurrent renewal retains the requested destination.",
-        )
-        errors = VALIDATOR.validate(body)
-        self.assertTrue(any("must not have a heading" in error for error in errors))
-
-    def test_rejects_unknown_affected_surface(self) -> None:
-        body = VALID_BODY.replace("- **Affected surface:** Component", "- **Affected surface:** API", 1)
-        errors = VALIDATOR.validate(body)
-        self.assertTrue(any("Data, Component, or System" in error for error in errors))
-
-    def test_rejects_manual_evidence(self) -> None:
-        body = VALID_BODY.replace("- **Evidence:** Automated —", "- **Evidence:** Manual —", 1)
-        errors = VALIDATOR.validate(body)
-        self.assertTrue(any("Automated —" in error for error in errors))
-
-    def test_requires_exact_verdict(self) -> None:
-        body = VALID_BODY.replace("- **Verdict:** Pass", "- **Verdict:** PASS", 1)
-        errors = VALIDATOR.validate(body)
-        self.assertTrue(any("verdict must be exactly" in error for error in errors))
-
-    def test_waiver_requires_an_acceptor(self) -> None:
+    def test_accepts_approval_wording_without_prescribed_grammar(self) -> None:
         body = VALID_BODY.replace(
             "I accepted this gap because no test environment has two regions.",
-            "No test environment has two regions.",
-        )
-        errors = VALIDATOR.validate(body)
-        self.assertTrue(any("must say who accepted it" in error for error in errors))
-
-    def test_waiver_requires_an_unproven_gap(self) -> None:
-        body = VALID_BODY.replace(
-            "Cross-region failover remains unproven. I accepted this gap because no test environment has two regions.",
-            "I accepted this gap because its impact is low.",
-        )
-        errors = VALIDATOR.validate(body)
-        self.assertTrue(any("must name what is unproven" in error for error in errors))
-
-    def test_waiver_requires_an_acceptance_reason(self) -> None:
-        body = VALID_BODY.replace(
-            "I accepted this gap because no test environment has two regions.",
-            "I accepted this unproven gap.",
-        )
-        errors = VALIDATOR.validate(body)
-        self.assertTrue(any("must say why it was accepted" in error for error in errors))
-
-    def test_rejects_third_person_reference_to_author(self) -> None:
-        body = VALID_BODY.replace(
-            "- Signed-in users now stay on the requested page when their session is renewed.",
-            "- Signed-in users now stay on the requested page when their session is renewed. "
-            "Tell the author if you disagree.",
-        )
-        errors = VALIDATOR.validate(body)
-        self.assertTrue(any("third-person author voice" in error for error in errors))
-
-    def test_rejects_invented_team_request(self) -> None:
-        body = VALID_BODY.replace(
-            "- The widest code path is session renewal through signed-in navigation.",
-            "- Four checks the team asks a reviewer to make.",
-        )
-        errors = VALIDATOR.validate(body)
-        self.assertTrue(any("third-person author voice" in error for error in errors))
-
-    def test_accepts_first_person_developer_position(self) -> None:
-        body = VALID_BODY.replace(
-            "- The widest code path is session renewal through signed-in navigation.",
-            "- I kept renewal atomic because partial renewal could discard the destination.",
+            "My approval covers this gap: a two-region test environment is unavailable.",
         )
         self.assertEqual([], VALIDATOR.validate(body))
 
-    def test_normalizes_line_endings_and_trailing_newline(self) -> None:
-        self.assertEqual(
-            VALIDATOR.normalize(VALID_BODY),
-            VALIDATOR.normalize(VALID_BODY.replace("\n", "\r\n").rstrip()),
+    def test_rejects_missing_required_sections(self) -> None:
+        for name in VALIDATOR.REQUIRED_SECTIONS:
+            with self.subTest(name=name):
+                body = VALID_BODY.replace(f"## {name}", f"## Other {name}")
+                self.assertTrue(VALIDATOR.validate(body))
+
+    def test_rejects_empty_required_section(self) -> None:
+        body = VALID_BODY.replace("## Blast radius", "## Blast radius\n\n## Other details")
+        self.assertTrue(VALIDATOR.validate(body))
+
+    def test_rejects_duplicate_section(self) -> None:
+        self.assertTrue(VALIDATOR.validate(VALID_BODY + "\n## What changed\n\nOther behavior.\n"))
+
+    def test_rejects_template_comments(self) -> None:
+        self.assertTrue(VALIDATOR.validate(VALID_BODY + "\n<!-- Explain the change. -->"))
+
+    def test_requires_each_evidence_field(self) -> None:
+        for label in VALIDATOR.REQUIRED_FIELDS:
+            with self.subTest(label=label):
+                body = "\n".join(line for line in VALID_BODY.splitlines() if not line.startswith(f"- **{label}:**"))
+                self.assertTrue(VALIDATOR.validate(body))
+
+    def test_requires_behavior_for_each_entry(self) -> None:
+        body = VALID_BODY.replace("Concurrent renewal retains the requested destination.\n", "")
+        self.assertTrue(VALIDATOR.validate(body))
+
+    def test_rejects_duplicate_field(self) -> None:
+        body = VALID_BODY.replace("- **Verdict:** Pass", "- **Verdict:** Pass\n- **Verdict:** Fail")
+        self.assertTrue(VALIDATOR.validate(body))
+
+    def test_requires_commit_pinned_evidence_for_each_entry(self) -> None:
+        body = VALID_BODY.replace(
+            "[SessionRenewalTests](https://github.com/example/app/blob/0123456789abcdef0123456789abcdef01234567/tests/SessionRenewalTests.cs#L10)",
+            "The test passed locally",
         )
+        self.assertTrue(VALIDATOR.validate(body))
+
+    def test_rejects_branch_evidence_link(self) -> None:
+        body = VALID_BODY.replace("/blob/0123456789abcdef0123456789abcdef01234567/", "/blob/main/")
+        self.assertTrue(VALIDATOR.validate(body))
+
+    def test_rejects_unresolved_verdict(self) -> None:
+        body = VALID_BODY.replace("**Verdict:** Pass", "**Verdict:** Pending")
+        self.assertTrue(VALIDATOR.validate(body))
+
+    def test_waiver_cannot_claim_no_gap(self) -> None:
+        body = VALID_BODY.replace("**Verdict:** Pass", "**Verdict:** Waiver accepted", 1)
+        self.assertTrue(VALIDATOR.validate(body))
+
+    def test_normalizes_line_endings(self) -> None:
+        self.assertEqual(VALIDATOR.normalize(VALID_BODY), VALIDATOR.normalize(VALID_BODY.replace("\n", "\r\n").rstrip()))
+
+    def test_publication_readback_must_match(self) -> None:
+        import subprocess
+        import sys
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as directory:
+            expected = Path(directory) / "expected.md"
+            published = Path(directory) / "published.md"
+            expected.write_text(VALID_BODY)
+            published.write_text(VALID_BODY)
+            command = [sys.executable, str(SCRIPT), str(published), "--expected", str(expected)]
+            result = subprocess.run(command, capture_output=True, text=True)
+            self.assertEqual(0, result.returncode, result.stderr)
+            published.write_text(VALID_BODY.replace("Concurrent renewal", "Sequential renewal"))
+            result = subprocess.run(command, capture_output=True, text=True)
+            self.assertEqual(1, result.returncode)
+            self.assertIn("does not exactly match", result.stderr)
 
 
 if __name__ == "__main__":

@@ -5,8 +5,6 @@ description: "Publish one independently assured Factory change as a GitHub draft
 
 # Factory Draft PR
 
-## Purpose
-
 Publish the requested exact revision as one verified draft pull request.
 
 ## Inputs
@@ -16,12 +14,9 @@ push and draft-pull-request authority, final assurance verdict, current
 assurance record, final behavior, material risk, and reviewer-accessible
 evidence links.
 
-Stop when change assurance did not pass, the worktree is dirty, the branch head
-differs from the assured commit, or required evidence is local-only.
-
 ## Operation
 
-1. Confirm repository, authentication, branches, clean worktree, exact head,
+1. Confirm repository, authentication, branches, clean worktree, exact head and base,
    authority, and passing assurance.
 2. Build a concise body from
    [the draft pull request template](assets/draft-pr-template.md). Describe only
@@ -29,8 +24,10 @@ differs from the assured commit, or required evidence is local-only.
    without this branch, including another pull request's status and live diff
    counts. State dependencies structurally and gates as preconditions. Do not
    include Factory process history.
-3. Map each material behavior at risk to one stacked assurance entry. Do not
-   use a table or add entry headings.
+3. Map each material behavior at risk to an assurance entry. Use the template
+   fields and separate entries with `---`. The helper checks required content
+   and evidence links. Review scope, approval, and wording against the supplied
+   assurance record; the helper does not infer them from prose.
 4. Validate the body:
 
    ```bash
@@ -52,21 +49,16 @@ Return:
 - status: `published` or `blocked`
 - pull request URL, number, branches, and exact revision
 - created or updated action and draft state
-- exact validated body and read-back result
+- validated body reference and read-back result
 - evidence mapping result, external checks, blockers, and residual risk
 
 ## Side effects
 
 Push the exact supplied commit. Create or update one GitHub draft pull request.
-Make no other local or remote change.
+Do not force-push, modify product files, merge, or release.
 
 ## Failure results
 
 Return `blocked` for missing authority, stale inputs, a dirty or different
 revision, missing evidence, push failure, publication failure, or read-back
 mismatch. A pushed branch without a valid draft pull request is not success.
-
-## Non-goals
-
-Do not edit, stage, commit, amend, rebase, force-push, merge, release, or change
-product files.

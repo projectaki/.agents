@@ -5,8 +5,6 @@ description: "Independently assure either a Factory implementation plan or an ex
 
 # Factory Assure
 
-## Purpose
-
 Provide independent plan or change assurance without fixing the subject.
 
 ## Inputs
@@ -22,13 +20,21 @@ The assurer must not be the implementer.
 
 1. Reconcile the complete subject with the task revision and accepted scope.
 2. Trace each plan step or diff group through callers, consumers, data,
-   permissions, side effects, integrations, and observable behavior.
+   permissions, side effects, integrations, and observable behavior. For
+   migrations and destructive operations, verify source and destination
+   validation, intermediate states, interrupted operations, and recovery
+   against the planned proof.
 3. Find unsupported assumptions, omitted paths, scope growth, proof gaps, and
    direct or adjacent regression risks.
 4. For plan assurance, approve only when the plan is implementable and every
    material path and risk has sufficient planned proof.
 5. For change assurance, inspect every diff group and run only the smallest
-   missing or stale non-mutating checks. Bind every result to the exact commit.
+   missing or stale non-mutating checks. Bind every result to the exact head
+   and base. After a small correction, review the correction and affected paths
+   narrowly when the earlier review covers the verified unchanged scope.
+   After a rebase, inspect changed dependencies and run affected checks.
+   Record why supplied results remain applicable; do not repeat unchanged
+   checks without a reason.
 6. Collect sanitized visual evidence only when automation cannot prove a
    required visual property.
 7. Accept an exception only when the human approved its exact criterion, path,
@@ -39,18 +45,15 @@ The assurer must not be the implementer.
 
 Return:
 
-- assurance kind and verdict
+- assurance kind and exact subject revision
 - for a plan: `approve`, `reject`, `needs-input`, or `blocked`
 - for a change: `pass`, `fail`, `needs-input`, or `blocked`
-- exact subject and revision
-- findings with severity, location, evidence, impact, correction, and confidence
-- every acceptance criterion, path, risk, diff group, and evidence verdict
-- checks run during assurance, supplied evidence, gaps, and residual risk
-- complete finalized assurance record
+- finalized assurance record with findings, coverage, proof results, and risks
+- a short summary of material findings, required decisions, and limitations
 
 Use `pass` only for a clean committed revision with complete current evidence
-or exact human-accepted exceptions. State that no regressions were observed in
-the verified scope. Never claim that regressions are impossible.
+or exact human-accepted exceptions. Findings must identify their location,
+evidence, impact, and required correction.
 
 ## Side effects
 
@@ -62,8 +65,3 @@ remote-system state.
 
 Return `needs-input` for a material decision or exception. Return `blocked` for
 missing, stale, contradictory, or inaccessible required evidence.
-
-## Non-goals
-
-Do not implement, fix, commit, push, publish, merge, release, or approve your
-own work.

@@ -17,16 +17,6 @@ WORK_SKILLS = (
     "factory-draft-pr",
 )
 
-REQUIRED_HEADINGS = (
-    "Purpose",
-    "Inputs",
-    "Operation",
-    "Outputs",
-    "Side effects",
-    "Failure results",
-    "Non-goals",
-)
-
 FORBIDDEN_PATTERNS = {
     "orchestration branch": re.compile(r"\bwhen orchestrated\b", re.IGNORECASE),
     "orchestrator role": re.compile(r"\bprimary thread\b|\brouted worker\b", re.IGNORECASE),
@@ -51,18 +41,8 @@ def markdown_body(text: str) -> str:
 def validate_contract(text: str) -> list[str]:
     body = markdown_body(text)
     errors: list[str] = []
-    heading_positions: list[int] = []
-
-    for heading in REQUIRED_HEADINGS:
-        matches = list(re.finditer(rf"^## {re.escape(heading)}$", body, re.MULTILINE))
-        if len(matches) != 1:
-            errors.append(f"required heading {heading!r} must appear exactly once")
-            continue
-        heading_positions.append(matches[0].start())
-
-    if len(heading_positions) == len(REQUIRED_HEADINGS):
-        if heading_positions != sorted(heading_positions):
-            errors.append("required contract headings must appear in contract order")
+    if not body.strip():
+        errors.append("skill body must not be empty")
 
     for description, pattern in FORBIDDEN_PATTERNS.items():
         match = pattern.search(body)

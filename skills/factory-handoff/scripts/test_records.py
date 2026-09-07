@@ -19,7 +19,7 @@ SCRIPTS = Path(__file__).parent
 CHECKPOINT = SCRIPTS / "checkpoint.py"
 
 
-def run_checkpoint(task_root: Path, lifecycle: str, outcome: str) -> subprocess.CompletedProcess[str]:
+def run_checkpoint(task_root: Path, lifecycle: str, outcome: str, *extra: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [
             "python3",
@@ -32,6 +32,7 @@ def run_checkpoint(task_root: Path, lifecycle: str, outcome: str) -> subprocess.
             outcome,
             "--reason",
             f"{lifecycle} returned {outcome}.",
+            *extra,
         ],
         text=True,
         capture_output=True,
@@ -45,6 +46,7 @@ def task(repository: Path, **values: object) -> dict[str, object]:
         "task_revision": 1,
         "status": "aligned",
         "repository": str(repository),
+        "base_ref": "refs/heads/base",
         "objective": "Add the requested behavior.",
         "acceptance_criteria": ["The behavior is observable."],
         "scope": {"included": ["Requested behavior"], "excluded": []},
@@ -81,13 +83,14 @@ def assurance(**values: object) -> dict[str, object]:
         },
         "plan_assurance_required": False,
         "sensitive_change": False,
-        "paths": [{"id": "path-1", "behavior": "Requested behavior"}],
+        "paths": [{"id": "path-1", "behavior": "The behavior is observable.", "evidence": ["evidence-1"]}],
         "risks": [],
         "diff_groups": [],
-        "evidence": [],
+        "evidence": [{"id": "evidence-1", "proof": "python3 test_feature.py", "state": "executed", "revision": "abc123", "base_revision": "base123", "result": "pass"}],
         "exceptions": [],
         "blockers": [],
-        "base_revision": None,
+        "base_revision": "base123",
+        "branch": "feature",
         "change_revision": "abc123",
         "verdict": "unverified",
         "routing": {
@@ -162,6 +165,8 @@ class RecordTests(unittest.TestCase):
             "complete",
             git_head="different",
             worktree_dirty=False,
+            git_base="base123",
+            git_branch="feature",
         )
         clean = decide(
             task(Path("/tmp/repository")),
@@ -171,9 +176,11 @@ class RecordTests(unittest.TestCase):
             "complete",
             git_head="abc123",
             worktree_dirty=False,
+            git_base="base123",
+            git_branch="feature",
         )
-        self.assertTrue(dirty.stop)
-        self.assertTrue(wrong_head.stop)
+        self.assertEqual("IMPLEMENTATION", dirty.next_lifecycle)
+        self.assertEqual("IMPLEMENTATION", wrong_head.next_lifecycle)
         self.assertEqual("CHANGE_ASSURANCE", clean.next_lifecycle)
 
     def test_assured_local_change_completes_without_delivery(self) -> None:
@@ -185,6 +192,8 @@ class RecordTests(unittest.TestCase):
             "pass",
             git_head="abc123",
             worktree_dirty=False,
+            git_base="base123",
+            git_branch="feature",
         )
         self.assertEqual("COMPLETED", decision.next_lifecycle)
 
@@ -198,6 +207,8 @@ class RecordTests(unittest.TestCase):
             "pass",
             git_head="abc123",
             worktree_dirty=False,
+            git_base="base123",
+            git_branch="feature",
         )
         self.assertEqual("AWAITING_INPUT", decision.next_lifecycle)
         contract["authority"]["push"] = True  # type: ignore[index]
@@ -210,6 +221,8 @@ class RecordTests(unittest.TestCase):
             "pass",
             git_head="abc123",
             worktree_dirty=False,
+            git_base="base123",
+            git_branch="feature",
         )
         self.assertEqual("DELIVERY", decision.next_lifecycle)
 
@@ -258,6 +271,8 @@ class RecordTests(unittest.TestCase):
                 check=True,
             ).stdout.strip()
 
+            subprocess.run(["git", "-C", str(repository), "branch", "base"], check=True)
+            subprocess.run(["git", "-C", str(repository), "checkout", "-q", "-b", "feature"], check=True)
             (task_root / "task.json").write_text(json.dumps(task(repository)), encoding="utf-8")
             (task_root / "report.md").write_text("# Intake\n\nAligned.\n", encoding="utf-8")
             intake = run_checkpoint(task_root, "INTAKE", "aligned")
@@ -279,6 +294,7 @@ class RecordTests(unittest.TestCase):
                 check=True,
             ).stdout.strip()
             current_assurance["change_revision"] = head
+            current_assurance["evidence"][0].update(revision=head, base_revision=base)
             current_assurance["diff_groups"] = [{"id": "diff-1", "path": "path-1"}]
             (task_root / "assurance.json").write_text(json.dumps(current_assurance), encoding="utf-8")
             (task_root / "report.md").write_text("# Implementation\n\nCommitted.\n", encoding="utf-8")
@@ -286,7 +302,6 @@ class RecordTests(unittest.TestCase):
             self.assertEqual("CHANGE_ASSURANCE", json.loads(implementation.stdout)["next_lifecycle"])
 
             current_assurance["verdict"] = "pass"
-            current_assurance["evidence"] = [{"id": "evidence-1", "revision": head, "result": "pass"}]
             (task_root / "assurance.json").write_text(json.dumps(current_assurance), encoding="utf-8")
             (task_root / "report.md").write_text("# Change assurance\n\nPassed.\n", encoding="utf-8")
             assured = run_checkpoint(task_root, "CHANGE_ASSURANCE", "pass")

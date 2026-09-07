@@ -5,8 +5,6 @@ description: "Create the compact Factory task contract for a software change. Us
 
 # Factory Intake
 
-## Purpose
-
 Create an explicit task contract without researching or designing the change.
 
 ## Inputs
@@ -35,18 +33,14 @@ Return:
 - constraints, human decisions, assumptions, and open decisions
 - authority for edit, test, commit, push, and draft pull request
 - requested deliverable: `local_commit` or `draft_pull_request`
-- initial acceptance claims and required proof methods
+- proof constraints supplied with the request
 
 ## Side effects
 
-Ask necessary questions. Make no repository or external-system changes.
+Ask necessary questions. Do not research, classify risk, design the change,
+or make repository or external-system changes.
 
 ## Failure results
 
 Return `needs-input` with one exact material question when the contract cannot
 be aligned safely.
-
-## Non-goals
-
-Do not research the repository, classify risk, plan, implement, or infer
-authority.

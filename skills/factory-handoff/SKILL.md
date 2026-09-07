@@ -15,6 +15,14 @@ Resolve the active project and branch task root:
 <skill-directory>/scripts/resolve-task-root.sh
 ```
 
+The helper derives project identity from the shared Git repository, so linked
+worktree folder names do not create projects. Use `--discover` to list the
+canonical path, matching legacy paths, and unverified paths whose repository
+is unavailable. Inspect existing records before selecting a task root. Keep
+using an existing task root when resuming it. Never merge or move records
+implicitly. Save `repository_identity` from discovery for future lookup after a
+worktree is removed.
+
 Use this layout:
 
 ```text
@@ -71,7 +79,23 @@ empty artifact directories, or generated timelines.
    interrupted write. Reconcile only when the intended change is unambiguous.
    Otherwise await human input.
 5. Use the stored `next_lifecycle`. Never reconstruct current state from
-   telemetry.
+   telemetry. A stale completion is not a current success.
+
+## Authorized follow-up work
+
+When later authorized work changes behavior or the reviewed revision, update
+its contract and short current report. Increment `task_revision` for changed
+behavior or scope. Keep authority already granted for the follow-up explicit.
+Reset the assurance verdict to `unverified`. Replace affected evidence with
+planned proof until it executes, or retain it with the verified reuse basis
+specified in the record contract.
+
+Append a checkpoint with `--lifecycle COMPLETED --outcome reopened` before
+further work. The helper selects triage for a changed contract and
+implementation for a revision correction. This is an event in existing stages,
+not a new review or approval step. Earlier delivery entries remain history.
+Classify a later finding by its cause; do not call a new requirement a missed
+defect. Link related sessions and detailed artifacts instead of copying them.
 
 If only legacy `state.md` exists, report that the task uses the removed Factory
 schema. Do not guess or silently migrate it.

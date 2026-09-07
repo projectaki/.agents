@@ -56,6 +56,13 @@ class ValidateStepContractsTest(unittest.TestCase):
     def test_accepts_independent_contract(self) -> None:
         self.assertEqual([], VALIDATOR.validate_contract(VALID_CONTRACT))
 
+    def test_accepts_compact_contract_without_repeated_headings(self) -> None:
+        text = "# Work step\n\nAccept the bounded subject. Return its result. Do not change remote state."
+        self.assertEqual([], VALIDATOR.validate_contract(text))
+
+    def test_rejects_empty_contract(self) -> None:
+        self.assertTrue(VALIDATOR.validate_contract(""))
+
     def test_rejects_handoff_file_dependency(self) -> None:
         text = VALID_CONTRACT.replace("Return a result.", "Write `report.md`.")
         errors = VALIDATOR.validate_contract(text)

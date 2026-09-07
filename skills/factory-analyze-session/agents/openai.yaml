@@ -1,0 +1,4 @@
+interface:
+  display_name: "Factory Analyze Session"
+  short_description: "Analyze factory records and suggest improvements"
+  default_prompt: "Use $factory-analyze-session to analyze the Factory session directory I provide and return a detailed report of issues and improvements."

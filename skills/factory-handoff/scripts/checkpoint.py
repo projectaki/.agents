@@ -6,12 +6,13 @@ from __future__ import annotations
 import argparse
 import fcntl
 import json
+import math
 import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from records import LIFECYCLES, digest, git_facts, load_history, load_json, validate_assurance, validate_task
+from records import LIFECYCLES, digest, git_base_revision, git_facts, load_history, load_json, validate_assurance, validate_task
 from routing import decide
 
 
@@ -28,6 +29,10 @@ def parser() -> argparse.ArgumentParser:
     value.add_argument("--assignment-id")
     value.add_argument("--attempt", type=int)
     value.add_argument("--worker-tier", choices=["fast", "standard", "high"])
+    value.add_argument("--worker-id")
+    value.add_argument("--active-seconds", type=float)
+    value.add_argument("--finding", action="append", default=[], type=json.loads)
+    value.add_argument("--decision", action="append", default=[])
     return value
 
 
@@ -38,6 +43,13 @@ def main() -> int:
             raise ValueError("reason must be nonempty text")
         if args.attempt is not None and args.attempt < 1:
             raise ValueError("attempt must be a positive integer")
+        if args.active_seconds is not None and (not math.isfinite(args.active_seconds) or args.active_seconds < 0):
+            raise ValueError("active-seconds must be finite and nonnegative when supplied")
+        for finding in args.finding:
+            if not isinstance(finding, dict) or finding.get("kind") not in {"missed_defect", "new_requirement", "dependency_change", "accepted_risk"}:
+                raise ValueError("finding requires a supported kind")
+            if any(not isinstance(finding.get(field), str) or not finding[field].strip() for field in ("summary", "revision", "evidence")):
+                raise ValueError("finding requires summary, revision, and evidence")
         task_root = args.task_root.expanduser().resolve()
         task_path = task_root / "task.json"
         report_path = task_root / "report.md"
@@ -61,6 +73,15 @@ def main() -> int:
             raise ValueError("; ".join(history_errors))
         repository = Path(task["repository"])
         git_head, git_branch, worktree_dirty = git_facts(repository)
+        git_base = git_base_revision(repository, task.get("base_ref"))
+        if args.outcome == "reopened" and history and history[-1].get("report_sha256") == digest(report_path):
+            raise ValueError("Update the current report before reopening work")
+        completed = [index for index, entry in enumerate(history) if entry.get("lifecycle") == "COMPLETED" and entry.get("status") == "terminal"]
+        if completed and args.lifecycle not in {"COMPLETED", "CANCELLED"} and not any(
+            entry.get("outcome") == "reopened" and entry.get("next_lifecycle") in {"TRIAGE", "IMPLEMENTATION"}
+            for entry in history[completed[-1] + 1:]
+        ):
+            raise ValueError("Reopen the completed task before checkpointing further work")
         decision = decide(
             task,
             assurance,
@@ -68,9 +89,11 @@ def main() -> int:
             args.lifecycle,
             args.outcome,
             git_head=git_head,
+            git_base=git_base,
+            git_branch=git_branch,
             worktree_dirty=worktree_dirty,
         )
-        status = "terminal" if args.lifecycle in {"COMPLETED", "CANCELLED"} else (
+        status = "terminal" if args.lifecycle in {"COMPLETED", "CANCELLED"} and decision.next_lifecycle is None else (
             "awaiting_input" if decision.next_lifecycle == "AWAITING_INPUT" else "checkpointed"
         )
         record = {
@@ -90,6 +113,11 @@ def main() -> int:
             "assignment_id": args.assignment_id,
             "attempt": args.attempt,
             "worker_tier": args.worker_tier,
+            "worker_id": args.worker_id,
+            "active_seconds": args.active_seconds,
+            "findings": args.finding,
+            "decisions": args.decision,
+            "git_base": git_base,
             "git_head": git_head,
             "git_branch": git_branch,
             "worktree_dirty": worktree_dirty,
@@ -97,6 +125,12 @@ def main() -> int:
             "assurance_sha256": digest(assurance_path) if assurance_path.exists() else None,
             "report_sha256": digest(report_path),
         }
+        if status == "terminal" and args.lifecycle == "COMPLETED":
+            record["delivery"] = {
+                "summary": args.reason.strip(),
+                "evidence": [{key: item.get(key) for key in ("id", "proof", "result")} for item in assurance["evidence"]],
+                "exceptions": assurance["exceptions"],
+            }
         task_root.mkdir(parents=True, exist_ok=True)
         descriptor = os.open(history_path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
         with os.fdopen(descriptor, "a", encoding="utf-8", closefd=True) as stream:
