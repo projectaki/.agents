@@ -16,6 +16,19 @@ from records import LIFECYCLES, digest, git_base_revision, git_facts, load_histo
 from routing import decide
 
 
+OUTCOMES = {
+    "INTAKE": {"aligned", "needs_input", "blocked"},
+    "TRIAGE": {"ready", "needs_input", "blocked"},
+    "PLAN_ASSURANCE": {"approve", "reject", "needs_input", "blocked"},
+    "IMPLEMENTATION": {"complete", "needs_input", "blocked"},
+    "CHANGE_ASSURANCE": {"pass", "fail", "needs_input", "blocked"},
+    "DELIVERY": {"published", "needs_input", "blocked"},
+    "AWAITING_INPUT": {"resolved", "needs_input", "blocked"},
+    "COMPLETED": {"complete", "reopened"},
+    "CANCELLED": {"cancelled"},
+}
+
+
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
@@ -26,6 +39,7 @@ def parser() -> argparse.ArgumentParser:
     value.add_argument("--lifecycle", required=True)
     value.add_argument("--outcome", required=True)
     value.add_argument("--reason", required=True)
+    value.add_argument("--preview", action="store_true", help="Validate and show the proposed checkpoint without writing files")
     value.add_argument("--assignment-id")
     value.add_argument("--attempt", type=int)
     value.add_argument("--worker-tier", choices=["fast", "standard", "high"])
@@ -39,6 +53,12 @@ def parser() -> argparse.ArgumentParser:
 def main() -> int:
     args = parser().parse_args()
     try:
+        args.outcome = args.outcome.replace("-", "_").casefold()
+        allowed = OUTCOMES.get(args.lifecycle)
+        if allowed is None:
+            raise ValueError(f"unknown lifecycle: {args.lifecycle}")
+        if args.outcome not in allowed:
+            raise ValueError(f"{args.lifecycle} outcome must be one of: {', '.join(sorted(allowed))}")
         if not args.reason.strip():
             raise ValueError("reason must be nonempty text")
         if args.attempt is not None and args.attempt < 1:
@@ -131,6 +151,9 @@ def main() -> int:
                 "evidence": [{key: item.get(key) for key in ("id", "proof", "result")} for item in assurance["evidence"]],
                 "exceptions": assurance["exceptions"],
             }
+        if args.preview:
+            print(json.dumps({"preview": True, "record": record}, ensure_ascii=False, separators=(",", ":")))
+            return 0
         task_root.mkdir(parents=True, exist_ok=True)
         descriptor = os.open(history_path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
         with os.fdopen(descriptor, "a", encoding="utf-8", closefd=True) as stream:

@@ -58,7 +58,12 @@ canonical records.
    ```
 
    The helper generates the timestamp, captures hashes and Git state, selects
-   the guarded next lifecycle, and appends one locked JSON line.
+   the guarded next lifecycle, and appends one locked JSON line. It rejects
+   outcomes that do not belong to the selected lifecycle before writing history.
+   Use a concrete result in `--reason`; do not submit placeholder text.
+   When checking an uncertain submission, add `--preview` to validate records
+   and inspect the proposed checkpoint and route without writing files. Preview
+   does not reserve state; the actual submission validates current files again.
 4. Validate the complete current records:
 
    ```bash

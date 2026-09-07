@@ -94,6 +94,26 @@ contains its sequence, timestamp, lifecycle, outcome, selected next lifecycle,
 resume lifecycle when paused, task revision, continuation mode, worker facts,
 Git facts, and hashes of current canonical files.
 
+Checkpoint outcomes belong to their lifecycle:
+
+| Lifecycle | Outcomes |
+| --- | --- |
+| INTAKE | `aligned`, `needs-input`, `blocked` |
+| TRIAGE | `ready`, `needs-input`, `blocked` |
+| PLAN_ASSURANCE | `approve`, `reject`, `needs-input`, `blocked` |
+| IMPLEMENTATION | `complete`, `needs-input`, `blocked` |
+| CHANGE_ASSURANCE | `pass`, `fail`, `needs-input`, `blocked` |
+| DELIVERY | `published`, `needs-input`, `blocked` |
+| AWAITING_INPUT | `resolved`, `needs-input`, `blocked` |
+| COMPLETED | `complete`, `reopened` |
+| CANCELLED | `cancelled` |
+
+The helper stores outcomes in lowercase with underscores. For example, triage
+uses `--outcome ready`; `complete` belongs to implementation or completion.
+Evidence uses literal results such as `"result": "pass"`. Put explanations in
+proof references or the report, not in the result field. Existing history is
+not rewritten by submission validation.
+
 The final valid line is current Factory state. Never edit or reorder an existing
 line.
 

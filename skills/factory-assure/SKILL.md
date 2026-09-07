@@ -35,11 +35,18 @@ The assurer must not be the implementer.
    After a rebase, inspect changed dependencies and run affected checks.
    Record why supplied results remain applicable; do not repeat unchanged
    checks without a reason.
+   Identify supplied results to reuse and checks still needed before execution.
+   State a concrete reason before each rerun: changed covered inputs, missing
+   output, unreliable execution, or insufficient coverage. Independent source
+   review remains required when execution results are reused.
 6. Collect sanitized visual evidence only when automation cannot prove a
    required visual property.
 7. Accept an exception only when the human approved its exact criterion, path,
    and residual risk.
-8. Finalize the assurance record without weakening required proof.
+8. Finalize the assurance record without weakening required proof. Distinguish
+   executed tests, source inspection, and accepted limitations. Assess relevant
+   interactions, such as coexisting URL-controlled modals. Calling behavior
+   outside scope does not establish that it is harmless.
 
 ## Outputs
 
@@ -63,5 +70,7 @@ remote-system state.
 
 ## Failure results
 
-Return `needs-input` for a material decision or exception. Return `blocked` for
-missing, stale, contradictory, or inaccessible required evidence.
+Recommend the smallest sufficient feasible test when several methods can
+prove the same requirement. An ordinary test-method choice does not require
+human input. Return `needs-input` for a material decision or exception. Return
+`blocked` for missing, stale, contradictory, or inaccessible required evidence.

@@ -25,8 +25,19 @@ sources, and current task revision.
    and destructive operations, inspect source and destination validation,
    intermediate states, interruption boundaries, and recovery. Map these risks
    to proof within this triage; do not add a stage.
+   When delivery includes merging an integration base, inspect its current
+   revision and new consumers of mechanisms being removed. State when that base
+   was checked; do not assume it includes later upstream work. For conditional
+   interfaces, trace data availability through navigation to visible content,
+   including relevant flag states and coexisting URL parameters.
 5. Define the smallest implementation steps. Map each acceptance criterion,
    behavioral path, and material risk to the cheapest sufficient proof.
+   Prove observable outcomes, such as the resulting URL, when a mocked call
+   cannot establish framework behavior. Include affected application type or
+   build checks when shared service types change. Check prerequisites for
+   planned generation and builds once. Record unavailable prerequisites and
+   sufficient substitutes with their limits for later workers. A type check
+   does not prove that manual generated-code edits match generator output.
 6. Classify impact, uncertainty, reasoning difficulty, proof difficulty, and
    input gaps as low, medium, or high.
 7. Evaluate every low-risk condition. Mark the task eligible only when all are

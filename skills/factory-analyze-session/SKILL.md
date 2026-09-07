@@ -88,6 +88,11 @@ establishes a general failure rate or proves that another worker tier is better.
 
 Use optional telemetry to explain runtime behavior. Follow the artifact guide's
 limits on timing and summaries. Report unavailable measurements as unknown.
+For agent runtime questions, exclude human response time and gaps between
+completed revisions from inefficiency findings. Checkpoint intervals cannot
+measure active execution. Without execution measurements, identify observed
+repeated work and leave its duration unknown. Do not substitute a table of
+checkpoint intervals for agent runtime.
 Missing telemetry limits performance analysis; it does not invalidate task
 completion. A missing event does not prove the action never happened.
 

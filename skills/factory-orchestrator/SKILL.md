@@ -113,6 +113,13 @@ applicable repository `AGENTS.md` and `CLAUDE.md` file in each worker dispatch.
 Require the worker to read them before it acts. Workers do not route, change
 scope, or approve their own exceptions.
 
+For assurance dispatch, include revision-bound results and their evidence
+references. Require the assurer to identify missing checks and justify each
+rerun of a supplied passing result. Resolve ordinary implementation and test
+choices within accepted scope from worker recommendations and repository
+facts. Set `decision_required` only for a material human decision. Supervised
+returns remain a continuation preference, separate from this decision flag.
+
 ## Persist and continue
 
 Use `factory-handoff` to restore and persist `task.json`, `assurance.json`,

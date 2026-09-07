@@ -244,6 +244,15 @@ def validate_assurance(assurance: dict[str, Any], task_revision: int) -> list[st
     for field in ("paths", "risks", "diff_groups", "evidence", "exceptions", "blockers"):
         if not isinstance(assurance.get(field), list):
             errors.append(f"assurance.{field} must be a list")
+    if isinstance(assurance.get("evidence"), list):
+        for index, item in enumerate(assurance["evidence"]):
+            if not isinstance(item, dict):
+                errors.append(f"assurance.evidence[{index}] must be an object")
+                continue
+            if item.get("state") not in ("planned", "executed"):
+                errors.append(f"assurance.evidence[{index}].state must be planned or executed")
+            if item.get("result") not in ("pending", "pass", "fail", "blocked"):
+                errors.append(f"assurance.evidence[{index}].result must be pending, pass, fail, or blocked")
     for field in ("base_revision", "change_revision"):
         if assurance.get(field) is not None and not isinstance(assurance.get(field), str):
             errors.append(f"assurance.{field} must be text or null")

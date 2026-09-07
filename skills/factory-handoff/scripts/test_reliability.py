@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from records import validate_acceptance, git_base_revision, validate_root, validate_task
+from records import validate_acceptance, validate_assurance, git_base_revision, validate_root, validate_task
 from routing import decide
 from test_records import SCRIPTS, assurance, task, run_checkpoint
 
@@ -58,6 +58,15 @@ class CompletionTests(unittest.TestCase):
 
 
 class AcceptanceTests(unittest.TestCase):
+    def test_evidence_state_and_result_are_typed_before_acceptance(self):
+        for state, result in (('planned', 'pending'), ('executed', 'pass'), ('executed', 'fail'), ('executed', 'blocked')):
+            document = assurance()
+            document['evidence'][0].update(state=state, result=result)
+            self.assertEqual([], validate_assurance(document, 1))
+        for item in (None, {}, {'state': 'done', 'result': 'pass'}, {'state': 'executed', 'result': 'Tests passed'}, {'state': [], 'result': {}}):
+            with self.subTest(item=item):
+                self.assertTrue(validate_assurance(assurance(evidence=[item]), 1))
+
     def test_complete_evidence(self):
         self.assertEqual([], validate_acceptance(task(Path('/tmp')), assurance()))
 
@@ -179,6 +188,59 @@ class RepositoryTests(unittest.TestCase):
         self.git('branch', '-f', 'base', 'HEAD')
         self.assertNotEqual(before, git_base_revision(self.repository, 'base'))
         self.assertIsNone(git_base_revision(self.repository, 'missing'))
+
+    def test_invalid_checkpoint_and_preview_leave_records_unchanged(self):
+        records = self.root / 'records'
+        records.mkdir()
+        (records / 'task.json').write_text(json.dumps(task(self.repository)))
+        (records / 'assurance.json').write_text(json.dumps(assurance()))
+        (records / 'report.md').write_text('The bounded change is ready for implementation.')
+        for existing_history in (False, True):
+            with self.subTest(existing_history=existing_history):
+                if existing_history:
+                    result = run_checkpoint(records, 'INTAKE', 'aligned')
+                    self.assertEqual(0, result.returncode, result.stderr)
+                before = {path.name: path.read_bytes() for path in records.iterdir()}
+                for lifecycle, outcome in (('TRIAGE', 'complete'), ('UNKNOWN', 'ready'), ('COMPLETED', 'ready')):
+                    result = run_checkpoint(records, lifecycle, outcome)
+                    self.assertNotEqual(0, result.returncode)
+                    self.assertIn('Factory checkpoint failed', result.stderr)
+                preview = run_checkpoint(records, 'TRIAGE', 'ready', '--preview')
+                self.assertEqual(0, preview.returncode, preview.stderr)
+                proposed = json.loads(preview.stdout)['record']
+                self.assertEqual('IMPLEMENTATION', proposed['next_lifecycle'])
+                self.assertFalse(proposed['stop'])
+                self.assertEqual(before, {path.name: path.read_bytes() for path in records.iterdir()})
+
+        submitted = run_checkpoint(records, 'TRIAGE', 'ready')
+        self.assertEqual(0, submitted.returncode, submitted.stderr)
+        actual = json.loads((records / 'history.jsonl').read_text().splitlines()[-1])
+        for field in ('sequence', 'next_lifecycle', 'stop', 'task_sha256', 'assurance_sha256', 'report_sha256'):
+            self.assertEqual(proposed[field], actual[field])
+
+    def test_preview_rejects_narrative_evidence_result(self):
+        records = self.root / 'records'
+        records.mkdir()
+        document = assurance()
+        document['evidence'][0]['result'] = 'Tests passed successfully'
+        (records / 'task.json').write_text(json.dumps(task(self.repository)))
+        (records / 'assurance.json').write_text(json.dumps(document))
+        (records / 'report.md').write_text('The bounded change is ready for implementation.')
+        result = run_checkpoint(records, 'TRIAGE', 'ready', '--preview')
+        self.assertNotEqual(0, result.returncode)
+        self.assertFalse((records / 'history.jsonl').exists())
+
+    def test_checkpoint_normalizes_needs_input_outcome(self):
+        records = self.root / 'records'
+        records.mkdir()
+        (records / 'task.json').write_text(json.dumps(task(self.repository)))
+        (records / 'report.md').write_text('A product behavior decision is required.')
+        result = run_checkpoint(records, 'INTAKE', 'NEEDS-INPUT')
+        self.assertEqual(0, result.returncode, result.stderr)
+        actual = json.loads((records / 'history.jsonl').read_text())
+        self.assertEqual('needs_input', actual['outcome'])
+        self.assertEqual('AWAITING_INPUT', actual['next_lifecycle'])
+        self.assertTrue(actual['stop'])
 
     def test_checkpoint_cannot_record_stale_completion_as_terminal(self):
         records = self.root / 'records'
