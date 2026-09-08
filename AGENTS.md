@@ -155,6 +155,12 @@ Create abstractions only when they reduce complexity or encapsulate meaningful c
 
 ---
 
+# File Search
+
+For any file search or grep in the current git-indexed directory, use fff tools.
+
+---
+
 # Testing
 
 ## Unit Tests

@@ -1,0 +1,381 @@
+{
+  "date": "2026-09-08",
+  "factory_commit": "a6b8d77639e67f524b8f386a74a833382bab2aae",
+  "scope": "Local helper tests and synthetic probes. Saved task validation is read-only. No product commands or remote writes were run.",
+  "existing_tests": {
+    "factory-handoff": {
+      "passed": 34
+    },
+    "factory-orchestrator": {
+      "passed": 6
+    },
+    "factory-draft-pr": {
+      "passed": 19
+    },
+    "factory-telemetry": {
+      "passed": 10
+    },
+    "total_passed": 69
+  },
+  "synthetic_probe_method": "Imported existing local test fixtures. Used temporary Git repositories for checkpoint and identity probes. Used in-memory inputs for route and coverage probes. For concurrency, held an exclusive file lock until both checkpoint callers waited at locks_lock_inode_wait, then released it. Tests do not establish historical occurrence.",
+  "synthetic_probes": [
+    {
+      "probe": "Uncovered material risk",
+      "observed": {
+        "schema_errors": [],
+        "acceptance_errors": [],
+        "route": {
+          "next_lifecycle": null,
+          "stop": true,
+          "reason": "The requested deliverable is complete for the current revision.",
+          "resume_lifecycle": null
+        }
+      }
+    },
+    {
+      "probe": "Implementation without required plan approval",
+      "observed": {
+        "next_lifecycle": "CHANGE_ASSURANCE",
+        "stop": false,
+        "reason": "Implementation produced a committed revision.",
+        "resume_lifecycle": null
+      }
+    },
+    {
+      "probe": "Repeated missing evidence beyond active-time limit",
+      "observed": {
+        "next_lifecycle": "IMPLEMENTATION",
+        "stop": false,
+        "reason": "Missing evidence reference: evidence-1",
+        "resume_lifecycle": null
+      }
+    },
+    {
+      "probe": "First checkpoint declares completion without review history",
+      "observed": {
+        "checkpoint": {
+          "exit_code": 0,
+          "output": "{\"checkpoint\":1,\"next_lifecycle\":null,\"stop\":true,\"reason\":\"The requested deliverable is complete for the current revision.\"}",
+          "error": ""
+        },
+        "validate_root_errors": []
+      }
+    },
+    {
+      "probe": "One worker implements and assures",
+      "observed": {
+        "checkpoints": [
+          {
+            "exit_code": 0,
+            "output": "{\"checkpoint\":1,\"next_lifecycle\":\"TRIAGE\",\"stop\":false,\"reason\":\"The task contract is aligned.\"}",
+            "error": ""
+          },
+          {
+            "exit_code": 0,
+            "output": "{\"checkpoint\":2,\"next_lifecycle\":\"IMPLEMENTATION\",\"stop\":false,\"reason\":\"Triage produced an implementation-ready change packet.\"}",
+            "error": ""
+          },
+          {
+            "exit_code": 0,
+            "output": "{\"checkpoint\":3,\"next_lifecycle\":\"CHANGE_ASSURANCE\",\"stop\":false,\"reason\":\"Implementation produced a committed revision.\"}",
+            "error": ""
+          },
+          {
+            "exit_code": 0,
+            "output": "{\"checkpoint\":4,\"next_lifecycle\":\"COMPLETED\",\"stop\":false,\"reason\":\"The requested local commit passed independent assurance.\"}",
+            "error": ""
+          },
+          {
+            "exit_code": 0,
+            "output": "{\"checkpoint\":5,\"next_lifecycle\":null,\"stop\":true,\"reason\":\"The requested deliverable is complete for the current revision.\"}",
+            "error": ""
+          }
+        ],
+        "validate_root_errors": []
+      }
+    },
+    {
+      "probe": "Repeated result is appended twice",
+      "observed": {
+        "submissions": [
+          {
+            "exit_code": 0,
+            "output": "{\"checkpoint\":2,\"next_lifecycle\":\"IMPLEMENTATION\",\"stop\":false,\"reason\":\"Triage produced an implementation-ready change packet.\"}",
+            "error": ""
+          },
+          {
+            "exit_code": 0,
+            "output": "{\"checkpoint\":3,\"next_lifecycle\":\"IMPLEMENTATION\",\"stop\":false,\"reason\":\"Triage produced an implementation-ready change packet.\"}",
+            "error": ""
+          }
+        ],
+        "history_lines": 3,
+        "validate_root_errors": []
+      }
+    },
+    {
+      "probe": "Different repositories with same basename",
+      "observed": {
+        "identities_differ": true,
+        "task_roots_equal": true
+      }
+    },
+    {
+      "probe": "Different branch names normalize to same task",
+      "observed": {
+        "branch_one": "feature/a",
+        "branch_two": "feature--a",
+        "slugs": [
+          "feature--a",
+          "feature--a"
+        ]
+      }
+    },
+    {
+      "probe": "Concurrent checkpoint append",
+      "observed": {
+        "blocked_on_lock": [
+          "locks_lock_inode_wait",
+          "locks_lock_inode_wait"
+        ],
+        "exit_codes": [
+          0,
+          0
+        ],
+        "outputs": [
+          "{\"checkpoint\":1,\"next_lifecycle\":\"TRIAGE\",\"stop\":false,\"reason\":\"The task contract is aligned.\"}",
+          "{\"checkpoint\":1,\"next_lifecycle\":\"TRIAGE\",\"stop\":false,\"reason\":\"The task contract is aligned.\"}"
+        ],
+        "stored_sequences": [
+          1,
+          1
+        ],
+        "history_errors": [
+          "history line 2: sequence does not match line number"
+        ]
+      }
+    }
+  ],
+  "saved_tasks": [
+    {
+      "path": "/home/work/.agents-db/2098/feature--hum-2098-storage-migration-34-migration-tool",
+      "task_revision": 1,
+      "schema_version": 1,
+      "checkpoint_count": 23,
+      "worker_ids_recorded": 0,
+      "active_seconds_recorded": 0,
+      "telemetry_exists": false,
+      "canonical_file_bytes": {
+        "task.json": 9029,
+        "assurance.json": 367063,
+        "report.md": 7266,
+        "history.jsonl": 24845
+      },
+      "current_validation_exit_code": 1,
+      "current_validation_errors": [
+        "error: assurance.evidence[0].state must be planned or executed",
+        "error: assurance.evidence[0].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[1].state must be planned or executed",
+        "error: assurance.evidence[1].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[2].state must be planned or executed",
+        "error: assurance.evidence[2].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[3].state must be planned or executed",
+        "error: assurance.evidence[3].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[4].state must be planned or executed",
+        "error: assurance.evidence[4].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[5].state must be planned or executed",
+        "error: assurance.evidence[5].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[6].state must be planned or executed",
+        "error: assurance.evidence[6].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[7].state must be planned or executed",
+        "error: assurance.evidence[7].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[8].state must be planned or executed",
+        "error: assurance.evidence[8].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[9].state must be planned or executed",
+        "error: assurance.evidence[9].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[10].state must be planned or executed",
+        "error: assurance.evidence[10].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[11].state must be planned or executed",
+        "error: assurance.evidence[11].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[12].state must be planned or executed",
+        "error: assurance.evidence[12].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[13].state must be planned or executed",
+        "error: assurance.evidence[13].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[14].state must be planned or executed",
+        "error: assurance.evidence[14].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[15].state must be planned or executed",
+        "error: assurance.evidence[15].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[16].state must be planned or executed",
+        "error: assurance.evidence[16].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[17].state must be planned or executed",
+        "error: assurance.evidence[17].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[18].state must be planned or executed",
+        "error: assurance.evidence[18].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[19].state must be planned or executed",
+        "error: assurance.evidence[19].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[20].state must be planned or executed",
+        "error: assurance.evidence[20].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[21].state must be planned or executed",
+        "error: assurance.evidence[21].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[22].state must be planned or executed",
+        "error: assurance.evidence[22].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[23].state must be planned or executed",
+        "error: assurance.evidence[23].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[24].state must be planned or executed",
+        "error: assurance.evidence[24].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[25].state must be planned or executed",
+        "error: assurance.evidence[25].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[26].state must be planned or executed",
+        "error: assurance.evidence[26].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[27].state must be planned or executed",
+        "error: assurance.evidence[27].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[28].state must be planned or executed",
+        "error: assurance.evidence[28].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[29].state must be planned or executed",
+        "error: assurance.evidence[29].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[30].state must be planned or executed",
+        "error: assurance.evidence[30].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[31].state must be planned or executed",
+        "error: assurance.evidence[31].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[32].state must be planned or executed",
+        "error: assurance.evidence[32].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[33].state must be planned or executed",
+        "error: assurance.evidence[33].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[34].state must be planned or executed",
+        "error: assurance.evidence[34].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[35].state must be planned or executed",
+        "error: assurance.evidence[35].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[36].state must be planned or executed",
+        "error: assurance.evidence[36].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[37].state must be planned or executed",
+        "error: assurance.evidence[37].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[38].state must be planned or executed",
+        "error: assurance.evidence[38].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[39].state must be planned or executed",
+        "error: assurance.evidence[39].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[40].state must be planned or executed",
+        "error: assurance.evidence[40].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[41].state must be planned or executed",
+        "error: assurance.evidence[41].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[42].state must be planned or executed",
+        "error: assurance.evidence[42].result must be pending, pass, fail, or blocked",
+        "error: Current records no longer support the checkpoint: The task, head, base, branch, or clean worktree does not match assurance.",
+        "error: Git head changed after the latest checkpoint",
+        "error: Git worktree state changed after the latest checkpoint"
+      ]
+    },
+    {
+      "path": "/home/work/.agents-db/2099/feature--hum-2099-storage-migration-44-retirement",
+      "task_revision": 4,
+      "schema_version": 1,
+      "checkpoint_count": 9,
+      "worker_ids_recorded": 0,
+      "active_seconds_recorded": 0,
+      "telemetry_exists": false,
+      "canonical_file_bytes": {
+        "task.json": 9556,
+        "assurance.json": 29995,
+        "report.md": 17202,
+        "history.jsonl": 12513
+      },
+      "current_validation_exit_code": 1,
+      "current_validation_errors": [
+        "error: history line 8: invalid status",
+        "error: history line 9: invalid status",
+        "error: report.md changed after the latest checkpoint",
+        "error: assurance.task_revision must match task.task_revision",
+        "error: assurance.risk_class must be low, medium, or high",
+        "error: assurance.signals must contain exactly ['impact', 'input_gaps', 'proof_difficulty', 'reasoning_difficulty', 'uncertainty']",
+        "error: assurance.low_risk_gate must contain boolean eligible",
+        "error: assurance.plan_assurance_required must be boolean",
+        "error: assurance.sensitive_change must be boolean",
+        "error: assurance.paths must be a list",
+        "error: assurance.risks must be a list",
+        "error: assurance.diff_groups must be a list",
+        "error: assurance.evidence must be a list",
+        "error: assurance.blockers must be a list",
+        "error: assurance.verdict is invalid",
+        "error: assurance.routing must contain exactly ['decision_required', 'required_dependency_unavailable', 'risk_changed', 'scope_changed']",
+        "error: assurance.json changed after the latest checkpoint",
+        "error: Git head changed after the latest checkpoint",
+        "error: Git worktree state changed after the latest checkpoint"
+      ]
+    },
+    {
+      "path": "/home/work/.agents-db/humanrisks-platform/feature--hum-2097-storage-migration-24-writer-cutover",
+      "task_revision": 1,
+      "schema_version": 1,
+      "checkpoint_count": 14,
+      "worker_ids_recorded": 0,
+      "active_seconds_recorded": 0,
+      "telemetry_exists": false,
+      "canonical_file_bytes": {
+        "task.json": 4861,
+        "assurance.json": 44805,
+        "report.md": 3382,
+        "history.jsonl": 16876
+      },
+      "current_validation_exit_code": 1,
+      "current_validation_errors": [
+        "error: assurance.evidence[0].state must be planned or executed",
+        "error: assurance.evidence[0].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[1].state must be planned or executed",
+        "error: assurance.evidence[1].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[2].state must be planned or executed",
+        "error: assurance.evidence[2].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[3].state must be planned or executed",
+        "error: assurance.evidence[3].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[4].state must be planned or executed",
+        "error: assurance.evidence[4].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[5].state must be planned or executed",
+        "error: assurance.evidence[5].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[6].state must be planned or executed",
+        "error: assurance.evidence[6].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[7].state must be planned or executed",
+        "error: assurance.evidence[7].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[8].state must be planned or executed",
+        "error: assurance.evidence[8].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[9].state must be planned or executed",
+        "error: assurance.evidence[9].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[10].state must be planned or executed",
+        "error: assurance.evidence[10].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[11].state must be planned or executed",
+        "error: assurance.evidence[11].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[12].state must be planned or executed",
+        "error: assurance.evidence[12].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[13].state must be planned or executed",
+        "error: assurance.evidence[13].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[14].state must be planned or executed",
+        "error: assurance.evidence[14].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[15].state must be planned or executed",
+        "error: assurance.evidence[15].result must be pending, pass, fail, or blocked",
+        "error: assurance.evidence[16].state must be planned or executed",
+        "error: assurance.evidence[16].result must be pending, pass, fail, or blocked",
+        "error: Current records no longer support the checkpoint: The task, head, base, branch, or clean worktree does not match assurance.",
+        "error: Git head changed after the latest checkpoint",
+        "error: Git branch changed after the latest checkpoint",
+        "error: Git worktree state changed after the latest checkpoint"
+      ]
+    },
+    {
+      "path": "/home/work/.agents-db/humanrisks-platform/feature--hum-2122-tasks-dashboards-refinements-to-do-list-links-to-tasks",
+      "task_revision": 2,
+      "schema_version": 1,
+      "checkpoint_count": 17,
+      "worker_ids_recorded": 0,
+      "active_seconds_recorded": 0,
+      "telemetry_exists": false,
+      "canonical_file_bytes": {
+        "task.json": 7879,
+        "assurance.json": 43136,
+        "report.md": 14111,
+        "history.jsonl": 65653
+      },
+      "current_validation_exit_code": 1,
+      "current_validation_errors": [
+        "error: Git base changed after the latest checkpoint",
+        "error: Current records no longer support the checkpoint: The task, head, base, branch, or clean worktree does not match assurance."
+      ]
+    }
+  ]
+}
