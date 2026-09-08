@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import subprocess
@@ -37,7 +38,16 @@ def resolve(repository: Path, database: Path) -> dict[str, object]:
         revision = git(repository, "rev-parse", "--short", "HEAD")
         branch = f"detached-{revision}" if revision else "no-branch"
     branch_slug = slugify(branch)
-    canonical = database / project / branch_slug
+    repository_key = hashlib.sha256(str(identity).encode()).hexdigest()[:12]
+    branch_key = hashlib.sha256(branch.encode()).hexdigest()[:12]
+    canonical = database / f"{project}-{repository_key}" / f"{branch_slug}-{branch_key}"
+    if (canonical / "task.json").exists():
+        owner = json.loads((canonical / "task.json").read_text())
+        owner_identity = owner.get("repository_identity")
+        if owner_identity is None and Path(owner.get("repository", "")).is_dir():
+            owner_identity = str(repository_identity(Path(owner["repository"]))[0])
+        if owner_identity != str(identity) or owner.get("branch", branch) != branch:
+            raise ValueError("The selected task directory belongs to another repository or branch")
     legacy = []
     unresolved = []
     for candidate in sorted(database.glob(f"*/{branch_slug}/task.json")):
@@ -53,7 +63,7 @@ def resolve(repository: Path, database: Path) -> dict[str, object]:
                 unresolved.append(str(candidate.parent))
         except (OSError, ValueError, KeyError, TypeError):
             continue
-    return {"repository_identity": str(identity), "task_root": str(canonical), "legacy_task_roots": legacy, "unresolved_task_roots": unresolved}
+    return {"repository_identity": str(identity), "branch": branch, "task_root": str(canonical), "legacy_task_roots": legacy, "unresolved_task_roots": unresolved}
 
 
 def main() -> int:

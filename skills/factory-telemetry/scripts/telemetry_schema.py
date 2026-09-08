@@ -15,7 +15,7 @@ EVENT_TYPES = {
     "external_action_succeeded", "external_action_failed",
     "external_action_verified", "human_input_received", "human_decision_recorded",
     "workspace_changed", "artifact_changed", "artifact_invalidated",
-    "event_corrected",
+    "event_corrected", "checkpoint_recorded",
 }
 CATEGORIES = {
     "orchestration", "triage", "implementation", "assurance", "delivery",

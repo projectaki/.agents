@@ -5,7 +5,8 @@ description: "Create the compact Factory task contract for a software change. Us
 
 # Factory Intake
 
-Create an explicit task contract without researching or designing the change.
+Create a compact task contract. Inspect relevant repository facts when a brief
+assessment can establish the next useful action.
 
 ## Inputs
 
@@ -21,7 +22,11 @@ decision is unresolved.
 3. Ask only questions that the repository cannot answer and whose answers can
    change behavior, scope, risk, proof, authority, or delivery.
 4. Keep edit, test, commit, push, and draft-pull-request authority separate.
-5. Increment the task revision when accepted behavior, scope, proof, authority,
+5. When a brief inspection resolves the relevant uncertainty, return the
+   repository findings, risk assessment, and focused proof with the contract.
+   Otherwise identify the specific investigation still needed. Do not infer low
+   risk from request length or file count.
+6. Increment the task revision when accepted behavior, scope, proof, authority,
    or deliverable changes.
 
 ## Outputs
@@ -37,7 +42,7 @@ Return:
 
 ## Side effects
 
-Ask necessary questions. Do not research, classify risk, design the change,
+Ask necessary questions and read relevant repository files. Do not implement
 or make repository or external-system changes.
 
 ## Failure results

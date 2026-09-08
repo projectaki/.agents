@@ -9,8 +9,9 @@ Provide independent plan or change assurance without fixing the subject.
 
 ## Inputs
 
-Require the task contract, triage result, behavioral paths, risks, proof
-obligations, current assurance record, bounded subject, and assurance kind:
+Require the task contract, relevant repository assessment, behavioral paths,
+risks, proof obligations, current assurance record, bounded subject, and
+assurance kind:
 `plan` or `change`. For change assurance, also require the exact clean committed
 revision, complete base-to-head diff, and implementation result.
 
@@ -54,13 +55,17 @@ Return:
 
 - assurance kind and exact subject revision
 - for a plan: `approve`, `reject`, `needs-input`, or `blocked`
-- for a change: `pass`, `fail`, `needs-input`, or `blocked`
+- for a change: `pass`, `fail`, `needs-triage`, `needs-input`, or `blocked`
 - finalized assurance record with findings, coverage, proof results, and risks
 - a short summary of material findings, required decisions, and limitations
 
 Use `pass` only for a clean committed revision with complete current evidence
 or exact human-accepted exceptions. Findings must identify their location,
-evidence, impact, and required correction.
+evidence, impact, and required correction. Block only for a concrete defect,
+missing requirement, material risk, or applicable repository rule. Separate
+optional preferences from required corrections. Do not create review cycles
+for harmless differences. Reopen settled decisions only when evidence affects
+them. For divided work, verify interactions against the parent requirements.
 
 ## Side effects
 
@@ -72,5 +77,6 @@ remote-system state.
 
 Recommend the smallest sufficient feasible test when several methods can
 prove the same requirement. An ordinary test-method choice does not require
-human input. Return `needs-input` for a material decision or exception. Return
+human input. Return `needs-triage` for a newly discovered assumption that needs
+investigation. Return `needs-input` for a material decision or exception. Return
 `blocked` for missing, stale, contradictory, or inaccessible required evidence.

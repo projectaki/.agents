@@ -35,12 +35,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--summary", required=True)
     parser.add_argument("--occurred-at")
     parser.add_argument("--run-id")
+    parser.add_argument("--factory-revision")
+    parser.add_argument("--model")
+    parser.add_argument("--reasoning-effort")
     parser.add_argument("--resumes-run-id")
     parser.add_argument("--task-revision", type=int)
     parser.add_argument("--lifecycle")
     parser.add_argument("--assignment-id")
     parser.add_argument("--invocation-id")
     parser.add_argument("--worker-profile")
+    parser.add_argument("--worker-id")
     parser.add_argument("--operation-id")
     parser.add_argument("--attempt", type=int)
     parser.add_argument("--retry-of")
@@ -72,12 +76,16 @@ def build_event(args: argparse.Namespace) -> dict[str, object]:
     }
     optional_values = {
         "run_id": args.run_id,
+        "factory_revision": args.factory_revision,
+        "model": args.model,
+        "reasoning_effort": args.reasoning_effort,
         "resumes_run_id": args.resumes_run_id,
         "task_revision": args.task_revision,
         "lifecycle": args.lifecycle,
         "assignment_id": args.assignment_id,
         "invocation_id": args.invocation_id,
         "worker_profile": args.worker_profile,
+        "worker_id": args.worker_id,
         "operation_id": args.operation_id,
         "attempt": args.attempt,
         "retry_of": args.retry_of,

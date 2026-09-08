@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from records import validate_acceptance
+from prerequisites import independent_review, prerequisite_errors, plan_fingerprint
 
 
 @dataclass(frozen=True)
@@ -32,7 +33,7 @@ def correction_count(history: list[dict[str, Any]], lifecycle: str, target: str)
     )
 
 
-def decide(
+def default_route(
     task: dict[str, Any],
     assurance: dict[str, Any] | None,
     history: list[dict[str, Any]],
@@ -43,6 +44,7 @@ def decide(
     worktree_dirty: bool | None = None,
     git_base: str | None = None,
     git_branch: str | None = None,
+    files: list[str] | None = None,
 ) -> Decision:
     if lifecycle == "CANCELLED":
         return Decision(None, True, "The task is cancelled.")
@@ -51,7 +53,6 @@ def decide(
     stop_flags = [
         "decision_required",
         "scope_changed",
-        "risk_changed",
         "required_dependency_unavailable",
     ]
     if task.get("status") == "needs_input" or task.get("open_decisions"):
@@ -71,6 +72,9 @@ def decide(
         target = "TRIAGE" if task.get("task_revision") != deliveries[-1].get("task_revision") else "IMPLEMENTATION"
         return Decision(target, False, "Authorized follow-up work reopened the task.")
 
+    if routing.get("risk_changed"):
+        return Decision("TRIAGE", False, "Reassess the changed risk before dependent work.")
+
     accepting = (
         lifecycle == "COMPLETED"
         or lifecycle == "IMPLEMENTATION" and normalized == "complete"
@@ -87,13 +91,15 @@ def decide(
             or worktree_dirty is not False
         ):
             return Decision("IMPLEMENTATION", False, "The task, head, base, branch, or clean worktree does not match assurance.")
-        errors = validate_acceptance(task, assurance)
+        errors = validate_acceptance(task, assurance, files)
         if errors:
             return Decision("IMPLEMENTATION", False, "; ".join(errors))
         if lifecycle != "IMPLEMENTATION" and (assurance.get("verdict") != "pass" or assurance.get("blockers")):
             return Decision("CHANGE_ASSURANCE", False, "Completion requires passing assurance without blockers.")
 
     if lifecycle == "COMPLETED":
+        if not independent_review(task, history, git_head, git_base, assurance):
+            return Decision("CHANGE_ASSURANCE", False, "The current revision needs a recorded independent review.")
         if task.get("deliverable") == "draft_pull_request" and not any(
             record.get("lifecycle") == "DELIVERY"
             and record.get("outcome") == "published"
@@ -136,11 +142,17 @@ def decide(
         return Decision("AWAITING_INPUT", True, "Plan assurance needs input or required evidence.", "PLAN_ASSURANCE")
 
     if lifecycle == "IMPLEMENTATION":
+        if normalized == "needs_triage":
+            return Decision("TRIAGE", False, "New evidence requires further investigation.")
+        if normalized == "in_progress":
+            return Decision("IMPLEMENTATION", False, "A bounded part is complete; accepted behavior remains.")
         if normalized == "complete":
             return Decision("CHANGE_ASSURANCE", False, "Implementation produced a committed revision.")
         return Decision("AWAITING_INPUT", True, "Implementation needs input or required evidence.", "IMPLEMENTATION")
 
     if lifecycle == "CHANGE_ASSURANCE":
+        if normalized == "needs_triage":
+            return Decision("TRIAGE", False, "Review found an assumption that needs investigation.")
         if normalized == "pass" and assurance and assurance.get("verdict") == "pass":
             if task.get("deliverable") == "draft_pull_request":
                 if not authority_allows(task, "push", "draft_pull_request"):
@@ -167,3 +179,54 @@ def decide(
         return Decision(str(resume_lifecycle), False, "The required human input is resolved.")
 
     return Decision("AWAITING_INPUT", True, "The current lifecycle has no valid route.", lifecycle)
+
+
+def select_route(task, assurance, history, lifecycle, outcome, *, proposed_next=None,
+                 route_reason=None, worker_id=None, **facts):
+    normalized = outcome.replace("-", "_").casefold()
+    decision = default_route(task, assurance, history, lifecycle, outcome, **facts)
+    if decision.stop or lifecycle == "COMPLETED":
+        return decision
+    if lifecycle == "IMPLEMENTATION" and normalized == "complete":
+        errors = prerequisite_errors(task, assurance, history, "IMPLEMENTATION", worker_id=worker_id)
+        if errors:
+            return Decision("TRIAGE", False, "; ".join(errors))
+    if lifecycle == "CHANGE_ASSURANCE" and normalized == "pass":
+        errors = prerequisite_errors(task, assurance, history, "CHANGE_ASSURANCE", worker_id=worker_id, **facts)
+        if not worker_id:
+            errors.append("Record the review worker identity.")
+        if errors:
+            return Decision("CHANGE_ASSURANCE", False, "; ".join(errors))
+    if lifecycle == "DELIVERY" and normalized == "published":
+        errors = prerequisite_errors(task, assurance, history, "DELIVERY", **facts)
+        if errors:
+            return Decision("CHANGE_ASSURANCE", False, "; ".join(errors))
+    if proposed_next is None:
+        return decision
+    if not route_reason or not route_reason.strip():
+        raise ValueError("A proposed next stage requires a concrete route reason")
+    if proposed_next not in {"INTAKE", "TRIAGE", "PLAN_ASSURANCE", "IMPLEMENTATION", "CHANGE_ASSURANCE", "DELIVERY", "COMPLETED"}:
+        raise ValueError("Unsupported proposed next stage")
+    provisional = {"lifecycle": lifecycle, "outcome": normalized,
+                   "next_lifecycle": decision.next_lifecycle, "task_revision": task["task_revision"],
+                   "worker_id": worker_id, "git_head": facts.get("git_head"),
+                   "git_base": facts.get("git_base"), "plan_fingerprint": plan_fingerprint(assurance or {})}
+    errors = prerequisite_errors(task, assurance, [*history, provisional], proposed_next, **facts)
+    if errors:
+        raise ValueError("Proposed stage prerequisites: " + "; ".join(errors))
+    return Decision(proposed_next, False, route_reason.strip())
+
+
+def decide(task, assurance, history, lifecycle, outcome, *, run_id=None,
+           active_seconds=None, progress=None, **options):
+    decision = select_route(task, assurance, history, lifecycle, outcome, **options)
+    if decision.stop or lifecycle == "COMPLETED":
+        return decision
+    if task.get("continuation_mode") == "automatic" and run_id:
+        run = [item for item in history if item.get("run_id") == run_id]
+        elapsed = sum(item.get("active_seconds") or 0 for item in run) + (active_seconds or 0)
+        if elapsed >= 1800:
+            return Decision("AWAITING_INPUT", True, "Automatic work reached 30 minutes of active execution.", decision.next_lifecycle)
+        if progress is False and run and run[-1].get("progress") is False:
+            return Decision("AWAITING_INPUT", True, "Two consecutive assignments made no material progress.", decision.next_lifecycle)
+    return decision

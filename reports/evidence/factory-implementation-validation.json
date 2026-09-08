@@ -1,0 +1,35 @@
+{
+  "date": "2026-09-08",
+  "scope": "Deterministic helper tests and disposable Git repositories; no live product task, native model evaluation, or remote publication.",
+  "suites": [
+    {
+      "suite": "factory-handoff",
+      "exit_code": 0,
+      "passed": 59
+    },
+    {
+      "suite": "factory-orchestrator",
+      "exit_code": 0,
+      "passed": 6
+    },
+    {
+      "suite": "factory-draft-pr",
+      "exit_code": 0,
+      "passed": 19
+    },
+    {
+      "suite": "factory-telemetry",
+      "exit_code": 0,
+      "passed": 10
+    }
+  ],
+  "skill_validation": {
+    "passed": 7
+  },
+  "limitations": [
+    "Native worker dispatch and timeout enforcement use the orchestrator and its native tools.",
+    "Timings from representative product tasks are needed to measure speed gains.",
+    "The baseline audit evidence is preserved separately."
+  ],
+  "total_passed": 94
+}

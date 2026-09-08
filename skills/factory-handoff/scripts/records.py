@@ -87,7 +87,13 @@ def git_base_revision(repository: Path, base_ref: object) -> str | None:
     return result.stdout.strip() if result.returncode == 0 else None
 
 
-def validate_acceptance(task: dict[str, Any], assurance: dict[str, Any]) -> list[str]:
+def changed_files(repository: Path, base: str, head: str) -> list[str]:
+    result = subprocess.run(["git", "-C", str(repository), "diff", "--name-only", "--no-renames", "-z", base, head, "--"],
+                            text=True, capture_output=True, check=True)
+    return [name for name in result.stdout.split("\0") if name]
+
+
+def validate_acceptance(task: dict[str, Any], assurance: dict[str, Any], files: list[str] | None = None) -> list[str]:
     errors: list[str] = []
     evidence: dict[str, dict[str, Any]] = {}
     exceptions: dict[str, dict[str, Any]] = {}
@@ -104,7 +110,7 @@ def validate_acceptance(task: dict[str, Any], assurance: dict[str, Any]) -> list
         matches = [path for path in paths if isinstance(path, dict) and path.get("behavior") == behavior]
         if not matches:
             errors.append(f"Acceptance behavior has no proof mapping: {behavior}")
-    for path in paths:
+    for path in [*paths, *assurance.get("risks", [])]:
         if not isinstance(path, dict):
             errors.append("Each assurance path must be an object")
             continue
@@ -141,6 +147,21 @@ def validate_acceptance(task: dict[str, Any], assurance: dict[str, Any]) -> list
             if "carried_from" in item:
                 require_text(item.get("carried_from"), f"evidence {ref}.carried_from", errors)
                 require_text(item.get("reuse_reason"), f"evidence {ref}.reuse_reason", errors)
+    if files is not None:
+        mapped = set()
+        path_ids = {item["id"] for item in paths if isinstance(item, dict) and isinstance(item.get("id"), str)}
+        for group in assurance.get("diff_groups", []):
+            if not isinstance(group, dict):
+                errors.append("Each change group must be an object")
+                continue
+            group_files = group.get("files", [])
+            require_text_list(group_files, "diff_group.files", errors, nonempty=True)
+            if isinstance(group_files, list) and all(isinstance(name, str) for name in group_files):
+                mapped.update(group_files)
+            if not isinstance(group.get("path"), str) or group["path"] not in path_ids:
+                require_text(group.get("reason"), "diff_group non-behavioral reason", errors)
+        if set(files) != mapped:
+            errors.append("Change groups must account for the exact base-to-head file list")
     return errors
 
 
@@ -238,9 +259,9 @@ def validate_assurance(assurance: dict[str, Any], task_revision: int) -> list[st
         errors.append("a sensitive change requires plan assurance")
     if (
         assurance.get("risk_class") == "high"
-        or isinstance(signals, dict) and "high" in signals.values()
+        or isinstance(signals, dict) and signals.get("impact") == "high"
     ) and assurance.get("plan_assurance_required") is not True:
-        errors.append("high risk or a high signal requires plan assurance")
+        errors.append("high risk or high impact requires plan assurance")
     for field in ("paths", "risks", "diff_groups", "evidence", "exceptions", "blockers"):
         if not isinstance(assurance.get(field), list):
             errors.append(f"assurance.{field} must be a list")
@@ -361,6 +382,10 @@ def validate_root(task_root: Path) -> list[str]:
     if latest.get("next_lifecycle") in {"CHANGE_ASSURANCE", "DELIVERY", "COMPLETED"} or latest.get("lifecycle") == "COMPLETED" and latest.get("status") == "terminal":
         from routing import decide
         decision = decide(task, assurance, records[:-1], latest["lifecycle"], latest["outcome"],
+                          proposed_next=latest.get("proposed_next"), route_reason=latest.get("proposed_reason"),
+                          worker_id=latest.get("worker_id"), run_id=latest.get("run_id"),
+                          active_seconds=latest.get("active_seconds"), progress=latest.get("progress"),
+                          files=changed_files(repository, git_base, git_head) if git_head and git_base else None,
                           git_head=git_head, git_branch=git_branch, git_base=git_base, worktree_dirty=worktree_dirty)
         if decision.next_lifecycle != latest.get("next_lifecycle") or decision.stop != latest.get("stop"):
             errors.append(f"Current records no longer support the checkpoint: {decision.reason}")

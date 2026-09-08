@@ -10,7 +10,7 @@ from pathlib import Path
 
 from records import validate_acceptance, validate_assurance, git_base_revision, validate_root, validate_task
 from routing import decide
-from test_records import SCRIPTS, assurance, task, run_checkpoint
+from test_records import SCRIPTS, assurance, task, run_checkpoint, review_history
 
 spec = importlib.util.spec_from_file_location("resolver", SCRIPTS / "resolve-task-root.py")
 resolver = importlib.util.module_from_spec(spec)
@@ -21,7 +21,7 @@ class CompletionTests(unittest.TestCase):
     def route(self, document=None, contract=None, history=None, **facts):
         current = dict(git_head="abc123", git_base="base123", git_branch="feature", worktree_dirty=False)
         current.update(facts)
-        return decide(contract or task(Path('/tmp')), document if document is not None else assurance(verdict="pass"), history or [], "COMPLETED", "complete", **current)
+        return decide(contract or task(Path('/tmp')), document if document is not None else assurance(verdict="pass"), review_history() + (history or []), "COMPLETED", "complete", **current)
 
     def test_current_completion(self):
         self.assertIsNone(self.route().next_lifecycle)
@@ -140,7 +140,8 @@ class RepositoryTests(unittest.TestCase):
         legacy.mkdir(parents=True)
         (legacy / 'task.json').write_text(json.dumps(task(worktree)))
         result = resolver.resolve(worktree, database)
-        self.assertEqual(str(database / 'humanrisks-platform' / 'migration'), result['task_root'])
+        self.assertTrue(Path(result['task_root']).parent.name.startswith('humanrisks-platform-'))
+        self.assertTrue(Path(result['task_root']).name.startswith('migration-'))
         self.assertEqual(resolver.repository_identity(self.repository), resolver.repository_identity(worktree))
         self.assertEqual([str(legacy)], result['legacy_task_roots'])
         self.assertTrue((legacy / 'task.json').exists())
@@ -153,7 +154,7 @@ class RepositoryTests(unittest.TestCase):
     def test_detached_and_non_git_identity(self):
         self.git('checkout', '--detach', '-q')
         result = resolver.resolve(self.repository, self.root / 'database')
-        self.assertIn('/humanrisks-platform/detached-', result['task_root'])
+        self.assertTrue(Path(result['task_root']).name.startswith('detached-'))
         plain = self.root / 'Plain Folder'
         plain.mkdir()
         self.assertEqual((plain, 'plain-folder'), resolver.repository_identity(plain))
@@ -200,7 +201,7 @@ class RepositoryTests(unittest.TestCase):
                 if existing_history:
                     result = run_checkpoint(records, 'INTAKE', 'aligned')
                     self.assertEqual(0, result.returncode, result.stderr)
-                before = {path.name: path.read_bytes() for path in records.iterdir()}
+                before = {path.name: path.read_bytes() for path in records.iterdir() if path.is_file() and path.name != ".checkpoint.lock"}
                 for lifecycle, outcome in (('TRIAGE', 'complete'), ('UNKNOWN', 'ready'), ('COMPLETED', 'ready')):
                     result = run_checkpoint(records, lifecycle, outcome)
                     self.assertNotEqual(0, result.returncode)
@@ -210,7 +211,7 @@ class RepositoryTests(unittest.TestCase):
                 proposed = json.loads(preview.stdout)['record']
                 self.assertEqual('IMPLEMENTATION', proposed['next_lifecycle'])
                 self.assertFalse(proposed['stop'])
-                self.assertEqual(before, {path.name: path.read_bytes() for path in records.iterdir()})
+                self.assertEqual(before, {path.name: path.read_bytes() for path in records.iterdir() if path.is_file() and path.name != ".checkpoint.lock"})
 
         submitted = run_checkpoint(records, 'TRIAGE', 'ready')
         self.assertEqual(0, submitted.returncode, submitted.stderr)
@@ -251,6 +252,8 @@ class RepositoryTests(unittest.TestCase):
         (records / 'task.json').write_text(json.dumps(task(self.repository)))
         (records / 'assurance.json').write_text(json.dumps(document))
         (records / 'report.md').write_text('The required behavior passed focused checks.')
+        run_checkpoint(records, 'IMPLEMENTATION', 'complete')
+        run_checkpoint(records, 'CHANGE_ASSURANCE', 'pass')
         result = run_checkpoint(records, 'COMPLETED', 'complete')
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual([], validate_root(records))

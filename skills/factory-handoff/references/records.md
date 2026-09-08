@@ -13,6 +13,7 @@ Require:
 - `base_ref`: target Git reference, required before review; resolve its current
   commit without fetching. Use a branch reference when its movement matters.
   A pinned commit is appropriate only for an explicitly fixed comparison base.
+- optional `branch`: exact branch name returned by discovery
 - optional `repository_identity`: shared Git directory from task-root discovery
 - optional `related_sessions`: objects with `reference` and `relationship` text
 - `objective`: nonempty text
@@ -26,10 +27,12 @@ Require:
 
 ## `assurance.json`
 
-Require after triage:
+Require once repository assessment supports implementation:
 
 - `schema_version`: `1`
 - matching `task_revision`
+- `assessment`: concise repository findings supporting the selected work and risk
+- optional `steps`: bounded implementation steps for work that needs them
 - `risk_class`: `low`, `medium`, or `high`
 - five `signals`: `impact`, `uncertainty`, `reasoning_difficulty`,
   `proof_difficulty`, and `input_gaps`
@@ -48,9 +51,15 @@ Require after triage:
 Use stable identifiers inside the assurance record. Keep human reports free of
 internal identifiers.
 
+Each `diff_groups` entry contains `files` and either `path` (an accepted path
+identifier) or `reason` for a non-behavioral change. The helper compares these
+files with the actual base-to-head diff. The reviewer checks semantic coverage.
+
 ## Acceptance evidence
 
 Each `paths` entry names its required `behavior` and `evidence` identifiers.
+Each `risks` entry uses the same `behavior`, `evidence`, and optional `exception`
+fields. Each material risk needs proof or an exact accepted exception.
 Every acceptance criterion must match a path's behavior text. Additional paths
 cover required failure behavior. The router validates this mapping before
 requesting change assurance, delivery, or completion.
@@ -101,8 +110,8 @@ Checkpoint outcomes belong to their lifecycle:
 | INTAKE | `aligned`, `needs-input`, `blocked` |
 | TRIAGE | `ready`, `needs-input`, `blocked` |
 | PLAN_ASSURANCE | `approve`, `reject`, `needs-input`, `blocked` |
-| IMPLEMENTATION | `complete`, `needs-input`, `blocked` |
-| CHANGE_ASSURANCE | `pass`, `fail`, `needs-input`, `blocked` |
+| IMPLEMENTATION | `complete`, `in-progress`, `needs-triage`, `needs-input`, `blocked` |
+| CHANGE_ASSURANCE | `pass`, `fail`, `needs-triage`, `needs-input`, `blocked` |
 | DELIVERY | `published`, `needs-input`, `blocked` |
 | AWAITING_INPUT | `resolved`, `needs-input`, `blocked` |
 | COMPLETED | `complete`, `reopened` |
@@ -127,6 +136,29 @@ Use repeatable `--finding` JSON arguments containing `kind`, `summary`,
 accepted behavior at its reviewed revision. The other kinds identify changed
 requirements, changed dependencies, or a specifically accepted residual risk.
 
-Supply `--worker-id` and `--active-seconds` when available. Active time excludes
-waiting and gaps between sessions. Omit unknown values. Optional telemetry is
-never required for a checkpoint or routing decision.
+Implementation and review results require `worker_id`. A current passing review
+must follow an implementation record for the same head and base from a different
+worker. A required plan approval records `plan_fingerprint`; changed assessment,
+paths, risks, steps, or planned proof invalidate it. These checks establish
+recorded provenance, not proof that an agent's claims are truthful.
+
+`result_id` identifies a submission across retries. `proposed_next` and
+`proposed_reason` preserve an explicit routing choice. `run_id`, `assignment_id`,
+`active_seconds`, and `progress` describe execution. The dispatch helper supplies
+identity and timing. Automatic results require measured timing and an explicit
+progress outcome. Never substitute zero for unknown time.
+
+The same schema version accepts these additive fields. Older records are
+readable, but missing prerequisites prevent new consequential actions. Accepted
+contract fields are preserved in `contracts/<task_revision>.json`. A changed
+contract requires a new task revision. Task history remains append-only.
+
+The timed check helper saves an execution receipt with working directory,
+revision, base, environment description, exit status, and duration. Link the
+receipt from the evidence entry. A dirty starting tree requires explicit source
+verification before binding the result to a later commit. Receipts do not prove
+that external services or dependencies remain unchanged. Verify relevant inputs
+before reuse. Never cache by command text alone.
+
+Basic telemetry is attempted by default. Telemetry contents and availability
+never determine routing, resumption, or product acceptance.

@@ -1,18 +1,21 @@
 ---
 name: factory-implement
-description: "Implement one triaged Factory software change, add the smallest sufficient tests, run focused checks, account for the complete diff, and create the authorized local commit for independent assurance."
+description: "Implement one understood Factory software change, add the smallest sufficient tests, run focused checks, account for the complete diff, and create the authorized local commit for independent assurance."
 ---
 
 # Factory Implement
 
-Produce one clean committed revision that implements the accepted task.
+Produce a clean committed revision that implements the accepted behavior.
+For large tasks, use coherent parts with shared constraints and a combined
+final check. Keep one active implementation owner.
 
 ## Inputs
 
-Require an aligned task contract, ready triage result, current assurance record,
-approved behavioral paths and proof, repository, clean starting worktree, and
+Require an aligned task contract, sufficient repository assessment, current
+assurance record, approved behavioral paths and proof, repository, clean
+starting worktree, and
 edit, test, and commit authority. Require an approved plan-assurance result when
-triage marked it necessary.
+the current risk assessment requires it.
 
 ## Operation
 
@@ -29,8 +32,8 @@ triage marked it necessary.
    explicit non-behavioral reason.
 7. Stop for scope growth, a higher risk class, a contract-invalidating finding,
    or inaccessible required proof.
-8. Create one local commit after focused checks pass. Return the exact commit
-   and a clean worktree.
+8. Commit coherent work after its focused checks pass. Return the exact final
+   commit and a clean worktree.
 
 Retry a failed operation only after a changed precondition or when the failure
 is plausibly transient. Make at most two attempts for the same blocker.
@@ -39,7 +42,7 @@ is plausibly transient. Make at most two attempts for the same blocker.
 
 Return:
 
-- status: `complete`, `needs-input`, or `blocked`
+- status: `complete`, `in-progress`, `needs-triage`, `needs-input`, or `blocked`
 - exact base and committed revision, branch, and clean-worktree result
 - updated assurance record with complete diff groups, proof results and
   revisions, uncovered behavior, exceptions, and residual risk
@@ -47,12 +50,17 @@ Return:
 
 ## Side effects
 
-Modify approved local files, run local checks, and create one local commit. Do
+Modify approved local files, run local checks, and create scoped commits. Do
 not amend, rebase, change unrelated user work, approve your implementation,
 or write to remote systems.
 
 ## Failure results
 
-Return `needs-input` for missing authority or a material decision. Return
+Return `in-progress` after a bounded part when accepted behavior remains.
+Preserve the complete task requirements and use planned evidence for remaining
+work. Only `complete` requests final independent review. Return `needs-triage`
+when a new code or dependency fact needs investigation. Preserve unaffected
+work and evidence. Return `needs-input` for missing authority or a material
+decision. Return
 `blocked` for an inaccessible required dependency or proof. Leave no commit
 when required focused checks fail.

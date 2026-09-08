@@ -48,8 +48,8 @@ class SummarizeEventsTests(unittest.TestCase):
             )
             self.assertEqual(0, result.returncode, result.stderr)
             summary = (root / "telemetry" / "summary.md").read_text(encoding="utf-8")
-            self.assertIn("Completed-run active time | 1h 0m 0s", summary)
-            self.assertIn("Incomplete-run lower bound | 1h 0m 0s", summary)
+            self.assertIn("Completed-run elapsed time (includes waits) | 1h 0m 0s", summary)
+            self.assertIn("Incomplete-run observed elapsed time | 1h 0m 0s", summary)
             self.assertIn("Pause or unobserved gap | 18h 0m 0s", summary)
 
     def test_groups_retries_failures_and_category_time(self) -> None:

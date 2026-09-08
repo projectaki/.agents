@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from records import LOW_RISK_CHECKS, validate_assurance, validate_root
 from routing import decide
+from prerequisites import plan_fingerprint
 
 
 SCRIPTS = Path(__file__).parent
@@ -32,6 +33,7 @@ def run_checkpoint(task_root: Path, lifecycle: str, outcome: str, *extra: str) -
             outcome,
             "--reason",
             f"{lifecycle} returned {outcome}.",
+            "--worker-id", lifecycle.lower() + "-worker",
             *extra,
         ],
         text=True,
@@ -69,6 +71,7 @@ def assurance(**values: object) -> dict[str, object]:
     document: dict[str, object] = {
         "schema_version": 1,
         "task_revision": 1,
+        "assessment": "Inspected the local behavior and its focused test; no sensitive dependency changes.",
         "risk_class": "low",
         "signals": {
             "impact": "low",
@@ -102,6 +105,17 @@ def assurance(**values: object) -> dict[str, object]:
     }
     document.update(values)
     return document
+
+
+def implementation_history():
+    return [dict(lifecycle="IMPLEMENTATION", outcome="complete", next_lifecycle="CHANGE_ASSURANCE",
+                 task_revision=1, worker_id="implementer", git_head="abc123", git_base="base123")]
+
+
+def review_history():
+    return [*implementation_history(), dict(lifecycle="CHANGE_ASSURANCE", outcome="pass", next_lifecycle="COMPLETED",
+                 task_revision=1, worker_id="reviewer", git_head="abc123", git_base="base123",
+                 plan_fingerprint=plan_fingerprint(assurance()))]
 
 
 class RecordTests(unittest.TestCase):
@@ -187,9 +201,10 @@ class RecordTests(unittest.TestCase):
         decision = decide(
             task(Path("/tmp/repository")),
             assurance(verdict="pass"),
-            [],
+            implementation_history(),
             "CHANGE_ASSURANCE",
             "pass",
+            worker_id="reviewer",
             git_head="abc123",
             worktree_dirty=False,
             git_base="base123",
@@ -202,9 +217,10 @@ class RecordTests(unittest.TestCase):
         decision = decide(
             contract,
             assurance(verdict="pass"),
-            [],
+            implementation_history(),
             "CHANGE_ASSURANCE",
             "pass",
+            worker_id="reviewer",
             git_head="abc123",
             worktree_dirty=False,
             git_base="base123",
@@ -216,9 +232,10 @@ class RecordTests(unittest.TestCase):
         decision = decide(
             contract,
             assurance(verdict="pass"),
-            [],
+            implementation_history(),
             "CHANGE_ASSURANCE",
             "pass",
+            worker_id="reviewer",
             git_head="abc123",
             worktree_dirty=False,
             git_base="base123",
@@ -295,7 +312,7 @@ class RecordTests(unittest.TestCase):
             ).stdout.strip()
             current_assurance["change_revision"] = head
             current_assurance["evidence"][0].update(revision=head, base_revision=base)
-            current_assurance["diff_groups"] = [{"id": "diff-1", "path": "path-1"}]
+            current_assurance["diff_groups"] = [{"id": "diff-1", "path": "path-1", "files": ["feature.txt"]}]
             (task_root / "assurance.json").write_text(json.dumps(current_assurance), encoding="utf-8")
             (task_root / "report.md").write_text("# Implementation\n\nCommitted.\n", encoding="utf-8")
             implementation = run_checkpoint(task_root, "IMPLEMENTATION", "complete")

@@ -48,8 +48,8 @@ class RuntimeScenarioTests(unittest.TestCase):
 
             subprocess.run(["python3", str(SUMMARIZER), "--task-root", str(root), "--strict"], check=True)
             summary = (root / "telemetry" / "summary.md").read_text(encoding="utf-8")
-            self.assertIn("Completed-run active time | 1h 0m 0s", summary)
-            self.assertIn("Incomplete-run lower bound | 1h 0m 0s", summary)
+            self.assertIn("Completed-run elapsed time (includes waits) | 1h 0m 0s", summary)
+            self.assertIn("Incomplete-run observed elapsed time | 1h 0m 0s", summary)
             self.assertIn("Pause or unobserved gap | 18h 0m 0s", summary)
             self.assertIn("Failed operations: 2", summary)
             self.assertIn("Retries: 2", summary)

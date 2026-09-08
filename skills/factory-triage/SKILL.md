@@ -51,9 +51,15 @@ sources, and current task revision.
    - no input gap
    - no security policy, authorization rule, sensitive data, schema, migration,
      concurrency, infrastructure, public contract, or irreversible effect
-8. Require independent plan assurance when any signal is high or when the
-   change affects a listed sensitive surface. Use it for medium risk when a
-   material design choice remains.
+8. Require independent plan assurance for high change impact or a listed
+   sensitive surface. Use it when a material design choice needs independent
+   examination. Resolve high uncertainty through investigation first.
+
+Scale the packet to the work. A clear fix can use a few sentences and one proof
+mapping. For larger work, define coherent parts, shared constraints, and the
+combined acceptance check. Test consequential assumptions early when a short
+experiment can prevent extensive rework. Preserve existing project setup and
+check references instead of rediscovering them in each assignment.
 
 Do not add diagrams, code previews, or separate artifacts unless they make a
 material decision easier to verify.
@@ -63,14 +69,15 @@ material decision easier to verify.
 Return:
 
 - status: `ready`, `needs-input`, or `blocked`
-- current assurance record containing the affected behavior, implementation
-  steps, proof mappings, risk assessment, and plan-assurance decision
+- current assurance record with repository findings, affected behavior,
+  implementation steps, proof mappings, risk assessment, and plan-review decision
 - a short summary of material assumptions, blockers, and required decisions
 
 ## Side effects
 
-Read local and permitted authoritative sources. Do not run mutating checks,
-approve the plan, or change repository or external-system state.
+Read local and permitted authoritative sources. Run non-mutating checks or
+isolated disposable probes when authorized. Do not approve the plan or change
+product or external-system state.
 
 ## Failure results
 
