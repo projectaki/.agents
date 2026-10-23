@@ -12,5 +12,5 @@ description: Split a large branch or pull request into a cohesive linear stack o
 - Make each layer coherent and testable with its predecessors. Include its required tests and supporting changes. Do not depend on later layers.
 - Preserve the original changes exactly. Do not introduce fixes, cleanup, or unrelated base updates while splitting.
 - Before publishing, compare `git rev-parse '<tip>^{tree}'` with `git rev-parse '<original-head>^{tree}'`. Require identical tree identifiers. This verifies all tracked paths, file bytes, and modes. Resolve every mismatch before proceeding.
-- Run relevant checks for each layer. Use the write-good-pr skill for each title and description. Explain what the layer contains, why the changes belong together, and its dependencies and validation results.
+- Run relevant checks for each layer. Use the write-good-pr skill for each title and description. Explain what the layer contains, why the changes belong together, and its dependencies.
 - Verify the published stack is linear and its tip still has the original tree. Report the ordered pull request links and verification results.
