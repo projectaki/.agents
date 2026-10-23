@@ -1,9 +1,10 @@
 ---
 name: resolve-open-questions
-description: Resolve unanswered questions in a task, plan, or design before proceeding.
+description: Resolve uncertainties and missing requirements interactively with me before concluding a plan.
 ---
 
-- Identify unanswered questions that affect the work.
-- Resolve what you can from code, documentation, and available evidence.
-- Ask me only for missing decisions or information.
-- State each answer and any remaining uncertainty.
+- Review the plan and available evidence for uncertainties and missing requirements.
+- Discuss one question at a time. Give enough context for an informed decision, including evidence, options, tradeoffs, and your recommendation.
+- Wait for my response. Discuss follow-up questions until we explicitly agree before moving on.
+- Update the plan with each agreed decision. Do not treat silence or assumptions as agreement.
+- Check for remaining questions, including those raised by our decisions. Conclude only when each is resolved or explicitly deferred by me.
