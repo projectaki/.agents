@@ -3,6 +3,8 @@ name: x-ensure-quality
 description: Investigate proposed or implemented changes against AGENTS.md principles and module design checks. Report findings and proposed improvements without making changes.
 ---
 
+Inputs: Proposed or implemented changes and applicable project guidance.
+
 Read all applicable AGENTS.md files. Treat their current instructions as authoritative over this checklist.
 Review the complete task scope, including proposed changes, committed changes, and uncommitted files.
 Check every principle against every relevant change. Inspect affected callers, dependencies, and tests.

@@ -3,6 +3,8 @@ name: x-split-into-smaller-chunks
 description: Split a large branch or pull request into a cohesive linear stack of smaller pull requests with an identical final tree.
 ---
 
+Inputs: Source branch or pull request, plus optional pull request description requirements.
+
 - Inspect the full branch or pull request diff. Record the original head commit, target branch, and merge base. Preserve the original commit as the comparison reference.
 - Group changes by purpose and dependency, not by file count or existing commits. Split changes within a file when needed.
 - Aim for at most 20–30 changed files per pull request. Keep inseparable changes together and explain larger groups in their descriptions.
@@ -12,5 +14,5 @@ description: Split a large branch or pull request into a cohesive linear stack o
 - Make each layer coherent and testable with its predecessors. Include its required tests and supporting changes. Do not depend on later layers.
 - Preserve the original changes exactly. Do not introduce fixes, cleanup, or unrelated base updates while splitting.
 - Before publishing, compare `git rev-parse '<tip>^{tree}'` with `git rev-parse '<original-head>^{tree}'`. Require identical tree identifiers. This verifies all tracked paths, file bytes, and modes. Resolve every mismatch before proceeding.
-- Run relevant checks for each layer. Use the x-write-good-pr skill for each title and description. Explain what the layer contains, why the changes belong together, and its dependencies.
+- Run relevant checks for each layer. Write a specific title and follow any description requirements supplied as input. Otherwise, explain the layer's purpose, contents, implementation, design decisions, and dependencies. Support factual claims with evidence references. Explain why its changes belong together.
 - Verify the published stack is linear and its tip still has the original tree. Report the ordered pull request links and verification results.

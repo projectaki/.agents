@@ -3,6 +3,8 @@ name: x-bug-fix
 description: Fix an already identified bug with regression tests and recorded evidence of failure before the fix and success after it.
 ---
 
+Inputs: Identified bug, expected behavior, and relevant code.
+
 - Start with an identified bug and its expected behavior.
 - Write the simplest regression tests that reproduce it: unit, integration, or end-to-end tests, as appropriate.
 - Run the tests before changing the code. Confirm they fail because of the bug and record the evidence. Prefer test output; use screenshots or video when needed to show the behavior.

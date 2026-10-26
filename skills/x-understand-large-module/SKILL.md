@@ -3,6 +3,8 @@ name: x-understand-large-module
 description: Explain a large pull request's purpose, code organization, and module boundaries so I can assess its design and review it.
 ---
 
+Inputs: Pull request or changes and relevant context.
+
 - Read the pull request, full diff, and relevant surrounding code and tests. Explain the problem and intended result first.
 - Group changed files by responsibility. Explain why each group exists, where it belongs, and how it connects to the existing system.
 - Focus on module boundaries: public interfaces, inputs, outputs, dependencies, state ownership, and failure handling. Trace one representative flow across them.

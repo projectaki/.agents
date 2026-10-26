@@ -1,6 +1,5 @@
 {
   "effortLevel": "high",
   "tui": "fullscreen",
-  "theme": "dark",
-  "model": "opus[1m]"
+  "theme": "dark"
 }
