@@ -5,6 +5,8 @@ description: Write pull request titles and descriptions that explain the purpose
 
 - Read the full diff and relevant surrounding code. Use the understand-large-module skill to identify responsibilities, module boundaries, and important design choices.
 - Write a specific title. Use my voice and describe the current implementation without relying on chat history.
+- Support each factual claim with a reference beside it: relevant code lines, a test, a focused code snippet, or other direct evidence. Use links reviewers can access and the code version that proves the claim. For prior behavior, cite the original code or a regression test shown to fail before the fix.
+- Keep claims within what the evidence proves. Label inferences and uncertainties. Omit unsupported assertions.
 - Structure the description in the order below. Omit sections that do not apply. Do not include a validation section, local test results, or repeated continuous integration results.
 
 ## Description structure
