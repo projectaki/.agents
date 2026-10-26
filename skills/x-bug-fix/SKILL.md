@@ -1,5 +1,5 @@
 ---
-name: bug-fix
+name: x-bug-fix
 description: Fix an already identified bug with regression tests and recorded evidence of failure before the fix and success after it.
 ---
 

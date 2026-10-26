@@ -1,5 +1,5 @@
 ---
-name: ensure-quality
+name: x-ensure-quality
 description: Check all proposed or implemented changes against every applicable AGENTS.md principle and resolve violations.
 ---
 

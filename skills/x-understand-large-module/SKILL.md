@@ -1,5 +1,5 @@
 ---
-name: understand-large-module
+name: x-understand-large-module
 description: Explain a large pull request's purpose, code organization, and module boundaries so I can assess its design and review it.
 ---
 

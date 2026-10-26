@@ -1,5 +1,5 @@
 ---
-name: resolve-open-questions
+name: x-resolve-open-questions
 description: Resolve uncertainties and missing requirements interactively with me before concluding a plan.
 ---
 
