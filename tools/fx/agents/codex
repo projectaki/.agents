@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "${1-}" == check ]]; then
+  command -v codex >/dev/null
+  exit
+fi
+
+project="$2"
+task="$3"
+session="$4"
+reasoning="$5"
+shift 5
+[[ $# == 0 ]] || set -- -- "$1"
+instructions="$(cat "$session/instructions.md")"
+instructions="${instructions//\\/\\\\}"
+instructions="${instructions//\"/\\\"}"
+instructions="${instructions//$'\n'/\\n}"
+instructions="${instructions//$'\r'/\\r}"
+instructions="${instructions//$'\t'/\\t}"
+printf 'model=gpt-6.1-sol\n' >> "$session/launch.txt"
+exec codex \
+  --cd "$task" \
+  --model gpt-6.1-sol \
+  -c "model_reasoning_effort=\"$reasoning\"" \
+  -c "developer_instructions=\"$instructions\"" \
+  --add-dir "$project/project_context" \
+  "$@"
