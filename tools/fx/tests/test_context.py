@@ -27,6 +27,9 @@ class ContextTest(unittest.TestCase):
         result = self.save(response=response)
         self.assertEqual((result / "response.md").read_text(), response)
         self.assertEqual((result / "response.md").stat().st_mode & 0o777, 0o600)
+        latest = self.session / "last_turn_results.md"
+        self.assertEqual(latest.read_text(), response)
+        self.assertEqual(latest.stat().st_mode & 0o777, 0o600)
         metadata = json.loads((result / "metadata.json").read_text())
         self.assertEqual(metadata["agent"], "test-agent")
         self.assertEqual(metadata["turn_id"], "one")
@@ -40,16 +43,75 @@ class ContextTest(unittest.TestCase):
     def test_identical_text_in_separate_turns_is_kept(self):
         self.assertNotEqual(self.save("one"), self.save("two"))
 
+    def test_latest_response_replaces_previous_text_and_preserves_history(self):
+        first = self.save(response="First response")
+        second = self.save("two", "# Final response\n\nComplete details.\n")
+        latest = self.session / "last_turn_results.md"
+        self.assertEqual(latest.read_text(), (second / "response.md").read_text())
+        self.assertEqual((first / "response.md").read_text(), "First response")
+        self.assertEqual(self.save(response="First response"), first)
+        self.assertEqual(latest.read_text(), (second / "response.md").read_text())
+
+    def test_latest_response_is_separate_for_each_session(self):
+        other = self.task / "context/session-two"
+        other.mkdir()
+        self.save(response="First session")
+        self.save(session=other, response="Second session")
+        self.assertEqual((self.session / "last_turn_results.md").read_text(), "First session")
+        self.assertEqual((other / "last_turn_results.md").read_text(), "Second session")
+
+    def test_latest_response_preserves_original_line_endings(self):
+        response = "# Résumé\r\n\r\nMixed line endings.\n"
+        result = self.save(response=response)
+        latest = self.session / "last_turn_results.md"
+        self.assertEqual(latest.read_bytes(), response.encode("utf-8"))
+        self.assertEqual(latest.read_bytes(), (result / "response.md").read_bytes())
+
+    def test_failed_latest_publication_preserves_previous_text_and_retry_repairs_it(self):
+        self.save(response="Previous response")
+        latest = self.session / "last_turn_results.md"
+        with patch("fx_context.os.replace", side_effect=OSError("disk failure")):
+            with self.assertRaisesRegex(OSError, "disk failure"):
+                self.save("two", "Latest response")
+        self.assertEqual(latest.read_text(), "Previous response")
+        self.assertEqual(list(self.session.glob(".latest-response-*")), [])
+        saved = sorted((self.session / "results").iterdir())
+        self.assertEqual(len(saved), 2)
+        self.assertEqual((saved[-1] / "response.md").read_text(), "Latest response")
+        self.assertEqual(self.save("two", "Latest response"), saved[-1])
+        self.assertEqual(latest.read_text(), "Latest response")
+        self.assertEqual(sorted((self.session / "results").iterdir()), saved)
+
+    def test_replayed_event_restores_missing_latest_file_from_newest_saved_turn(self):
+        self.save(response="First response")
+        self.save("two", "Latest response")
+        latest = self.session / "last_turn_results.md"
+        latest.unlink()
+        self.save(response="First response")
+        self.assertEqual(latest.read_text(), "Latest response")
+
+    def test_latest_publication_does_not_follow_existing_symlink(self):
+        outside = self.task / "other.md"
+        outside.write_text("Keep this text")
+        latest = self.session / "last_turn_results.md"
+        latest.symlink_to(outside)
+        self.save(response="Latest response")
+        self.assertFalse(latest.is_symlink())
+        self.assertEqual(latest.read_text(), "Latest response")
+        self.assertEqual(outside.read_text(), "Keep this text")
+
     def test_stop_continuation_with_new_text_is_kept(self):
         self.assertNotEqual(self.save(response="First stop"), self.save(response="Final stop"))
 
     def test_parallel_events_have_distinct_complete_results(self):
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
-            results = list(pool.map(lambda number: self.save(str(number)), range(8)))
+            results = list(pool.map(lambda number: self.save(str(number), f"Response {number}"), range(8)))
         self.assertEqual(len(set(results)), 8)
         for result in results:
             self.assertTrue((result / "metadata.json").is_file())
-            self.assertEqual((result / "response.md").read_text(), "Final response\n")
+            self.assertTrue((result / "response.md").read_text().startswith("Response "))
+        self.assertEqual((self.session / "last_turn_results.md").read_text(),
+                         (max(results) / "response.md").read_text())
 
     def test_invalid_completion_has_no_result(self):
         for response in (None, "", 123, {}):
@@ -59,6 +121,7 @@ class ContextTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             save_response(self.session, "agent", "thread", None, "text")
         self.assertFalse((self.session / "results").exists())
+        self.assertFalse((self.session / "last_turn_results.md").exists())
 
     def test_failed_publication_leaves_no_partial_result(self):
         with patch("fx_context.os.rename", side_effect=OSError("disk failure")):

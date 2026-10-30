@@ -49,7 +49,10 @@ class FxTest(unittest.TestCase):
                 f"#!{sys.executable}\n"
                 "import json, os, sys\n"
                 "print(json.dumps({'arguments': sys.argv[1:], 'cwd': os.getcwd(), "
-                "'effort_environment': os.environ.get('CLAUDE_CODE_EFFORT_LEVEL')}))\n"
+                "'effort_environment': os.environ.get('CLAUDE_CODE_EFFORT_LEVEL'), "
+                "'record_session': os.environ.get('CODEX_TUI_RECORD_SESSION'), "
+                "'session_log': os.environ.get('CODEX_TUI_SESSION_LOG_PATH'), "
+                "'event_session': os.environ.get('FX_SESSION_CONTEXT_DIR')}))\n"
                 "sys.exit(int(os.environ.get('FX_TEST_AGENT_EXIT', '0')))\n"
             )
             executable.chmod(0o755)
@@ -74,6 +77,18 @@ class FxTest(unittest.TestCase):
 
     def fx(self, *arguments, cwd=None, check=True):
         return self.run_command(TOOL, *arguments, cwd=cwd, check=check)
+
+    def fx_with_terminal_input(self, *arguments, cwd, input_bytes):
+        master, slave = pty.openpty()
+        try:
+            os.write(master, input_bytes)
+            return subprocess.run(
+                [str(TOOL), *arguments], cwd=cwd, env=self.env, stdin=slave,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=10,
+            )
+        finally:
+            os.close(slave)
+            os.close(master)
 
     def project(self):
         return Path(self.fx("setup", "example", self.origin).stdout.strip())
@@ -146,6 +161,239 @@ class FxTest(unittest.TestCase):
         self.assertEqual((second / "repo/source.txt").read_text(), "original\n")
         branch = self.run_command("git", "-C", second / "repo", "branch", "--show-current")
         self.assertEqual(branch.stdout.strip(), "feature/second")
+
+    def deletion_zellij(self, sessions="example-fix-login\n", list_exit=0, delete_exit=0):
+        log = self.root / "zellij-delete.jsonl"
+        executable = self.bin / "zellij"
+        executable.write_text(
+            f"#!{sys.executable}\n"
+            "import json, sys\n"
+            f"with open({str(log)!r}, 'a') as stream:\n"
+            "    stream.write(json.dumps(sys.argv[1:]) + '\\n')\n"
+            "if sys.argv[1] == 'list-sessions':\n"
+            f"    print({sessions!r}, end='', file=sys.stderr if {list_exit} else sys.stdout)\n"
+            f"    sys.exit({list_exit})\n"
+            f"sys.exit({delete_exit})\n"
+        )
+        executable.chmod(0o755)
+        return log
+
+    def test_delete_removes_task_session_and_worktree_but_keeps_branch_and_other_tasks(self):
+        project = self.project()
+        task = self.task(project)
+        other = self.task(project, "other")
+        (task / "context/findings.md").write_text("Task findings\n")
+        log = self.deletion_zellij("example-fix-login-more\nexample-fix-login\nexample-other\n")
+        result = self.fx("delete", "fix-login", cwd=task / "repo")
+        self.assertIn("Deleted task", result.stderr)
+        self.assertFalse(task.exists())
+        self.assertTrue((other / "repo/source.txt").is_file())
+        clone = project / "repo/main"
+        worktrees = self.run_command("git", "-C", clone, "worktree", "list", "--porcelain").stdout
+        self.assertNotIn(str(task / "repo"), worktrees)
+        self.assertIn(str(other / "repo"), worktrees)
+        self.run_command("git", "-C", clone, "show-ref", "--verify", "refs/heads/feature/fix-login")
+        self.assertEqual([json.loads(line) for line in log.read_text().splitlines()], [
+            ["list-sessions", "--short", "--no-formatting"],
+            ["delete-session", "--force", "example-fix-login"],
+        ])
+
+    def test_delete_without_matching_session_does_not_delete_another_session(self):
+        project = self.project()
+        task = self.task(project)
+        log = self.deletion_zellij("example-fix-login-more\n")
+        self.fx("delete", "fix-login", cwd=project)
+        self.assertFalse(task.exists())
+        self.assertEqual(len(log.read_text().splitlines()), 1)
+
+    def test_delete_handles_zellij_with_no_sessions(self):
+        project = self.project()
+        task = self.task(project)
+        self.deletion_zellij("No active zellij sessions found.\n", list_exit=1)
+        self.fx("delete", "fix-login", cwd=project)
+        self.assertFalse(task.exists())
+
+    def test_delete_preserves_task_on_zellij_failure(self):
+        for options in ({"sessions": "Permission denied\n", "list_exit": 1}, {"delete_exit": 7}):
+            with self.subTest(options=options):
+                project = self.project()
+                task = self.task(project)
+                self.deletion_zellij(**options)
+                result = self.fx("delete", "fix-login", cwd=project, check=False)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertTrue((task / "repo/source.txt").is_file())
+                self.assertIn(str(task / "repo"), self.run_command(
+                    "git", "-C", project / "repo/main", "worktree", "list", "--porcelain").stdout)
+
+    def test_delete_requires_force_for_changed_untracked_and_ignored_files(self):
+        for kind in ("tracked", "untracked", "ignored"):
+            with self.subTest(kind=kind):
+                project = self.project()
+                task = self.task(project, kind)
+                source = task / "repo" / ("source.txt" if kind == "tracked" else "local.txt")
+                source.write_text("Keep this work\n")
+                if kind == "ignored":
+                    (project / "repo/main/.git/info/exclude").write_text("local.txt\n")
+                log = self.deletion_zellij("")
+                result = self.fx("delete", kind, cwd=project, check=False)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("--force", result.stderr)
+                self.assertFalse(log.exists())
+                self.assertEqual(source.read_text(), "Keep this work\n")
+                self.fx("delete", kind, "--force", cwd=project)
+                self.assertFalse(task.exists())
+                log.unlink()
+
+    def test_delete_detached_worktree_requires_force(self):
+        project = self.project()
+        task = self.task(project)
+        self.run_command("git", "-C", task / "repo", "checkout", "--detach")
+        log = self.deletion_zellij()
+        result = self.fx("delete", "fix-login", cwd=project, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("detached", result.stderr)
+        self.assertFalse(log.exists())
+        self.fx("delete", "fix-login", "--force", cwd=project)
+        self.assertFalse(task.exists())
+
+    def test_delete_allows_renamed_branch_and_preserves_it(self):
+        project = self.project()
+        task = self.task(project)
+        self.run_command("git", "-C", task / "repo", "branch", "-m", "renamed-task")
+        self.deletion_zellij()
+        self.fx("delete", "fix-login", cwd=project)
+        self.run_command("git", "-C", project / "repo/main", "show-ref", "--verify", "refs/heads/renamed-task")
+
+    def test_delete_force_removes_worktree_during_paused_rebase(self):
+        project = self.project()
+        task = self.task(project)
+        repo = task / "repo"
+        (repo / "source.txt").write_text("Task commit\n")
+        self.run_command("git", "-C", repo, "commit", "-am", "Task change")
+        branch_commit = self.run_command("git", "-C", repo, "rev-parse", "HEAD").stdout.strip()
+        self.env["GIT_SEQUENCE_EDITOR"] = "sed -i 's/^pick /edit /'"
+        self.run_command("git", "-C", repo, "rebase", "-i", "HEAD~1")
+        self.assertIn("rebase in progress", self.run_command("git", "-C", repo, "status").stdout)
+        (repo / "source.txt").write_text("Uncommitted amendment\n")
+        self.deletion_zellij()
+        self.fx("delete", "fix-login", "--force", cwd=project)
+        self.assertFalse(task.exists())
+        clone = project / "repo/main"
+        self.assertNotIn(str(repo), self.run_command("git", "-C", clone, "worktree", "list", "--porcelain").stdout)
+        self.assertEqual(self.run_command("git", "-C", clone, "rev-parse", "feature/fix-login").stdout.strip(), branch_commit)
+
+    def test_delete_removes_stale_worktree_registration(self):
+        project = self.project()
+        task = self.task(project)
+        shutil.rmtree(task)
+        self.deletion_zellij("")
+        self.fx("delete", "fix-login", cwd=project)
+        self.assertNotIn(str(task / "repo"), self.run_command(
+            "git", "-C", project / "repo/main", "worktree", "list", "--porcelain").stdout)
+
+    def test_delete_preserves_context_when_git_worktree_removal_fails(self):
+        project = self.project()
+        task = self.task(project)
+        context = task / "context/keep.md"
+        context.write_text("Keep these findings\n")
+        git = shutil.which("git", path=self.env["PATH"])
+        wrapper = self.bin / "git"
+        wrapper.write_text(
+            f"#!{sys.executable}\n"
+            "import os, sys\n"
+            "if sys.argv[3:5] == ['worktree', 'remove']:\n"
+            "    print('Simulated removal failure', file=sys.stderr)\n"
+            "    sys.exit(1)\n"
+            f"os.execv({git!r}, [{git!r}, *sys.argv[1:]])\n"
+        )
+        wrapper.chmod(0o755)
+        log = self.deletion_zellij()
+        result = self.fx("delete", "fix-login", cwd=project, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("session is gone", result.stderr)
+        self.assertEqual(context.read_text(), "Keep these findings\n")
+        self.assertTrue((task / "repo/source.txt").is_file())
+        self.assertEqual(json.loads(log.read_text().splitlines()[-1]),
+                         ["delete-session", "--force", "example-fix-login"])
+        wrapper.unlink()
+        self.deletion_zellij("")
+        self.fx("delete", "fix-login", cwd=project)
+        self.assertFalse(task.exists())
+
+    def test_delete_rejects_current_zellij_session_even_with_force(self):
+        project = self.project()
+        task = self.task(project)
+        self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
+        log = self.deletion_zellij()
+        result = self.fx("delete", "fix-login", "--force", cwd=project, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("outside Zellij session", result.stderr)
+        self.assertTrue(task.exists())
+        self.assertFalse(log.exists())
+
+    def test_delete_rejects_locked_worktree_even_with_force(self):
+        project = self.project()
+        task = self.task(project)
+        self.run_command("git", "-C", project / "repo/main", "worktree", "lock", task / "repo")
+        log = self.deletion_zellij()
+        result = self.fx("delete", "fix-login", "--force", cwd=project, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("locked", result.stderr)
+        self.assertTrue(task.exists())
+        self.assertFalse(log.exists())
+
+    def test_delete_rejects_symlink_paths_even_with_force(self):
+        for relative in ("tasks", "tasks/fix-login", "tasks/fix-login/repo"):
+            with self.subTest(relative=relative):
+                project = self.project()
+                task = self.task(project)
+                path = project / relative
+                target = self.root / "outside"
+                path.rename(target)
+                path.symlink_to(target, target_is_directory=True)
+                log = self.deletion_zellij()
+                result = self.fx("delete", "fix-login", "--force", cwd=project, check=False)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertTrue(target.is_dir())
+                self.assertFalse(log.exists())
+                path.unlink()
+                target.rename(path)
+
+    def test_delete_rejects_worktree_from_another_repository(self):
+        project = self.project()
+        task = project / "tasks/fix-login"
+        task.mkdir()
+        self.run_command("git", "-C", self.origin, "worktree", "add", "-b", "foreign", task / "repo")
+        log = self.deletion_zellij()
+        result = self.fx("delete", "fix-login", "--force", cwd=project, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("another repository", result.stderr)
+        self.assertTrue((task / "repo/source.txt").is_file())
+        self.assertFalse(log.exists())
+
+    def test_delete_retries_cleanup_without_worktree_or_task_directory(self):
+        project = self.project()
+        task = self.task(project)
+        self.run_command("git", "-C", project / "repo/main", "worktree", "remove", task / "repo")
+        self.deletion_zellij()
+        self.fx("delete", "fix-login", cwd=project)
+        self.assertFalse(task.exists())
+        self.fx("delete", "fix-login", cwd=project)
+        self.deletion_zellij("")
+        result = self.fx("delete", "fix-login", cwd=project, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Task not found", result.stderr)
+
+    def test_delete_rejects_invalid_arguments_before_deleting(self):
+        project = self.project()
+        task = self.task(project)
+        log = self.deletion_zellij()
+        for arguments in ((), ("../repo",), ("fix-login", "--unknown"), ("fix-login", "--force", "extra")):
+            with self.subTest(arguments=arguments):
+                result = self.fx("delete", *arguments, cwd=project, check=False)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertTrue(task.exists())
+                self.assertFalse(log.exists())
 
     def test_task_copies_ignored_appsettings_with_paths_and_permissions(self):
         (self.origin / ".gitignore").write_text("appsettings*.json\n.env\nignored-dir/\n")
@@ -342,9 +590,9 @@ class FxTest(unittest.TestCase):
         self.assertEqual(self.run_command("git", "-C", worktree, "rev-parse", "HEAD").stdout, head)
         self.assertEqual((worktree / "source.txt").read_text(), "Uncommitted task work\n")
         self.assertEqual(self.run_command("git", "-C", worktree, "rev-parse", "--abbrev-ref", "@{upstream}").stdout.strip(), "origin/main")
-        self.fx("agent", "claude", cwd=task)
+        self.fx("agent", "claude", "--name", "review", cwd=task)
         self.run_command("git", "-C", worktree, "branch", "-m", "fix-login")
-        self.fx("agent", "claude", cwd=task)
+        self.fx("agent", "claude", "--name", "review", cwd=task)
 
     def test_task_reattaches_legacy_branch_and_keeps_its_upstream(self):
         project = self.project()
@@ -612,7 +860,7 @@ pwd -P
                 with self.subTest(agent=agent, reasoning=flag):
                     before = set((task / "context").iterdir())
                     extra = [] if flag is None else ["-r", flag]
-                    result = self.fx("agent", agent, *extra, cwd=task / "repo")
+                    result = self.fx("agent", agent, "--name", "review", *extra, cwd=task / "repo")
                     captured = json.loads(result.stdout)
                     created = set((task / "context").iterdir()) - before
                     self.assertEqual(len(created), 1)
@@ -620,6 +868,9 @@ pwd -P
                     instructions = (session / "instructions.md").read_text()
                     self.assertFalse((session / "initial_prompt.md").exists())
                     self.assertIn(str(session / "findings.md"), instructions)
+                    self.assertIn(str(session / "last_turn_results.md"), instructions)
+                    self.assertIn("Start with last_turn_results.md", instructions)
+                    self.assertIn("Do not read or search any session's events/", instructions)
                     self.assertIn(str(project / "project_memory.md"), instructions)
                     self.assertIn("Wait for my interactive assignment", instructions)
                     self.assertEqual(captured["cwd"], str(task))
@@ -629,6 +880,7 @@ pwd -P
                             "--append-system-prompt-file", str(session / "instructions.md"),
                             "--add-dir", str(project / "project_context"),
                             "--settings", str(session / "claude-settings.json"),
+                            "--debug-file", str(session / "events/claude-debug.log"),
                         ])
                         self.assertIsNone(captured["effort_environment"])
                     else:
@@ -643,6 +895,12 @@ pwd -P
                         self.assertEqual(json.loads(value), instructions.rstrip("\n"))
                         self.assertEqual(arguments[8:11], ["--add-dir", str(project / "project_context"), "-c"])
                         self.assertTrue(arguments[11].startswith("notify="))
+                        self.assertIn("--no-daemon", arguments)
+                        self.assertNotIn("--dangerously-bypass-hook-trust", arguments)
+                        self.assertTrue(any(arg.startswith("hooks.PreToolUse=") for arg in arguments))
+                        self.assertEqual(captured["record_session"], "1")
+                        self.assertEqual(captured["session_log"], str(session / "events/codex-session.jsonl"))
+                        self.assertEqual(captured["event_session"], str(session))
 
     def test_agents_receive_exact_initial_prompt_without_shell_evaluation(self):
         task = self.task()
@@ -656,7 +914,7 @@ pwd -P
             for prompt in prompts:
                 with self.subTest(agent=agent, prompt=prompt):
                     before = set((task / "context").iterdir())
-                    captured = json.loads(self.fx("agent", agent, "--prompt", prompt, cwd=task).stdout)
+                    captured = json.loads(self.fx("agent", agent, "--name", "review", "--prompt", prompt, cwd=task).stdout)
                     self.assertEqual(captured["arguments"][-2:], ["--", prompt])
                     created = set((task / "context").iterdir()) - before
                     self.assertEqual(len(created), 1)
@@ -673,7 +931,7 @@ pwd -P
         for agent in ("claude", "codex"):
             for options in (("-r", "h", "--prompt", "Investigate login"), ("--prompt", "Investigate login", "-r", "h")):
                 with self.subTest(agent=agent, options=options):
-                    captured = json.loads(self.fx("agent", agent, *options, cwd=task).stdout)
+                    captured = json.loads(self.fx("agent", agent, "--name", "review", *options, cwd=task).stdout)
                     arguments = captured["arguments"]
                     self.assertEqual(arguments[-2:], ["--", "Investigate login"])
                     if agent == "claude":
@@ -688,12 +946,12 @@ pwd -P
         for agent in ("claude", "codex"):
             with self.subTest(agent=agent):
                 before = set((task / "context").iterdir())
-                result = self.fx("agent", agent, "--new-tab", "--prompt", prompt, "-r", "h", cwd=task / "repo")
+                result = self.fx("agent", agent, "--name", "review", "--new-tab", "--prompt", prompt, "-r", "h", cwd=task / "repo")
                 captured = json.loads(result.stdout)
                 arguments = captured["arguments"]
                 self.assertEqual(arguments[:9], [
                     "--session", "example-fix-login", "action", "new-tab",
-                    "--name", agent, "--cwd", str(task), "--",
+                    "--name", "review", "--cwd", str(task), "--",
                 ])
                 self.assertEqual(captured["cwd"], str(task))
                 self.assertEqual(arguments[9], str(TOOL.parent / "agents" / agent))
@@ -708,7 +966,7 @@ pwd -P
     def test_new_tab_without_prompt_keeps_interactive_start(self):
         task = self.task()
         self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
-        captured = json.loads(self.fx("agent", "codex", "-r", "l", "--new-tab", cwd=task).stdout)
+        captured = json.loads(self.fx("agent", "codex", "--name", "review", "-r", "l", "--new-tab", cwd=task).stdout)
         arguments = captured["arguments"]
         self.assertEqual(arguments[-1], "low")
         session, = (task / "context").iterdir()
@@ -720,7 +978,7 @@ pwd -P
         task = self.task()
         self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
         for agent in ("claude", "codex"):
-            for options in (("--new-tab", "--name", "review"), ("--name", "Code review", "--new-tab")):
+            for options in (("--new-tab", "--name", "review"), ("--name", "code-review", "--new-tab")):
                 with self.subTest(agent=agent, options=options):
                     captured = json.loads(self.fx("agent", agent, *options, "-r", "h", "--prompt", "Review changes", cwd=task).stdout)
                     arguments = captured["arguments"]
@@ -728,19 +986,109 @@ pwd -P
                     self.assertEqual(arguments[-2:], ["high", "Review changes"])
                     self.assertEqual(arguments[9], str(TOOL.parent / "agents" / agent))
 
-    def test_tab_name_requires_new_tab(self):
+    def test_session_name_works_without_new_tab(self):
         task = self.task()
-        result = self.fx("agent", "codex", "--name", "review", cwd=task, check=False)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("--name requires --new-tab", result.stderr)
-        self.assertEqual(list((task / "context").iterdir()), [])
+        self.fx("agent", "codex", "--name", "review", cwd=task)
+        session, = (task / "context").iterdir()
+        self.assertTrue(session.name.startswith("session-review-"))
+        self.assertTrue((session / "instructions.md").is_file())
 
-    def test_invalid_tab_names_create_no_sessions(self):
+    def test_name_requirement_validates_supplied_names(self):
+        for name in ("review", "Login_Review-2", "2-review", "../escape", "two words", "-review"):
+            with self.subTest(name=name):
+                result = self.run_command(
+                    "bash", "-c", 'source "$1"; require_name Session "$2"', "test", TOOL, name, check=False,
+                )
+                if name in ("review", "Login_Review-2", "2-review"):
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(result.stdout, name + "\n")
+                    self.assertEqual(result.stderr, "")
+                else:
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertEqual(result.stdout, "")
+                    self.assertIn("Names must start with", result.stderr)
+
+    def test_missing_names_fail_without_terminal_input_and_create_no_context(self):
+        task = self.task()
+        group = self.completed_group(task)
+        before = set((task / "context").rglob("*"))
+        for arguments, kind in (
+            (("agent", "codex"), "Session"),
+            (("agent", "group"), "Group"),
+            (("agent", "group", "compare", "review"), "Comparison session"),
+        ):
+            with self.subTest(kind=kind):
+                result = subprocess.run(
+                    [str(TOOL), *arguments], cwd=task, env=self.env, stdin=subprocess.DEVNULL,
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=10,
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f"{kind} name is required. Supply --name", result.stderr)
+                self.assertEqual(result.stdout, "")
+                self.assertEqual(set((task / "context").rglob("*")), before)
+        self.assertFalse((group / "comparisons").exists())
+
+    def test_session_name_prompt_retries_invalid_input_and_names_directory_and_tab(self):
+        task = self.task()
+        self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
+        result = self.fx_with_terminal_input(
+            "agent", "codex", "--new-tab", cwd=task,
+            input_bytes=b"\n../escape\ntwo words\nlogin-review\n",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr.count("Session name: "), 4)
+        session, = (task / "context").iterdir()
+        self.assertTrue(session.name.startswith("session-login-review-"))
+        args = json.loads(result.stdout)["arguments"]
+        self.assertEqual(args[5], "login-review")
+        self.assertEqual(args[13], str(session))
+
+    def test_group_name_prompt_names_group_and_member_tabs(self):
+        task = self.task()
+        self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
+        result = self.fx_with_terminal_input("agent", "group", cwd=task, input_bytes=b"login-review\n")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Group name: ", result.stderr)
+        group, = (task / "context/groups").iterdir()
+        self.assertTrue(group.name.startswith("login-review-"))
+        for number, line in enumerate(result.stdout.splitlines(), 1):
+            args = json.loads(line)["arguments"]
+            self.assertTrue(args[5].startswith(f"{group.name}-{number}-"))
+
+    def test_comparison_session_name_prompt_names_directory_and_tab(self):
+        task = self.task()
+        group = self.completed_group(task)
+        result = self.fx_with_terminal_input(
+            "agent", "group", "compare", "review", "--new-tab", cwd=task, input_bytes=b"login-summary\n",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Comparison session name: ", result.stderr)
+        comparison, = (group / "comparisons").iterdir()
+        self.assertTrue(comparison.name.startswith("session-login-summary-"))
+        args = json.loads(result.stdout)["arguments"]
+        self.assertEqual(args[5], f"{group.name}-login-summary")
+        self.assertEqual(args[13], str(comparison))
+
+    def test_name_prompt_end_of_input_cancels_without_creating_context(self):
+        task = self.task()
+        self.completed_group(task)
+        before = set((task / "context").rglob("*"))
+        for arguments in (("agent", "codex"), ("agent", "group"),
+                          ("agent", "group", "compare", "review")):
+            with self.subTest(arguments=arguments):
+                result = self.fx_with_terminal_input(*arguments, cwd=task, input_bytes=b"\x04")
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Launch canceled", result.stderr)
+                self.assertEqual(result.stdout, "")
+                self.assertEqual(set((task / "context").rglob("*")), before)
+
+    def test_invalid_session_names_create_no_sessions(self):
         task = self.task()
         self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
         for options in (
             ("--name",), ("--name", ""), ("--name", "   "),
             ("--name", "review\nnext"), ("--name", "review\x1b[2J"),
+            ("--name", "../escape"), ("--name", "two words"),
             ("--name", "-r"), ("--name", "first", "--name", "second"),
         ):
             with self.subTest(options=options):
@@ -755,7 +1103,7 @@ pwd -P
                 self.env.pop("ZELLIJ", None)
                 self.env.pop("ZELLIJ_SESSION_NAME", None)
                 self.env.update(environment)
-                result = self.fx("agent", "claude", "--new-tab", cwd=task, check=False)
+                result = self.fx("agent", "claude", "--name", "review", "--new-tab", cwd=task, check=False)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("inside a Zellij session", result.stderr)
                 self.assertEqual(list((task / "context").iterdir()), [])
@@ -767,7 +1115,7 @@ pwd -P
         self.env["PATH"] = f"{self.bin}:/usr/bin:/bin"
         if shutil.which("zellij", path=self.env["PATH"]):
             self.skipTest("Zellij is installed in the system test path")
-        result = self.fx("agent", "claude", "--new-tab", cwd=task, check=False)
+        result = self.fx("agent", "claude", "--name", "review", "--new-tab", cwd=task, check=False)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Install Zellij", result.stderr)
         self.assertEqual(list((task / "context").iterdir()), [])
@@ -775,7 +1123,7 @@ pwd -P
     def test_new_tab_failure_propagates_and_preserves_session_context(self):
         task = self.task()
         self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login", FX_TEST_ZELLIJ_EXIT="23")
-        result = self.fx("agent", "codex", "--new-tab", "--prompt", "Review changes", cwd=task, check=False)
+        result = self.fx("agent", "codex", "--name", "review", "--new-tab", "--prompt", "Review changes", cwd=task, check=False)
         self.assertEqual(result.returncode, 23)
         session, = (task / "context").iterdir()
         self.assertEqual((session / "initial_prompt.md").read_text(), "Review changes")
@@ -832,7 +1180,7 @@ pwd -P
     def test_group_custom_members_replace_defaults_and_override_reasoning(self):
         task = self.task()
         self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
-        result = self.fx("agent", "group", "--agent", "codex:l", "--agent", "claude:h",
+        result = self.fx("agent", "group", "--name", "review", "--agent", "codex:l", "--agent", "claude:h",
                          "--agent", "codex", "-r", "h", cwd=task)
         calls = [json.loads(line)["arguments"] for line in result.stdout.splitlines()]
         self.assertEqual([Path(args[9]).name for args in calls], ["codex", "claude", "codex"])
@@ -849,7 +1197,7 @@ pwd -P
         task = self.task()
         self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
         for options, count, reasoning in ((["-r", "l"], 2, "low"), (["--agent", "codex"], 1, "medium")):
-            result = self.fx("agent", "group", *options, "--prompt", "--help", cwd=task)
+            result = self.fx("agent", "group", "--name", "review", *options, "--prompt", "--help", cwd=task)
             calls = [json.loads(line)["arguments"] for line in result.stdout.splitlines()]
             self.assertEqual(len(calls), count)
             self.assertTrue(all(args[-2:] == [reasoning, "--help"] for args in calls))
@@ -889,7 +1237,7 @@ pwd -P
         self.env["PATH"] = f"{self.bin}:/usr/bin:/bin"
         if shutil.which("codex", path=self.env["PATH"]):
             self.skipTest("Codex is installed in the system test path")
-        result = self.fx("agent", "group", cwd=task, check=False)
+        result = self.fx("agent", "group", "--name", "review", cwd=task, check=False)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("codex CLI is not available", result.stderr)
         self.assertEqual(result.stdout, "")
@@ -897,11 +1245,11 @@ pwd -P
 
     def test_group_requires_zellij_and_a_task(self):
         task = self.task()
-        result = self.fx("agent", "group", cwd=task, check=False)
+        result = self.fx("agent", "group", "--name", "review", cwd=task, check=False)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("inside a Zellij session", result.stderr)
         self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
-        result = self.fx("agent", "group", cwd=task.parent.parent, check=False)
+        result = self.fx("agent", "group", "--name", "review", cwd=task.parent.parent, check=False)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("inside a task", result.stderr)
         self.assertEqual(list((task / "context").iterdir()), [])
@@ -919,7 +1267,7 @@ pwd -P
             "print(json.dumps({'arguments': args}))\n"
             "sys.exit(23 if session.name.startswith('2-') else 0)\n"
         )
-        result = self.fx("agent", "group", "--agent", "claude", "--agent", "codex",
+        result = self.fx("agent", "group", "--name", "review", "--agent", "claude", "--agent", "codex",
                          "--agent", "claude", "--prompt", "Review", cwd=task, check=False)
         self.assertEqual(result.returncode, 23, result.stderr)
         self.assertEqual(len(result.stdout.splitlines()), 2)
@@ -935,14 +1283,14 @@ pwd -P
         outside = self.root / "outside"
         outside.mkdir()
         (task / "context/groups").symlink_to(outside)
-        result = self.fx("agent", "group", cwd=task, check=False)
+        result = self.fx("agent", "group", "--name", "review", cwd=task, check=False)
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(list(outside.iterdir()), [])
 
     def test_parallel_launches_keep_separate_context(self):
         task = self.task()
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
-            results = list(pool.map(lambda _: self.fx("agent", "claude", cwd=task), range(4)))
+            results = list(pool.map(lambda _: self.fx("agent", "claude", "--name", "review", cwd=task), range(4)))
         files = [json.loads(result.stdout)["arguments"][5] for result in results]
         self.assertEqual(len(set(files)), 4)
         self.assertEqual(len(list((task / "context").iterdir())), 4)
@@ -950,7 +1298,7 @@ pwd -P
     def test_agent_failure_preserves_context_and_exit_status(self):
         task = self.task()
         self.env["FX_TEST_AGENT_EXIT"] = "23"
-        result = self.fx("agent", "codex", cwd=task, check=False)
+        result = self.fx("agent", "codex", "--name", "review", cwd=task, check=False)
         self.assertEqual(result.returncode, 23)
         session, = (task / "context").iterdir()
         self.assertTrue((session / "instructions.md").exists())
@@ -970,13 +1318,14 @@ pwd -P
             "  event = {'hook_event_name': 'Stop', 'session_id': 'claude-session', 'prompt_id': turn, 'last_assistant_message': text}\n"
             "  subprocess.run(hook['command'], shell=True, input=json.dumps(event), text=True, check=True)\n"
         )
-        self.fx("agent", "claude", cwd=task)
+        self.fx("agent", "claude", "--name", "review", cwd=task)
         session, = (task / "context").iterdir()
         responses = sorted((session / "results").glob("turn-*/response.md"))
         self.assertEqual([p.read_text() for p in responses], [
             "Review: missing input validation.\n", "Plan: validate before saving.\n",
         ])
         self.assertEqual((session / "findings.md").read_text(), "# Findings\n\nNo findings recorded.\n")
+        self.assertEqual((session / "last_turn_results.md").read_text(), "Plan: validate before saving.\n")
 
     def test_codex_final_response_is_captured_by_notification(self):
         task = self.task()
@@ -990,22 +1339,23 @@ pwd -P
             "  event = {'type': 'agent-turn-complete', 'thread-id': 'codex-session', 'turn-id': 'one', 'last-assistant-message': 'Implement the reviewed plan.\\n'}\n"
             "  subprocess.run(command + [json.dumps(event)], check=True)\n"
         )
-        self.fx("agent", "codex", cwd=task)
+        self.fx("agent", "codex", "--name", "review", cwd=task)
         session, = (task / "context").iterdir()
         responses = list((session / "results").glob("turn-*/response.md"))
         self.assertEqual(len(responses), 1)
         self.assertEqual(responses[0].read_text(), "Implement the reviewed plan.\n")
+        self.assertEqual((session / "last_turn_results.md").read_text(), "Implement the reviewed plan.\n")
 
     def test_saved_response_is_supplied_to_new_agent_and_default_index(self):
         task = self.task()
-        self.fx("agent", "claude", cwd=task)
+        self.fx("agent", "claude", "--name", "review", cwd=task)
         source, = (task / "context").iterdir()
         event = json.dumps({"type": "agent-turn-complete", "thread-id": "thread", "turn-id": "turn",
                             "last-assistant-message": "The repair plan: validate the input before saving.\n"})
         self.run_command(sys.executable, TOOL.parent / "agents/codex_capture.py", "capture", source, event)
         for agent in ("codex", "claude"):
             before = set((task / "context").iterdir())
-            result = self.fx("agent", agent, "--from", source, "--prompt", "Implement the saved plan", cwd=task)
+            result = self.fx("agent", agent, "--name", "review", "--from", source, "--prompt", "Implement the saved plan", cwd=task)
             session, = set((task / "context").iterdir()) - before
             instructions = (session / "instructions.md").read_text()
             self.assertIn("The repair plan: validate the input before saving.", instructions)
@@ -1019,7 +1369,7 @@ pwd -P
                 self.assertEqual(Path(args[5]).read_text(), instructions)
             self.assertEqual(args[-1], "Implement the saved plan")
         before = set((task / "context").iterdir())
-        self.fx("agent", "codex", cwd=task)
+        self.fx("agent", "codex", "--name", "review", cwd=task)
         session, = set((task / "context").iterdir()) - before
         snapshot = (session / "input-context.md").read_text()
         self.assertIn(str(source.relative_to(task)), snapshot)
@@ -1029,25 +1379,25 @@ pwd -P
         project = self.project()
         task = self.task(project)
         other = self.task(project, "other")
-        self.fx("agent", "claude", cwd=task)
+        self.fx("agent", "claude", "--name", "review", cwd=task)
         empty, = (task / "context").iterdir()
         for source in (empty, other / "context", task / "context/missing"):
             with self.subTest(source=source):
                 before = set((task / "context").iterdir())
-                result = self.fx("agent", "codex", "--from", source, cwd=task, check=False)
+                result = self.fx("agent", "codex", "--name", "review", "--from", source, cwd=task, check=False)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertEqual(set((task / "context").iterdir()), before)
 
     def test_groups_share_prior_result_index_by_default_and_explicit_handoff_text(self):
         task = self.task()
-        self.fx("agent", "claude", cwd=task)
+        self.fx("agent", "claude", "--name", "review", cwd=task)
         source, = (task / "context").iterdir()
         event = json.dumps({"type": "agent-turn-complete", "thread-id": "thread", "turn-id": "turn",
                             "last-assistant-message": "Shared starting plan"})
         self.run_command(sys.executable, TOOL.parent / "agents/codex_capture.py", "capture", source, event)
         self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
         for options in ([], ["--from", source]):
-            result = self.fx("agent", "group", *options, cwd=task)
+            result = self.fx("agent", "group", "--name", "review", *options, cwd=task)
             sessions = [Path(json.loads(line)["arguments"][13]) for line in result.stdout.splitlines()]
             snapshots = [(session / "input-context.md").read_text() for session in sessions]
             self.assertEqual(snapshots[0], snapshots[1])
@@ -1059,14 +1409,14 @@ pwd -P
 
     def test_group_snapshot_excludes_peer_and_later_results(self):
         task = self.task()
-        self.fx("agent", "claude", cwd=task)
+        self.fx("agent", "claude", "--name", "review", cwd=task)
         source, = (task / "context").iterdir()
         capture_script = TOOL.parent / "agents/codex_capture.py"
         event = {"type": "agent-turn-complete", "thread-id": "thread", "turn-id": "before",
                  "last-assistant-message": "Earlier plan"}
         self.run_command(sys.executable, capture_script, "capture", source, json.dumps(event))
         self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
-        previous = self.fx("agent", "group", cwd=task)
+        previous = self.fx("agent", "group", "--name", "review", cwd=task)
         for line in previous.stdout.splitlines():
             member = Path(json.loads(line)["arguments"][13])
             self.run_command(sys.executable, capture_script, "capture", member, json.dumps(event))
@@ -1085,7 +1435,7 @@ pwd -P
             f"  subprocess.run([sys.executable, {str(capture_script)!r}, 'capture', str(target), json.dumps(event)], check=True)\n"
             "print(json.dumps({'arguments': args}))\n"
         )
-        result = self.fx("agent", "group", cwd=task)
+        result = self.fx("agent", "group", "--name", "review", cwd=task)
         members = [Path(json.loads(line)["arguments"][13]) for line in result.stdout.splitlines()]
         snapshots = [(member / "input-context.md").read_text() for member in members]
         self.assertEqual(snapshots[0], snapshots[1])
@@ -1103,12 +1453,12 @@ pwd -P
     def test_commands_require_the_correct_working_directory(self):
         project = self.project()
         self.assertNotEqual(self.fx("task", "fix", check=False).returncode, 0)
-        self.assertNotEqual(self.fx("agent", "claude", cwd=project, check=False).returncode, 0)
+        self.assertNotEqual(self.fx("agent", "claude", "--name", "review", cwd=project, check=False).returncode, 0)
 
     def test_compare_group_uses_default_agent_and_captured_member_results(self):
         task = self.task()
         group = self.completed_group(task)
-        result = self.fx("agent", "group", "compare", "review", cwd=task / "repo")
+        result = self.fx("agent", "group", "compare", "review", "--name", "summary", cwd=task / "repo")
         args = json.loads(result.stdout)["arguments"]
         self.assertIn('model_reasoning_effort="medium"', args)
         self.assertIn("gpt-6.1-sol", args)
@@ -1128,9 +1478,9 @@ pwd -P
     def test_compare_can_use_claude_high_reasoning_in_new_tab(self):
         task = self.task()
         group = self.completed_group(task)
-        result = self.fx("agent", "group", "compare", group.name, "--agent", "claude", "-r", "h", "--new-tab", cwd=task)
+        result = self.fx("agent", "group", "compare", group.name, "--name", "summary", "--agent", "claude", "-r", "h", "--new-tab", cwd=task)
         args = json.loads(result.stdout)["arguments"]
-        self.assertEqual(args[5], f"{group.name}-compare")
+        self.assertEqual(args[5], f"{group.name}-summary")
         self.assertEqual(args[9], str(TOOL.parent / "agents/claude"))
         self.assertEqual(args[-2], "high")
         comparison, = (group / "comparisons").iterdir()
@@ -1143,7 +1493,7 @@ pwd -P
         task = self.task()
         group = self.completed_group(task)
         shutil.rmtree(group / "2-codex/results")
-        result = self.fx("agent", "group", "compare", "review", cwd=task, check=False)
+        result = self.fx("agent", "group", "compare", "review", "--name", "summary", cwd=task, check=False)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("2-codex", result.stderr)
         self.assertFalse((group / "comparisons").exists())
@@ -1153,30 +1503,30 @@ pwd -P
         task = self.task()
         first = self.completed_group(task)
         second = self.completed_group(task)
-        result = self.fx("agent", "group", "compare", "review", cwd=task, check=False)
+        result = self.fx("agent", "group", "compare", "review", "--name", "summary", cwd=task, check=False)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(first.name, result.stderr)
         self.assertIn(second.name, result.stderr)
         self.assertFalse((first / "comparisons").exists())
         self.assertFalse((second / "comparisons").exists())
-        self.fx("agent", "group", "compare", first.name, cwd=task)
+        self.fx("agent", "group", "compare", first.name, "--name", "summary", cwd=task)
         self.assertTrue((first / "comparisons").is_dir())
 
     def test_repeated_comparisons_capture_results_and_do_not_feed_previous_merges_back(self):
         task = self.task()
         group = self.completed_group(task)
-        self.fx("agent", "group", "compare", "review", cwd=task)
+        self.fx("agent", "group", "compare", "review", "--name", "summary", cwd=task)
         first, = (group / "comparisons").iterdir()
         event = {"type": "agent-turn-complete", "thread-id": "comparison", "turn-id": "one",
                  "last-assistant-message": "Merged report: add validation and tests."}
         self.run_command(sys.executable, TOOL.parent / "agents/codex_capture.py", "capture", first, json.dumps(event))
-        self.fx("agent", "group", "compare", "review", cwd=task)
+        self.fx("agent", "group", "compare", "review", "--name", "summary", cwd=task)
         second, = set((group / "comparisons").iterdir()) - {first}
         self.assertNotIn("Merged report", (second / "input-context.md").read_text())
-        result = self.fx("agent", "claude", "--from", first, cwd=task)
+        result = self.fx("agent", "claude", "--name", "review", "--from", first, cwd=task)
         instructions = Path(json.loads(result.stdout)["arguments"][5]).read_text()
         self.assertIn("Merged report: add validation and tests.", instructions)
-        result = self.fx("agent", "claude", cwd=task)
+        result = self.fx("agent", "claude", "--name", "review", cwd=task)
         instructions = Path(json.loads(result.stdout)["arguments"][5]).read_text()
         self.assertIn(str(first.relative_to(task) / "results/turn-000001/response.md"), instructions)
 
@@ -1197,12 +1547,12 @@ pwd -P
         group = self.completed_group(task)
         request = group / "1-claude/tab-request.txt"
         request.write_text("failed: 23\n")
-        result = self.fx("agent", "group", "compare", "review", cwd=task, check=False)
+        result = self.fx("agent", "group", "compare", "review", "--name", "summary", cwd=task, check=False)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("not accepted", result.stderr)
         request.write_text("accepted\n")
         (group / "2-codex/capture-error.txt").write_text("Capture failed")
-        result = self.fx("agent", "group", "compare", "review", cwd=task, check=False)
+        result = self.fx("agent", "group", "compare", "review", "--name", "summary", cwd=task, check=False)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Capture failed", result.stderr)
         self.assertFalse((group / "comparisons").exists())

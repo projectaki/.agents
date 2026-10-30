@@ -11,7 +11,17 @@ task="$3"
 session="$4"
 reasoning="$5"
 adapter_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+events_dir="$(python3 "$adapter_dir/../fx_events.py" "$session" codex-session.jsonl)"
+codex --version > "$events_dir/harness-version.txt"
+export CODEX_TUI_RECORD_SESSION=1
+export CODEX_TUI_SESSION_LOG_PATH="$events_dir/codex-session.jsonl"
+export FX_SESSION_CONTEXT_DIR="$session"
 capture_config="$(python3 "$adapter_dir/codex_capture.py" config "$session")"
+hook_config="$(python3 "$adapter_dir/codex_capture.py" hooks-config "$session")"
+hook_args=()
+while IFS= read -r setting; do
+  hook_args+=(-c "$setting")
+done <<< "$hook_config"
 shift 5
 [[ $# == 0 ]] || set -- -- "$1"
 instructions="$(cat "$session/instructions.md")"
@@ -28,4 +38,6 @@ exec codex \
   -c "developer_instructions=\"$instructions\"" \
   --add-dir "$project/project_context" \
   -c "$capture_config" \
+  --no-daemon \
+  "${hook_args[@]}" \
   "$@"

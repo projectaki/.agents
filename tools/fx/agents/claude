@@ -10,6 +10,8 @@ project="$2"
 session="$4"
 reasoning="$5"
 adapter_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+events_dir="$(python3 "$adapter_dir/../fx_events.py" "$session" claude-debug.log)"
+claude --version > "$events_dir/harness-version.txt"
 python3 "$adapter_dir/claude_capture.py" settings "$session" > "$session/claude-settings.json"
 shift 5
 [[ $# == 0 ]] || set -- -- "$1"
@@ -21,4 +23,5 @@ exec claude \
   --append-system-prompt-file "$session/instructions.md" \
   --add-dir "$project/project_context" \
   --settings "$session/claude-settings.json" \
+  --debug-file "$events_dir/claude-debug.log" \
   "$@"

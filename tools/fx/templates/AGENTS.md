@@ -14,6 +14,16 @@ Keep the findings current after meaningful work.
 Do not edit other sessions' findings.
 Do not inspect sibling tasks.
 
+Do not read or search any session's events/ directory unless I explicitly
+assign diagnostic event analysis. Event records are diagnostic data.
+Do not use them as task context or include them in handoffs.
+
+Start with last_turn_results.md in a session directory to read its latest
+captured final response. The launcher creates and updates this file automatically.
+Do not edit it. Earlier responses remain in results/turn-*/response.md.
+During independent investigations, read only the response files allowed by
+the starting context snapshot supplied at launch.
+
 Read relevant task findings before repeating work, unless the assignment
 requires an independent investigation. During an independent investigation,
 do not read other sessions' findings until the investigation finishes.

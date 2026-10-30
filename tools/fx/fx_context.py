@@ -21,6 +21,20 @@ def write_file(path, text):
         os.fsync(stream.fileno())
 
 
+def publish_latest_response(session, result):
+    with (result / "response.md").open(encoding="utf-8", newline="") as stream:
+        response = stream.read()
+    with tempfile.TemporaryDirectory(prefix=".latest-response-", dir=session) as temporary:
+        pending = Path(temporary) / "response.md"
+        write_file(pending, response)
+        os.replace(pending, session / "last_turn_results.md")
+        descriptor = os.open(session, os.O_RDONLY)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+
+
 def save_response(session, agent, conversation_id, turn_id, response):
     if not all(isinstance(value, str) and value for value in
                (agent, conversation_id, turn_id, response)):
@@ -35,10 +49,11 @@ def save_response(session, agent, conversation_id, turn_id, response):
     ).encode()).hexdigest()
     with (session / ".capture.lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
-        existing = sorted(results.glob("turn-*"))
+        existing = sorted(results.glob("turn-*"), key=lambda path: int(path.name[5:]))
         for directory in existing:
             metadata = json.loads((directory / "metadata.json").read_text())
             if metadata["identity"] == identity:
+                publish_latest_response(session, existing[-1])
                 return directory
         number = max((int(path.name[5:]) for path in existing), default=0) + 1
         destination = results / f"turn-{number:06d}"
@@ -61,6 +76,7 @@ def save_response(session, agent, conversation_id, turn_id, response):
         finally:
             if pending.exists():
                 shutil.rmtree(pending)
+        publish_latest_response(session, destination)
         return destination
 
 
@@ -102,6 +118,8 @@ def prepare_context(task, sources):
         source = Path(supplied).resolve(strict=True)
         if not source.is_relative_to(context):
             raise ValueError(f"Handoff sources must be inside this task's context: {supplied}")
+        if "events" in source.relative_to(context).parts:
+            raise ValueError("Diagnostic events cannot be used as handoff context.")
         results = captured_results(source)
         if not results:
             raise ValueError(f"No captured responses in {source}. Finish a captured turn first.")
@@ -123,6 +141,8 @@ def prepare_context(task, sources):
         resolved = directory.resolve(strict=True)
         if not resolved.is_relative_to(context):
             raise ValueError(f"Captured result is outside the task context: {directory}")
+        if "events" in resolved.relative_to(context).parts:
+            raise ValueError("Diagnostic events cannot be used as handoff context.")
         for name in ("metadata.json", "response.md"):
             if (directory / name).is_symlink():
                 raise ValueError(f"Captured result must not be a symbolic link: {directory / name}")

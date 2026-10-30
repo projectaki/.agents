@@ -29,7 +29,7 @@ Connect to the server, or use a local terminal. Then run:
 ```bash
 fx setup my-project owner/repository
 fx task fix-login
-fx agent claude
+fx agent claude --name investigate-login
 ```
 
 `fx task` creates or attaches to the Zellij session `my-project-fix-login`. A new session
@@ -39,11 +39,12 @@ or Zellij pane, enter the same task directory, and start another session:
 
 ```bash
 cd ~/work/my-project/tasks/fix-login
-fx agent codex -r h
+fx agent codex --name review-login -r h
 ```
 
-Each launch creates a new session directory. It does not resume a previous
-conversation. Exit the agent to return to the task shell.
+Each launch requires a session name and creates a new session directory.
+Omit `--name` to enter the name at an interactive terminal prompt.
+It does not resume a previous conversation. Exit the agent to return to the task shell.
 
 ## Commands
 
@@ -202,7 +203,41 @@ Project and task names start with a letter or digit. Remaining characters
 can be letters, digits, underscores, or hyphens.
 Run setup and task creation sequentially. Parallel agent launches are supported.
 
-### `fx agent <agent> [-r l|m|h] [--prompt <text>] [--from <context-directory>] [--new-tab [--name <name>]]`
+### `fx delete <task_name> [--force]`
+
+Deletes the named task directory, including its context and captured responses.
+Removes its Git worktree registration and deletes the Zellij session named
+`<project_name>-<task_name>`. A running session is stopped. An exited session's
+saved state is deleted. Git branches and committed work on those branches remain.
+
+Run from the project directory in a terminal outside the target Zellij session:
+
+```bash
+cd ~/work/my-project
+fx delete fix-login
+```
+
+Uncommitted changes, untracked files, ignored files such as local settings, and
+a detached checkout require `--force`:
+
+```bash
+fx delete fix-login --force
+```
+
+This discards those files and any worktree state from an unfinished rebase.
+Detached commits are not saved to a new branch. Save any work you need first.
+Task context files are deleted even without `--force`.
+The command accepts a renamed task branch. It rejects symbolic links, worktrees
+from another repository, and locked worktrees, including with `--force`.
+
+Zellij must be installed. A missing session does not prevent deletion.
+A session deletion failure preserves task files. If Git then fails to remove the
+worktree, the session is already gone and the task files remain. Resolve the
+reported error and retry. Cleanup can be retried when the worktree has already
+been removed or only the named Zellij session remains.
+Do not start another task session while deletion is in progress.
+
+### `fx agent <agent> [--name <name>] [-r l|m|h] [--prompt <text>] [--from <context-directory>] [--new-tab]`
 
 Run inside a task or its worktree. The agent starts in the task directory.
 The supported adapters are:
@@ -220,22 +255,34 @@ Without `--prompt`, the agent waits for an interactive assignment. Supply it
 to start work immediately in the interactive session:
 
 ```bash
-fx agent codex -r h --prompt 'Review the current changes. Write findings without editing source.'
-fx agent claude --prompt 'Investigate the failing login test.'
+fx agent codex --name review-login -r h --prompt 'Review the current changes. Write findings without editing source.'
+fx agent claude --name investigate-login --prompt 'Investigate the failing login test.'
 ```
 
 Use `--new-tab` from inside Zellij to open the agent in a new tab:
 
 ```bash
-fx agent claude --new-tab
+fx agent claude --new-tab --name investigate
 fx agent codex --new-tab --name review
 fx agent codex --new-tab --name review -r h --prompt 'Review the current changes without editing source.'
 ```
 
-The tab opens in the task directory and receives focus. Its name defaults to
-the agent name. Use `--name` with `--new-tab` to set a different title. Quote
-names containing spaces. Names must contain text, must not start with a dash,
-and cannot contain control characters. Repeated `--name` flags are rejected.
+Every session requires a name. Supply it with `--name`, or enter it at the
+terminal prompt when the option is omitted. Invalid prompt input asks again.
+End the input to cancel without creating a session. Commands without terminal
+input must supply `--name`; they fail without creating context if it is missing.
+An explicitly empty or invalid `--name` fails without prompting.
+
+Names start with a letter or digit. Remaining characters can be letters,
+digits, underscores, or hyphens. Spaces are not accepted. Repeated `--name`
+flags are rejected. These rules also apply to groups and comparison sessions.
+
+Session directories use `context/session-<name>-XXXXXXXX/`. The random suffix
+keeps repeated and concurrent launches separate. Use the printed directory
+path to refer to a specific session or supply it with `--from`.
+
+The tab opens in the task directory and receives focus. Its title is the
+session name. The same `--name` option applies in the current terminal.
 The tab belongs to the current Zellij session. Each invocation creates one
 agent context directory. The command returns after Zellij creates the tab;
 agent startup errors appear in that tab. A failed tab request preserves the
@@ -259,10 +306,14 @@ configuration setting. This overrides that setting for this session only.
 Claude receives an appended system prompt file. A user prompt is passed only
 when `--prompt` is supplied.
 Both preserve their normal permission checks. Claude adds session-specific
-capture hooks through `--settings`. Codex uses its `notify` configuration slot
+capture hooks through `--settings`. Codex adds diagnostic lifecycle hooks
+through session configuration and uses its `notify` configuration slot
 for capture during an `fx` session, replacing any custom external notifier for
 that invocation. The built-in terminal notification settings still apply.
 Neither adapter edits global agent configuration.
+Codex runs with `--no-daemon` so diagnostic hooks inherit the current session's
+output directory. Its hook commands retain the normal trust checks. Use
+`/hooks` to review and trust them before relying on lifecycle event coverage.
 
 ### `fx agent group [--name <name>] [--agent <agent[:l|m|h]> ...] [-r l|m|h] [--prompt <text>] [--from <context-directory>]`
 
@@ -293,8 +344,9 @@ that text in `initial_prompt.md`. Without `--prompt`, each session waits for
 interactive input. Default members are listed in the tool's `default-group`
 file. Adapter selection and model defaults work as for individual launches.
 
-Each invocation creates a fresh directory under `context/groups/`. `--name`
-defaults to `group` and follows the project and task naming rules. A random
+Each invocation requires a group name. Supply `--name` or enter the name at
+the terminal prompt. Without terminal input, a missing name produces an error.
+Each invocation creates a fresh directory under `context/groups/`. A random
 suffix distinguishes repeated runs and concurrent launches. For example:
 
 ```text
@@ -315,6 +367,8 @@ context/groups/review-Ab12Cd34/
 group directory name plus the member number and agent name, such as
 `review-Ab12Cd34-1-claude`. They are individual tabs in the current Zellij
 session. The shared prefix identifies the group.
+Member session names use the member number and agent name within the named
+group. The command does not prompt separately for each member.
 
 Group instructions require independent investigation. Members can read the
 task rules, project memory, project context, repository, and earlier captured
@@ -332,7 +386,7 @@ Use the short group name if it identifies one run, or the full name printed
 by the launcher:
 
 ```bash
-fx agent group compare review --new-tab
+fx agent group compare review --name summary --new-tab
 ```
 
 The group command returns after requesting the tabs. It does not wait for
@@ -347,7 +401,7 @@ all prepared context and leaves earlier tabs running. Inspect those tabs and
 the request files before retrying. Running the command again creates a new
 group; it does not retry members within the existing group.
 
-### `fx agent group compare <group_name> [--agent <agent>] [-r l|m|h] [--new-tab]`
+### `fx agent group compare <group_name> [--name <name>] [--agent <agent>] [-r l|m|h] [--new-tab]`
 
 Run this after every group member has finished its intended responses. The
 command starts a single interactive comparison agent. It supplies the group's
@@ -356,9 +410,9 @@ member. The default agent is Codex with medium reasoning. It runs in the
 current terminal unless `--new-tab` is supplied.
 
 ```bash
-fx agent group compare review
-fx agent group compare review --agent claude -r h --new-tab
-fx agent group compare review-Ab12Cd34 --new-tab
+fx agent group compare review --name summary
+fx agent group compare review --name summary --agent claude -r h --new-tab
+fx agent group compare review-Ab12Cd34 --name summary --new-tab
 ```
 
 Names resolve within the current task. A short name such as `review` works
@@ -366,6 +420,11 @@ when only one matching group exists. If several runs match, the command lists
 their full names and stops. It never selects a run based on recency. The
 default comparison agent is configured in the tool's `default-compare-agent`
 file. `--agent` overrides it for one comparison.
+
+The comparison session requires its own name through `--name` or the terminal
+prompt. Without terminal input, `--name` is required. The positional group
+name selects the existing group. It does not name the new session.
+Comparison tabs use the full group directory name followed by the session name.
 
 The comparison assignment asks the agent to combine duplicate findings,
 preserve useful unique details, check disagreements against evidence, cite
@@ -377,16 +436,18 @@ correct earlier ones. Previous comparison reports are excluded from the input.
 Each invocation creates its own session under the selected group:
 
 ```text
-context/groups/review-Ab12Cd34/comparisons/session-XXXXXXXX/
+context/groups/review-Ab12Cd34/comparisons/session-summary-XXXXXXXX/
 ├── source-group.txt
 ├── input-context.md
 ├── initial_prompt.md
 ├── findings.md
+├── last_turn_results.md
 └── results/turn-000001/response.md
 ```
 
-The agent is instructed to write the merged report to `findings.md`. The
-normal completion callback captures its final response in `results/`.
+The agent is instructed to write the merged report to `findings.md`. Read
+`last_turn_results.md` for its latest captured final response. The normal
+completion callback also preserves each response in `results/`.
 Later sessions can discover captured comparison reports in the task's result
 index or receive one explicitly with `--from` and its comparison session path.
 Repeated comparisons preserve earlier comparison sessions.
@@ -409,9 +470,10 @@ The capture script receives the response directly. It does not parse terminal
 screens, copy tool output, or require the agent to write a file.
 
 ```text
-context/session-XXXXXXXX/
+context/session-review-XXXXXXXX/
 ├── findings.md
 ├── input-context.md
+├── last_turn_results.md
 └── results/
     ├── turn-000001/
     │   ├── response.md
@@ -421,13 +483,23 @@ context/session-XXXXXXXX/
         └── metadata.json
 ```
 
-`response.md` contains the exact response text supplied by the CLI.
+Start with `last_turn_results.md` to read a session's latest captured final
+response. It contains the exact response text supplied by the CLI. The file
+appears after the first successful capture. Each new captured response replaces
+it atomically, so readers see a complete response. It is a current snapshot,
+not an appended history. Repeated callbacks for older saved turns do not
+replace it with older text. Latest means capture order within that session.
+
+Each turn's `response.md` preserves its exact response text.
 `metadata.json` identifies the agent, conversation, turn, and capture time.
 Each result directory is published by an atomic rename after both files are
 written. Repeated delivery of the same event does not duplicate it. Separate
 turns with identical text remain separate results. The model can still write
 working notes in `findings.md`; the capture script never replaces those notes.
 Group members use the same structure inside their own session directories.
+Do not edit the generated response files. During independent investigations,
+read only the response files allowed by the starting context snapshot.
+The latest-response file can change after that snapshot.
 
 A normal new session receives an index of previously captured responses in
 its starting instructions. It also saves that index in `input-context.md`.
@@ -435,10 +507,10 @@ The index makes the files discoverable; it does not force the model to read
 them. To supply the actual text directly, use `--from`:
 
 ```bash
-fx agent claude --prompt 'Plan the login fix.'
+fx agent claude --name plan-login --prompt 'Plan the login fix.'
 
 # After the planning response is captured, use its actual session directory.
-fx agent codex --from context/session-XXXXXXXX \
+fx agent codex --name implement-login --from context/session-plan-login-XXXXXXXX \
   --prompt 'Implement the supplied plan.'
 ```
 
@@ -473,10 +545,91 @@ These callbacks are not a universal guarantee of capture under every failure.
 
 Capture errors are reported by the callback and, when writable, saved in
 `capture-error.txt`. Explicit handoffs from that session stop until the error
-is investigated. A missing completion event produces no result to hand off.
+is investigated. A failed latest-response update can leave `last_turn_results.md`
+missing or showing the previous response, while the new turn remains saved in
+`results/`. Repeating the callback repairs the snapshot without duplicating the
+turn. A missing completion event produces no result to hand off.
 The deterministic boundary is the saved response: `--from` either supplies
 the selected saved text or fails before launching. It cannot guarantee that
 the model interprets or uses that text correctly.
+
+## Diagnostic events
+
+Every launched agent records available diagnostics in its own `events/`
+directory. Group members and comparison sessions use the same layout.
+Capture runs in harness callbacks and native logging code. It does not ask
+the model to write event records.
+
+```text
+context/session-review-XXXXXXXX/events/
+├── harness-version.txt
+├── callbacks.jsonl
+└── codex-session.jsonl       # Codex sessions
+    # or claude-debug.log    # Claude sessions
+```
+
+`callbacks.jsonl` contains one JSON object per received callback. Each record
+has a schema version, agent, source, UTC receipt time, monotonic time in
+nanoseconds, byte offset, and the complete parsed payload. Malformed input is
+retained as raw text. Byte offsets define the saved order. Concurrent callbacks
+are serialized with a file lock. Repeated deliveries remain separate records
+because most lifecycle events do not have a unique delivery identifier.
+Receipt times measure arrival at the capture process, not the exact time of
+the underlying action. Use payload identifiers to correlate tools and turns.
+
+The writer completes and flushes each record before returning. A failed write
+attempt removes its partial record when possible. An interrupted process can
+leave an incomplete last line. Further writes stop rather than mix new events
+with that line. Preserve the damaged log before repairing it. Diagnostic
+errors go to `events/capture-error.txt` when writable and to standard error.
+They do not block final-response capture or handoffs. Check this error file
+and the harness logs when assessing whether an archive is complete.
+
+The archive contains these available sources:
+
+- **Claude:** passive lifecycle callbacks, including tool starts and results,
+  permission requests, subagent activity, turn completion and failure,
+  compaction, and session start and end. The adapter also enables the native
+  debug log with `--debug-file`. It does not register `WorktreeCreate` or
+  `WorktreeRemove`, because these hooks replace worktree behavior. It does not
+  add `FileChanged` watchers. The event names are listed in the Claude capture
+  adapter and must be checked when upgrading Claude.
+- **Codex:** completion notifications, configured lifecycle callbacks, and the
+  native terminal session recorder. Lifecycle callbacks require trusted hooks
+  and can be disabled by configuration or managed policy. The native recorder
+  runs independently of hook trust. It records selected terminal events and
+  outgoing operations; some events contain only their type. It is not a
+  complete internal protocol trace.
+
+Codex recording uses `CODEX_TUI_RECORD_SESSION` and
+`CODEX_TUI_SESSION_LOG_PATH`. These are undocumented upstream interfaces.
+This integration accepts that maintenance constraint for diagnostic use.
+The installed Codex version is saved in `harness-version.txt`. Check recorder
+output and hook coverage after harness upgrades. Replace this integration
+when a supported equivalent provides the same recording capability.
+Claude's debug log format is also owned by the harness. Neither native log
+has the callback file's schema or durability guarantees. An empty reserved
+native log does not prove that recording started.
+
+This is capture of available diagnostic events, not a guarantee of every
+internal event. Disabled or untrusted hooks, timeouts, crashes, and filesystem
+failures can leave gaps. Synchronous callbacks also add capture overhead.
+The tests cover callback storage and adapter configuration. They do not prove
+complete event delivery from a live model session.
+
+Agents must not read or search `events/` during normal work. Launch instructions
+and task rules permit access only for an explicit diagnostic analysis
+assignment. Event files are excluded from context indexes and comparisons.
+`--from` rejects event directories and their descendants. This is an instruction
+and context-selection rule, not an operating-system access restriction.
+The event directory has private permissions. Raw payloads and native logs can
+contain prompts, tool inputs, and tool results. No automatic retention limit
+or payload truncation is applied.
+
+The supported interfaces are described in the
+[Codex hooks guide](https://learn.chatgpt.com/docs/hooks),
+[Claude hooks reference](https://code.claude.com/docs/en/hooks), and
+[Claude command-line reference](https://code.claude.com/docs/en/cli-reference).
 
 ## Files and context
 
@@ -489,7 +642,7 @@ my-project/
 └── tasks/fix-login/
     ├── AGENTS.md
     ├── repo/
-    └── context/session-XXXXXXXX/
+    └── context/session-review-XXXXXXXX/
         ├── instructions.md
         ├── findings.md
         └── launch.txt
