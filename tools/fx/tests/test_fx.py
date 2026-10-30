@@ -82,6 +82,16 @@ class FxTest(unittest.TestCase):
         project = project or self.project()
         return Path(self.fx("task", name, "--no-attach", cwd=project).stdout.strip())
 
+    def completed_group(self, task, name="review"):
+        self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
+        launched = self.fx("agent", "group", "--name", name, "--prompt", "Review the login changes.", cwd=task)
+        for line in launched.stdout.splitlines():
+            member = Path(json.loads(line)["arguments"][13])
+            event = {"type": "agent-turn-complete", "thread-id": member.name, "turn-id": "one",
+                     "last-assistant-message": f"Review from {member.name}: validate login input."}
+            self.run_command(sys.executable, TOOL.parent / "agents/codex_capture.py", "capture", member, json.dumps(event))
+        return member.parent
+
     def test_setup_reuses_clone_and_preserves_memory_and_dirty_files(self):
         project = self.project()
         memory = project / "project_memory.md"
@@ -135,7 +145,123 @@ class FxTest(unittest.TestCase):
         (first / "repo/source.txt").write_text("First task changes\n")
         self.assertEqual((second / "repo/source.txt").read_text(), "original\n")
         branch = self.run_command("git", "-C", second / "repo", "branch", "--show-current")
-        self.assertEqual(branch.stdout.strip(), "codex/second")
+        self.assertEqual(branch.stdout.strip(), "feature/second")
+
+    def test_task_copies_ignored_appsettings_with_paths_and_permissions(self):
+        (self.origin / ".gitignore").write_text("appsettings*.json\n.env\nignored-dir/\n")
+        self.run_command("git", "-C", self.origin, "add", ".gitignore")
+        self.run_command("git", "-C", self.origin, "commit", "-m", "Ignore local settings")
+        project = self.project()
+        clone = project / "repo/main"
+        paths = ("appsettings.json", "src/My App/appsettings.Development.json",
+                 "ignored-dir/nested/appsettings.Local.json")
+        for relative in paths:
+            source = clone / relative
+            source.parent.mkdir(parents=True, exist_ok=True)
+            source.write_text('{"LocalSetting": "test-only"}\n')
+            source.chmod(0o600)
+        (clone / ".env").write_text("DO_NOT_COPY=1\n")
+        (clone / "ignored-dir/unrelated.txt").write_text("Do not copy\n")
+        task = self.task(project)
+        for relative in paths:
+            target = task / "repo" / relative
+            self.assertTrue(target.is_file(), relative)
+            self.assertEqual(target.read_bytes(), (clone / relative).read_bytes())
+            self.assertEqual(target.stat().st_mode & 0o777, 0o600)
+        self.assertFalse((task / "repo/.env").exists())
+        self.assertFalse((task / "repo/ignored-dir/unrelated.txt").exists())
+        self.assertEqual(self.run_command("git", "-C", task / "repo", "status", "--porcelain").stdout, "")
+
+    def test_task_fills_missing_settings_without_overwriting_existing_settings(self):
+        project = self.project()
+        clone = project / "repo/main"
+        (clone / ".git/info/exclude").write_text("appsettings*.json\n")
+        task = self.task(project)
+        (clone / "appsettings.Local.json").write_text("main local settings\n")
+        self.fx("task", "fix-login", "--no-attach", cwd=task)
+        self.assertEqual((task / "repo/appsettings.Local.json").read_text(), "main local settings\n")
+        (task / "repo/appsettings.Local.json").write_text("task local settings\n")
+        (clone / "appsettings.Local.json").write_text("updated main settings\n")
+        (clone / "appsettings.Development.json").write_text("new development settings\n")
+        self.fx("task", "fix-login", "--no-attach", cwd=task)
+        self.assertEqual((task / "repo/appsettings.Local.json").read_text(), "task local settings\n")
+        self.assertEqual((task / "repo/appsettings.Development.json").read_text(), "new development settings\n")
+
+    def test_settings_copy_skips_files_not_ignored_in_both_worktrees(self):
+        project = self.project()
+        clone = project / "repo/main"
+        (clone / ".gitignore").write_text("appsettings.Local.json\n")
+        (clone / "appsettings.Local.json").write_text("Ignored only in the main clone\n")
+        (clone / "appsettings.Development.json").write_text("Not ignored anywhere\n")
+        result = self.fx("task", "fix-login", "--no-attach", cwd=project)
+        task = Path(result.stdout.strip())
+        self.assertFalse((task / "repo/appsettings.Local.json").exists())
+        self.assertFalse((task / "repo/appsettings.Development.json").exists())
+        self.assertIn("not ignored in the task", result.stderr)
+
+    def test_settings_copy_does_not_restore_deleted_tracked_files(self):
+        project = self.project()
+        clone = project / "repo/main"
+        (clone / ".git/info/exclude").write_text("appsettings*.json\n")
+        task = self.task(project)
+        target = task / "repo/appsettings.Local.json"
+        target.write_text("Tracked task settings\n")
+        self.run_command("git", "-C", task / "repo", "add", "-f", "appsettings.Local.json")
+        target.unlink()
+        (clone / "appsettings.Local.json").write_text("Ignored clone settings\n")
+        result = self.fx("task", "fix-login", "--no-attach", cwd=task)
+        self.assertFalse(target.exists())
+        self.assertIn("tracked or not ignored", result.stderr)
+
+    def test_settings_copy_preserves_destination_links_and_skips_source_links(self):
+        project = self.project()
+        clone = project / "repo/main"
+        (clone / ".git/info/exclude").write_text("appsettings*.json\n")
+        task = self.task(project)
+        outside = self.root / "external-settings.json"
+        outside.write_text("External settings\n")
+        (clone / "appsettings.Linked.json").symlink_to(outside)
+        (clone / "appsettings.Local.json").write_text("Clone settings\n")
+        (task / "repo/appsettings.Local.json").symlink_to(outside)
+        self.fx("task", "fix-login", "--no-attach", cwd=task)
+        self.assertFalse((task / "repo/appsettings.Linked.json").exists())
+        self.assertTrue((task / "repo/appsettings.Local.json").is_symlink())
+        self.assertEqual(outside.read_text(), "External settings\n")
+
+    def test_settings_copy_rejects_symlink_destination_parent(self):
+        project = self.project()
+        clone = project / "repo/main"
+        (clone / ".git/info/exclude").write_text("appsettings*.json\n")
+        task = self.task(project)
+        (clone / "config").mkdir()
+        (clone / "config/appsettings.Local.json").write_text("Clone settings\n")
+        outside = self.root / "outside"
+        outside.mkdir()
+        (task / "repo/config").symlink_to(outside)
+        result = self.fx("task", "fix-login", "--no-attach", cwd=task, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("symbolic link", result.stderr)
+        self.assertNotIn("Task ready", result.stderr)
+        self.assertEqual(list(outside.iterdir()), [])
+
+    def test_settings_copy_failure_can_retry_without_partial_destination(self):
+        project = self.project()
+        clone = project / "repo/main"
+        (clone / ".git/info/exclude").write_text("appsettings*.json\n")
+        (clone / "appsettings.Local.json").write_text("Clone settings\n")
+        fake_copy = self.bin / "cp"
+        fake_copy.write_text('#!/bin/sh\nprintf partial > "$4"\nexit 23\n')
+        fake_copy.chmod(0o755)
+        result = self.fx("task", "fix-login", "--no-attach", cwd=project, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Could not copy settings", result.stderr)
+        self.assertNotIn("Task ready", result.stderr)
+        task = project / "tasks/fix-login"
+        self.assertFalse((task / "repo/appsettings.Local.json").exists())
+        self.assertEqual(list((task / "repo").glob(".fx-appsettings-*")), [])
+        fake_copy.unlink()
+        self.fx("task", "fix-login", "--no-attach", cwd=project)
+        self.assertEqual((task / "repo/appsettings.Local.json").read_text(), "Clone settings\n")
 
     def test_two_tasks_can_start_from_the_same_checked_out_base_branch(self):
         project = self.project()
@@ -147,14 +273,103 @@ class FxTest(unittest.TestCase):
             commit = self.run_command("git", "-C", worktree, "rev-parse", "HEAD").stdout.strip()
             branch = self.run_command("git", "-C", worktree, "branch", "--show-current").stdout.strip()
             self.assertEqual(commit, base_commit)
-            self.assertEqual(branch, f"codex/{name}")
+            self.assertEqual(branch, f"feature/{name}")
+            upstream = self.run_command("git", "-C", worktree, "rev-parse", "--abbrev-ref", "@{upstream}")
+            self.assertEqual(upstream.stdout.strip(), "origin/main")
         branch = self.run_command("git", "-C", clone, "branch", "--show-current").stdout.strip()
         self.assertEqual(branch, "main")
 
     def test_task_reattaches_existing_branch(self):
         project = self.project()
-        self.run_command("git", "-C", project / "repo/main", "branch", "codex/fix-login")
+        self.run_command("git", "-C", project / "repo/main", "branch", "fix-login")
         self.assertTrue((self.task(project) / "repo/.git").is_file())
+
+    def test_task_can_fetch_and_merge_changes_from_its_remote_base(self):
+        self.run_command("git", "-C", self.origin, "switch", "-c", "develop")
+        project = self.project()
+        task = Path(self.fx("task", "fix-login", "--base", "origin/develop", "--no-attach", cwd=project).stdout.strip())
+        worktree = task / "repo"
+        self.assertEqual(self.run_command("git", "-C", worktree, "branch", "--show-current").stdout.strip(), "feature/fix-login")
+        self.assertEqual(self.run_command("git", "-C", worktree, "rev-parse", "--abbrev-ref", "@{upstream}").stdout.strip(), "origin/develop")
+        (self.origin / "source.txt").write_text("New base changes\n")
+        self.run_command("git", "-C", self.origin, "commit", "-am", "Update development")
+        expected = self.run_command("git", "-C", self.origin, "rev-parse", "HEAD").stdout
+        self.run_command("git", "-C", worktree, "fetch")
+        self.assertEqual(self.run_command("git", "-C", worktree, "rev-parse", "@{upstream}").stdout, expected)
+        self.assertEqual((worktree / "source.txt").read_text(), "original\n")
+        self.run_command("git", "-C", worktree, "merge", "--ff-only", "@{upstream}")
+        self.assertEqual((worktree / "source.txt").read_text(), "New base changes\n")
+
+    def test_base_upstream_resolution(self):
+        project = self.project()
+        clone = project / "repo/main"
+        self.run_command("git", "-C", clone, "branch", "--no-track", "local-only")
+        self.run_command("git", "-C", clone, "branch", "--track", "tracked-base", "origin/main")
+        self.run_command("git", "-C", clone, "branch", "--unset-upstream", "main")
+        for reference, expected in (
+            ("refs/remotes/origin/HEAD", "refs/remotes/origin/main"),
+            ("refs/remotes/origin/main", "refs/remotes/origin/main"),
+            ("refs/heads/main", "refs/remotes/origin/main"),
+            ("refs/heads/tracked-base", "refs/remotes/origin/main"),
+            ("refs/heads/local-only", "refs/heads/local-only"),
+        ):
+            with self.subTest(reference=reference):
+                result = self.run_command("bash", "-c", 'source "$1"; resolve_base_upstream "$2" "$3"',
+                                          "test", TOOL, clone, reference)
+                self.assertEqual(result.stdout.strip(), expected)
+
+    def test_task_inherits_the_local_bases_configured_remote_upstream(self):
+        project = self.project()
+        clone = project / "repo/main"
+        self.run_command("git", "-C", clone, "remote", "add", "upstream", self.origin)
+        self.run_command("git", "-C", clone, "fetch", "upstream")
+        self.run_command("git", "-C", clone, "branch", "--track", "local-base", "upstream/main")
+        task = Path(self.fx("task", "fix-login", "--base", "local-base", "--no-attach", cwd=project).stdout.strip())
+        tracked = self.run_command("git", "-C", task / "repo", "rev-parse", "--abbrev-ref", "@{upstream}")
+        self.assertEqual(tracked.stdout.strip(), "upstream/main")
+
+    def test_legacy_task_can_relink_upstream_without_renaming_or_resetting(self):
+        task = self.task()
+        worktree = task / "repo"
+        self.run_command("git", "-C", worktree, "branch", "-m", "codex/fix-login")
+        self.run_command("git", "-C", worktree, "branch", "--unset-upstream")
+        (worktree / "source.txt").write_text("Task commit\n")
+        self.run_command("git", "-C", worktree, "commit", "-am", "Task work")
+        head = self.run_command("git", "-C", worktree, "rev-parse", "HEAD").stdout
+        (worktree / "source.txt").write_text("Uncommitted task work\n")
+        self.fx("task", "fix-login", "--base", "origin/main", "--no-attach", cwd=task)
+        self.assertEqual(self.run_command("git", "-C", worktree, "branch", "--show-current").stdout.strip(), "codex/fix-login")
+        self.assertEqual(self.run_command("git", "-C", worktree, "rev-parse", "HEAD").stdout, head)
+        self.assertEqual((worktree / "source.txt").read_text(), "Uncommitted task work\n")
+        self.assertEqual(self.run_command("git", "-C", worktree, "rev-parse", "--abbrev-ref", "@{upstream}").stdout.strip(), "origin/main")
+        self.fx("agent", "claude", cwd=task)
+        self.run_command("git", "-C", worktree, "branch", "-m", "fix-login")
+        self.fx("agent", "claude", cwd=task)
+
+    def test_task_reattaches_legacy_branch_and_keeps_its_upstream(self):
+        project = self.project()
+        clone = project / "repo/main"
+        self.run_command("git", "-C", clone, "branch", "--track", "codex/fix-login", "origin/main")
+        task = self.task(project)
+        self.assertEqual(self.run_command("git", "-C", task / "repo", "branch", "--show-current").stdout.strip(), "codex/fix-login")
+        self.assertEqual(self.run_command("git", "-C", task / "repo", "rev-parse", "--abbrev-ref", "@{upstream}").stdout.strip(), "origin/main")
+
+    def test_missing_configured_base_upstream_fails_before_creating_task_branch(self):
+        project = self.project()
+        clone = project / "repo/main"
+        self.run_command("git", "-C", clone, "config", "branch.main.merge", "refs/heads/missing")
+        result = self.fx("task", "fix-login", "--base", "main", "--no-attach", cwd=project, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("upstream is unavailable", result.stderr)
+        self.assertFalse((project / "tasks/fix-login/repo").exists())
+
+    def test_reopening_without_base_preserves_upstream_and_invalid_base_changes_nothing(self):
+        task = self.task()
+        worktree = task / "repo"
+        self.fx("task", "fix-login", "--no-attach", cwd=task)
+        result = self.fx("task", "fix-login", "--base", "missing", "--no-attach", cwd=task, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.run_command("git", "-C", worktree, "rev-parse", "--abbrev-ref", "@{upstream}").stdout.strip(), "origin/main")
 
     def test_new_task_uses_recorded_default_instead_of_current_checkout(self):
         project = self.project()
@@ -168,7 +383,8 @@ class FxTest(unittest.TestCase):
         self.assertEqual(actual, expected)
         self.assertEqual((task / "repo/source.txt").read_text(), "original\n")
         upstream = self.run_command("git", "-C", task / "repo", "rev-parse", "@{upstream}", check=False)
-        self.assertNotEqual(upstream.returncode, 0)
+        self.assertEqual(upstream.returncode, 0)
+        self.assertEqual(upstream.stdout.strip(), expected)
 
     def test_new_task_supports_a_default_branch_not_named_main(self):
         self.run_command("git", "-C", self.origin, "branch", "-m", "trunk")
@@ -177,7 +393,7 @@ class FxTest(unittest.TestCase):
         self.assertIn("refs/remotes/origin/trunk", result.stderr)
         self.assertTrue((Path(result.stdout.strip()) / "repo/.git").is_file())
 
-    def test_explicit_base_prefers_local_branch_and_supports_remote_branches(self):
+    def test_explicit_base_uses_remote_upstream_even_when_local_branch_is_older(self):
         self.run_command("git", "-C", self.origin, "switch", "-c", "develop")
         (self.origin / "source.txt").write_text("Remote development\n")
         self.run_command("git", "-C", self.origin, "commit", "-am", "Development change")
@@ -186,7 +402,7 @@ class FxTest(unittest.TestCase):
         project = self.project()
         self.run_command("git", "-C", project / "repo/main", "branch", "develop", "main")
         for name, base, expected in (
-            ("local", "develop", "original\n"),
+            ("local", "develop", "Remote development\n"),
             ("remote", "origin/develop", "Remote development\n"),
             ("remote-fallback", "release", "Remote development\n"),
         ):
@@ -195,28 +411,110 @@ class FxTest(unittest.TestCase):
                 task = Path(result.stdout.strip())
                 self.assertEqual((task / "repo/source.txt").read_text(), expected)
 
-    def test_unknown_default_requires_an_explicit_base(self):
+    def test_fetch_restores_a_missing_default_branch_reference(self):
         project = self.project()
         self.run_command("git", "-C", project / "repo/main", "remote", "set-head", "origin", "--delete")
-        result = self.fx("task", "fix-login", "--no-attach", cwd=project, check=False)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("Supply --base", result.stderr)
-        result = self.fx("task", "fix-login", "--base", "main", "--no-attach", cwd=project)
+        result = self.fx("task", "fix-login", "--no-attach", cwd=project)
         self.assertTrue((Path(result.stdout.strip()) / "repo/.git").is_file())
 
-    def test_new_tasks_do_not_fetch(self):
+    def test_new_tasks_fetch_the_latest_default_base(self):
         project = self.project()
-        (self.origin / "source.txt").write_text("Not fetched\n")
-        self.run_command("git", "-C", self.origin, "commit", "-am", "Unfetched change")
+        (self.origin / "source.txt").write_text("Latest remote changes\n")
+        self.run_command("git", "-C", self.origin, "commit", "-am", "Remote change")
         task = self.task(project)
-        self.assertEqual((task / "repo/source.txt").read_text(), "original\n")
+        self.assertEqual((task / "repo/source.txt").read_text(), "Latest remote changes\n")
+        self.assertEqual((project / "repo/main/source.txt").read_text(), "original\n")
+
+    def test_new_task_discovers_a_base_created_after_cloning(self):
+        project = self.project()
+        self.run_command("git", "-C", self.origin, "switch", "-c", "release/new")
+        (self.origin / "source.txt").write_text("New remote base\n")
+        self.run_command("git", "-C", self.origin, "commit", "-am", "New release branch")
+        task = Path(self.fx("task", "new-release", "--base", "origin/release/new", "--no-attach", cwd=project).stdout.strip())
+        self.assertEqual((task / "repo/source.txt").read_text(), "New remote base\n")
+        self.assertEqual(self.run_command("git", "-C", task / "repo", "branch", "--show-current").stdout.strip(), "feature/new-release")
+
+    def test_new_task_fetch_failure_does_not_use_a_stale_base(self):
+        project = self.project()
+        clone = project / "repo/main"
+        self.run_command("git", "-C", clone, "remote", "set-url", "origin", self.root / "missing-remote")
+        result = self.fx("task", "fresh-task", "--base", "main", "--no-attach", cwd=project, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Could not fetch origin", result.stderr)
+        self.assertNotIn("Task ready", result.stderr)
+        self.assertFalse((project / "tasks/fresh-task/repo").exists())
+        self.assertNotEqual(self.run_command("git", "-C", clone, "show-ref", "--verify", "refs/heads/feature/fresh-task", check=False).returncode, 0)
+
+    def test_existing_task_and_branch_can_be_reopened_offline(self):
+        project = self.project()
+        task = self.task(project)
+        clone = project / "repo/main"
+        head = self.run_command("git", "-C", task / "repo", "rev-parse", "HEAD").stdout
+        (task / "repo/source.txt").write_text("Preserved local work\n")
+        self.run_command("git", "-C", clone, "remote", "set-url", "origin", self.root / "missing-remote")
+        self.fx("task", "fix-login", "--base", "main", "--no-attach", cwd=project)
+        self.assertEqual((task / "repo/source.txt").read_text(), "Preserved local work\n")
+        self.assertEqual(self.run_command("git", "-C", task / "repo", "rev-parse", "HEAD").stdout, head)
+        self.run_command("git", "-C", clone, "branch", "feature/reattach", "main")
+        self.assertTrue((self.task(project, "reattach") / "repo/.git").exists())
+
+    def test_deleted_remote_base_does_not_fall_back_to_local_copy(self):
+        self.run_command("git", "-C", self.origin, "branch", "develop")
+        project = self.project()
+        clone = project / "repo/main"
+        self.run_command("git", "-C", clone, "branch", "--no-track", "develop", "origin/develop")
+        self.run_command("git", "-C", self.origin, "branch", "-D", "develop")
+        result = self.fx("task", "new-task", "--base", "develop", "--no-attach", cwd=project, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("upstream is unavailable", result.stderr)
+        self.assertFalse((project / "tasks/new-task/repo").exists())
+
+    def test_new_task_can_start_from_a_local_only_base(self):
+        project = self.project()
+        clone = project / "repo/main"
+        self.run_command("git", "-C", clone, "branch", "--no-track", "local-only")
+        result = self.fx("task", "local-work", "--base", "local-only", "--no-attach", cwd=project)
+        self.assertIn("no remote upstream", result.stderr)
+        upstream = self.run_command("git", "-C", Path(result.stdout.strip()) / "repo", "rev-parse", "--symbolic-full-name", "@{upstream}")
+        self.assertEqual(upstream.stdout.strip(), "refs/heads/local-only")
+
+    def test_new_task_fetches_updates_from_the_bases_configured_remote(self):
+        project = self.project()
+        clone = project / "repo/main"
+        self.run_command("git", "-C", clone, "remote", "add", "upstream", self.origin)
+        self.run_command("git", "-C", clone, "fetch", "upstream")
+        self.run_command("git", "-C", clone, "branch", "--track", "local-base", "upstream/main")
+        (self.origin / "source.txt").write_text("Upstream update\n")
+        self.run_command("git", "-C", self.origin, "commit", "-am", "Update upstream")
+        self.run_command("git", "-C", clone, "remote", "set-url", "origin", self.root / "missing-remote")
+        result = self.fx("task", "upstream-work", "--base", "local-base", "--no-attach", cwd=project)
+        task = Path(result.stdout.strip())
+        self.assertEqual((task / "repo/source.txt").read_text(), "Upstream update\n")
+        self.assertIn("Fetching base updates from upstream", result.stderr)
+
+    def test_explicit_remote_base_supports_remote_names_with_slashes(self):
+        project = self.project()
+        clone = project / "repo/main"
+        self.run_command("git", "-C", clone, "remote", "set-url", "origin", self.root / "missing-remote")
+        self.run_command("git", "-C", clone, "remote", "add", "team/upstream", self.origin)
+        (self.origin / "source.txt").write_text("Selected remote update\n")
+        self.run_command("git", "-C", self.origin, "commit", "-am", "Update selected remote")
+        result = self.fx("task", "remote-work", "--base", "team/upstream/main", "--no-attach", cwd=project)
+        task = Path(result.stdout.strip())
+        self.assertEqual((task / "repo/source.txt").read_text(), "Selected remote update\n")
+        self.assertEqual(self.run_command("git", "-C", task / "repo", "rev-parse", "--abbrev-ref", "@{upstream}").stdout.strip(), "team/upstream/main")
 
     def test_reopening_task_with_base_preserves_existing_changes(self):
         project = self.project()
         task = self.task(project)
         (task / "repo/source.txt").write_text("Preserved changes\n")
-        result = self.fx("task", "fix-login", "--base", "different-branch", "--no-attach", cwd=project)
-        self.assertIn("--base does not change", result.stderr)
+        clone = project / "repo/main"
+        self.run_command("git", "-C", clone, "branch", "different-branch")
+        original_head = self.run_command("git", "-C", task / "repo", "rev-parse", "HEAD").stdout
+        self.fx("task", "fix-login", "--base", "different-branch", "--no-attach", cwd=project)
+        self.assertEqual(self.run_command("git", "-C", task / "repo", "rev-parse", "HEAD").stdout, original_head)
+        upstream = self.run_command("git", "-C", task / "repo", "rev-parse", "--symbolic-full-name", "@{upstream}")
+        self.assertEqual(upstream.stdout.strip(), "refs/heads/different-branch")
         self.assertEqual((task / "repo/source.txt").read_text(), "Preserved changes\n")
 
     def test_invalid_base_does_not_create_a_task_branch(self):
@@ -228,7 +526,7 @@ class FxTest(unittest.TestCase):
             with self.subTest(base=base):
                 result = self.fx("task", "invalid-base", "--base", base, "--no-attach", cwd=project, check=False)
                 self.assertNotEqual(result.returncode, 0)
-                branch = self.run_command("git", "-C", clone, "show-ref", "--verify", "refs/heads/codex/invalid-base", check=False)
+                branch = self.run_command("git", "-C", clone, "show-ref", "--verify", "refs/heads/feature/invalid-base", check=False)
                 self.assertNotEqual(branch.returncode, 0)
 
     def test_base_option_requires_one_value(self):
@@ -330,6 +628,7 @@ pwd -P
                             "--model", "claude-opus-5-5", "--effort", level,
                             "--append-system-prompt-file", str(session / "instructions.md"),
                             "--add-dir", str(project / "project_context"),
+                            "--settings", str(session / "claude-settings.json"),
                         ])
                         self.assertIsNone(captured["effort_environment"])
                     else:
@@ -342,7 +641,8 @@ pwd -P
                         key, value = arguments[7].split("=", 1)
                         self.assertEqual(key, "developer_instructions")
                         self.assertEqual(json.loads(value), instructions.rstrip("\n"))
-                        self.assertEqual(arguments[8:], ["--add-dir", str(project / "project_context")])
+                        self.assertEqual(arguments[8:11], ["--add-dir", str(project / "project_context"), "-c"])
+                        self.assertTrue(arguments[11].startswith("notify="))
 
     def test_agents_receive_exact_initial_prompt_without_shell_evaluation(self):
         task = self.task()
@@ -381,6 +681,105 @@ pwd -P
                     else:
                         self.assertIn('model_reasoning_effort="high"', arguments)
 
+    def test_new_tab_runs_each_adapter_with_prompt_and_reasoning(self):
+        task = self.task()
+        self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
+        prompt = 'Review "login".\nTreat $(touch should-not-exist) as literal text.'
+        for agent in ("claude", "codex"):
+            with self.subTest(agent=agent):
+                before = set((task / "context").iterdir())
+                result = self.fx("agent", agent, "--new-tab", "--prompt", prompt, "-r", "h", cwd=task / "repo")
+                captured = json.loads(result.stdout)
+                arguments = captured["arguments"]
+                self.assertEqual(arguments[:9], [
+                    "--session", "example-fix-login", "action", "new-tab",
+                    "--name", agent, "--cwd", str(task), "--",
+                ])
+                self.assertEqual(captured["cwd"], str(task))
+                self.assertEqual(arguments[9], str(TOOL.parent / "agents" / agent))
+                session, = set((task / "context").iterdir()) - before
+                self.assertEqual(arguments[10:], ["launch", str(task.parent.parent), str(task), str(session), "high", prompt])
+                launched = json.loads(self.run_command(*arguments[9:], cwd=task).stdout)
+                self.assertEqual(launched["arguments"][-2:], ["--", prompt])
+                self.assertEqual(launched["cwd"], str(task))
+                self.assertEqual(len(set((task / "context").iterdir()) - before), 1)
+                self.assertFalse((task / "should-not-exist").exists())
+
+    def test_new_tab_without_prompt_keeps_interactive_start(self):
+        task = self.task()
+        self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
+        captured = json.loads(self.fx("agent", "codex", "-r", "l", "--new-tab", cwd=task).stdout)
+        arguments = captured["arguments"]
+        self.assertEqual(arguments[-1], "low")
+        session, = (task / "context").iterdir()
+        self.assertFalse((session / "initial_prompt.md").exists())
+        launched = json.loads(self.run_command(*arguments[9:], cwd=task).stdout)
+        self.assertNotIn("--", launched["arguments"])
+
+    def test_new_tab_accepts_custom_name_in_either_flag_order(self):
+        task = self.task()
+        self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
+        for agent in ("claude", "codex"):
+            for options in (("--new-tab", "--name", "review"), ("--name", "Code review", "--new-tab")):
+                with self.subTest(agent=agent, options=options):
+                    captured = json.loads(self.fx("agent", agent, *options, "-r", "h", "--prompt", "Review changes", cwd=task).stdout)
+                    arguments = captured["arguments"]
+                    self.assertEqual(arguments[arguments.index("--name") + 1], options[options.index("--name") + 1])
+                    self.assertEqual(arguments[-2:], ["high", "Review changes"])
+                    self.assertEqual(arguments[9], str(TOOL.parent / "agents" / agent))
+
+    def test_tab_name_requires_new_tab(self):
+        task = self.task()
+        result = self.fx("agent", "codex", "--name", "review", cwd=task, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("--name requires --new-tab", result.stderr)
+        self.assertEqual(list((task / "context").iterdir()), [])
+
+    def test_invalid_tab_names_create_no_sessions(self):
+        task = self.task()
+        self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
+        for options in (
+            ("--name",), ("--name", ""), ("--name", "   "),
+            ("--name", "review\nnext"), ("--name", "review\x1b[2J"),
+            ("--name", "-r"), ("--name", "first", "--name", "second"),
+        ):
+            with self.subTest(options=options):
+                result = self.fx("agent", "codex", "--new-tab", *options, cwd=task, check=False)
+                self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(list((task / "context").iterdir()), [])
+
+    def test_new_tab_requires_a_current_zellij_session(self):
+        task = self.task()
+        for environment in ({}, {"ZELLIJ": "0"}, {"ZELLIJ_SESSION_NAME": "example-fix-login"}):
+            with self.subTest(environment=environment):
+                self.env.pop("ZELLIJ", None)
+                self.env.pop("ZELLIJ_SESSION_NAME", None)
+                self.env.update(environment)
+                result = self.fx("agent", "claude", "--new-tab", cwd=task, check=False)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("inside a Zellij session", result.stderr)
+                self.assertEqual(list((task / "context").iterdir()), [])
+
+    def test_new_tab_requires_zellij_before_creating_context(self):
+        task = self.task()
+        self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
+        (self.bin / "zellij").unlink()
+        self.env["PATH"] = f"{self.bin}:/usr/bin:/bin"
+        if shutil.which("zellij", path=self.env["PATH"]):
+            self.skipTest("Zellij is installed in the system test path")
+        result = self.fx("agent", "claude", "--new-tab", cwd=task, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Install Zellij", result.stderr)
+        self.assertEqual(list((task / "context").iterdir()), [])
+
+    def test_new_tab_failure_propagates_and_preserves_session_context(self):
+        task = self.task()
+        self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login", FX_TEST_ZELLIJ_EXIT="23")
+        result = self.fx("agent", "codex", "--new-tab", "--prompt", "Review changes", cwd=task, check=False)
+        self.assertEqual(result.returncode, 23)
+        session, = (task / "context").iterdir()
+        self.assertEqual((session / "initial_prompt.md").read_text(), "Review changes")
+
     def test_invalid_agent_arguments_create_no_sessions(self):
         task = self.task()
         for arguments in (
@@ -396,6 +795,149 @@ pwd -P
                 result = self.fx("agent", *arguments, cwd=task, check=False)
                 self.assertNotEqual(result.returncode, 0)
         self.assertEqual(list((task / "context").iterdir()), [])
+
+    def test_group_defaults_share_exact_prompt_and_have_independent_context(self):
+        task = self.task()
+        self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
+        prompt = 'Review "login".\nKeep $(touch should-not-exist) and `pwd` literal.\n'
+        result = self.fx("agent", "group", "--name", "review", "--prompt", prompt, cwd=task / "repo")
+        calls = [json.loads(line) for line in result.stdout.splitlines()]
+        self.assertEqual(len(calls), 2)
+        group, = (task / "context/groups").iterdir()
+        self.assertTrue(group.name.startswith("review-"))
+        self.assertEqual((group / "initial_prompt.md").read_text(), prompt)
+        self.assertEqual(list((task / "context").iterdir()), [group.parent])
+        for number, (call, agent) in enumerate(zip(calls, ("claude", "codex")), 1):
+            session = group / f"{number}-{agent}"
+            args = call["arguments"]
+            self.assertEqual(args[:9], [
+                "--session", "example-fix-login", "action", "new-tab", "--name",
+                f"{group.name}-{number}-{agent}", "--cwd", str(task), "--",
+            ])
+            self.assertEqual(args[9:], [str(TOOL.parent / "agents" / agent), "launch",
+                                      str(task.parent.parent), str(task), str(session), "medium", prompt])
+            self.assertEqual(call["cwd"], str(task))
+            self.assertEqual((session / "initial_prompt.md").read_text(), prompt)
+            self.assertEqual((session / "tab-request.txt").read_text(), "accepted\n")
+            instructions = (session / "instructions.md").read_text()
+            self.assertIn("This is an independent group investigation", instructions)
+            self.assertIn("Do not inspect other members of this group", instructions)
+            self.assertIn("Do not edit source", instructions)
+            self.assertIn(str(session / "findings.md"), instructions)
+            self.assertIn(session.name, (group / "group.md").read_text())
+            launched = json.loads(self.run_command(*args[9:], cwd=task).stdout)
+            self.assertEqual(launched["arguments"][-2:], ["--", prompt])
+        self.assertFalse((task / "should-not-exist").exists())
+
+    def test_group_custom_members_replace_defaults_and_override_reasoning(self):
+        task = self.task()
+        self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
+        result = self.fx("agent", "group", "--agent", "codex:l", "--agent", "claude:h",
+                         "--agent", "codex", "-r", "h", cwd=task)
+        calls = [json.loads(line)["arguments"] for line in result.stdout.splitlines()]
+        self.assertEqual([Path(args[9]).name for args in calls], ["codex", "claude", "codex"])
+        self.assertEqual([args[-1] for args in calls], ["low", "high", "high"])
+        self.assertEqual(len({args[13] for args in calls}), 3)
+        for args in calls:
+            session = Path(args[13])
+            self.assertFalse((session / "initial_prompt.md").exists())
+            self.assertIn("Wait for my interactive assignment", (session / "instructions.md").read_text())
+        group, = (task / "context/groups").iterdir()
+        self.assertFalse((group / "initial_prompt.md").exists())
+
+    def test_group_default_reasoning_and_single_member(self):
+        task = self.task()
+        self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
+        for options, count, reasoning in ((["-r", "l"], 2, "low"), (["--agent", "codex"], 1, "medium")):
+            result = self.fx("agent", "group", *options, "--prompt", "--help", cwd=task)
+            calls = [json.loads(line)["arguments"] for line in result.stdout.splitlines()]
+            self.assertEqual(len(calls), count)
+            self.assertTrue(all(args[-2:] == [reasoning, "--help"] for args in calls))
+
+    def test_repeated_concurrent_groups_get_unique_directories_and_tabs(self):
+        task = self.task()
+        self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(lambda _: self.fx("agent", "group", "--name", "review", cwd=task), range(2)))
+        groups = list((task / "context/groups").iterdir())
+        self.assertEqual(len(groups), 2)
+        tabs = [json.loads(line)["arguments"][5] for result in results for line in result.stdout.splitlines()]
+        self.assertEqual(len(set(tabs)), 4)
+
+    def test_invalid_group_arguments_create_no_context_or_tabs(self):
+        task = self.task()
+        self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
+        for options in (
+            ("--name",), ("--name", ""), ("--name", "../escape"), ("--name", "two words"),
+            ("--name", "first", "--name", "second"), ("--agent",), ("--agent", ""),
+            ("--agent", "codex:"), ("--agent", ":h"), ("--agent", "codex:h:l"),
+            ("--agent", "codex", "--agent", "missing"), ("--agent", "../codex"),
+            ("--agent", "codex:high"), ("--prompt",), ("--prompt", " \n\t"),
+            ("--prompt", "one", "--prompt", "two"), ("-r",), ("-r", "x"),
+            ("-r", "l", "-r", "h"), ("--unknown",),
+        ):
+            with self.subTest(options=options):
+                result = self.fx("agent", "group", *options, cwd=task, check=False)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, "")
+                self.assertEqual(list((task / "context").iterdir()), [])
+
+    def test_group_checks_all_agent_clis_before_launching(self):
+        task = self.task()
+        self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
+        (self.bin / "codex").unlink()
+        self.env["PATH"] = f"{self.bin}:/usr/bin:/bin"
+        if shutil.which("codex", path=self.env["PATH"]):
+            self.skipTest("Codex is installed in the system test path")
+        result = self.fx("agent", "group", cwd=task, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("codex CLI is not available", result.stderr)
+        self.assertEqual(result.stdout, "")
+        self.assertEqual(list((task / "context").iterdir()), [])
+
+    def test_group_requires_zellij_and_a_task(self):
+        task = self.task()
+        result = self.fx("agent", "group", cwd=task, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("inside a Zellij session", result.stderr)
+        self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
+        result = self.fx("agent", "group", cwd=task.parent.parent, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("inside a task", result.stderr)
+        self.assertEqual(list((task / "context").iterdir()), [])
+
+    def test_group_partial_tab_failure_preserves_all_context_and_stops(self):
+        task = self.task()
+        self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
+        (self.bin / "zellij").write_text(
+            f"#!{sys.executable}\n"
+            "import json, sys\n"
+            "from pathlib import Path\n"
+            "args = sys.argv[1:]\n"
+            "session = Path(args[13])\n"
+            "assert len(list(session.parent.glob('*/instructions.md'))) == 3\n"
+            "print(json.dumps({'arguments': args}))\n"
+            "sys.exit(23 if session.name.startswith('2-') else 0)\n"
+        )
+        result = self.fx("agent", "group", "--agent", "claude", "--agent", "codex",
+                         "--agent", "claude", "--prompt", "Review", cwd=task, check=False)
+        self.assertEqual(result.returncode, 23, result.stderr)
+        self.assertEqual(len(result.stdout.splitlines()), 2)
+        group, = (task / "context/groups").iterdir()
+        for member, state in (("1-claude", "accepted"), ("2-codex", "failed: 23"), ("3-claude", "pending")):
+            self.assertEqual((group / member / "tab-request.txt").read_text().strip(), state)
+            self.assertEqual((group / member / "initial_prompt.md").read_text(), "Review")
+        self.assertIn("Earlier tabs may still be running", result.stderr)
+
+    def test_group_rejects_symlink_context_parent(self):
+        task = self.task()
+        self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
+        outside = self.root / "outside"
+        outside.mkdir()
+        (task / "context/groups").symlink_to(outside)
+        result = self.fx("agent", "group", cwd=task, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(list(outside.iterdir()), [])
 
     def test_parallel_launches_keep_separate_context(self):
         task = self.task()
@@ -413,10 +955,257 @@ pwd -P
         session, = (task / "context").iterdir()
         self.assertTrue((session / "instructions.md").exists())
 
+    def test_claude_final_responses_are_captured_without_agent_file_writes(self):
+        task = self.task()
+        executable = self.bin / "claude"
+        executable.write_text(
+            f"#!{sys.executable}\n"
+            "import json, subprocess, sys\n"
+            "from pathlib import Path\n"
+            "args = sys.argv[1:]\n"
+            "if '--settings' in args:\n"
+            " settings = json.loads(Path(args[args.index('--settings') + 1]).read_text())\n"
+            " hook = settings['hooks']['Stop'][0]['hooks'][0]\n"
+            " for turn, text in [('one', 'Review: missing input validation.\\n'), ('two', 'Plan: validate before saving.\\n')]:\n"
+            "  event = {'hook_event_name': 'Stop', 'session_id': 'claude-session', 'prompt_id': turn, 'last_assistant_message': text}\n"
+            "  subprocess.run(hook['command'], shell=True, input=json.dumps(event), text=True, check=True)\n"
+        )
+        self.fx("agent", "claude", cwd=task)
+        session, = (task / "context").iterdir()
+        responses = sorted((session / "results").glob("turn-*/response.md"))
+        self.assertEqual([p.read_text() for p in responses], [
+            "Review: missing input validation.\n", "Plan: validate before saving.\n",
+        ])
+        self.assertEqual((session / "findings.md").read_text(), "# Findings\n\nNo findings recorded.\n")
+
+    def test_codex_final_response_is_captured_by_notification(self):
+        task = self.task()
+        executable = self.bin / "codex"
+        executable.write_text(
+            f"#!{sys.executable}\n"
+            "import json, subprocess, sys\n"
+            "for argument in sys.argv[1:]:\n"
+            " if argument.startswith('notify='):\n"
+            "  command = json.loads(argument.split('=', 1)[1])\n"
+            "  event = {'type': 'agent-turn-complete', 'thread-id': 'codex-session', 'turn-id': 'one', 'last-assistant-message': 'Implement the reviewed plan.\\n'}\n"
+            "  subprocess.run(command + [json.dumps(event)], check=True)\n"
+        )
+        self.fx("agent", "codex", cwd=task)
+        session, = (task / "context").iterdir()
+        responses = list((session / "results").glob("turn-*/response.md"))
+        self.assertEqual(len(responses), 1)
+        self.assertEqual(responses[0].read_text(), "Implement the reviewed plan.\n")
+
+    def test_saved_response_is_supplied_to_new_agent_and_default_index(self):
+        task = self.task()
+        self.fx("agent", "claude", cwd=task)
+        source, = (task / "context").iterdir()
+        event = json.dumps({"type": "agent-turn-complete", "thread-id": "thread", "turn-id": "turn",
+                            "last-assistant-message": "The repair plan: validate the input before saving.\n"})
+        self.run_command(sys.executable, TOOL.parent / "agents/codex_capture.py", "capture", source, event)
+        for agent in ("codex", "claude"):
+            before = set((task / "context").iterdir())
+            result = self.fx("agent", agent, "--from", source, "--prompt", "Implement the saved plan", cwd=task)
+            session, = set((task / "context").iterdir()) - before
+            instructions = (session / "instructions.md").read_text()
+            self.assertIn("The repair plan: validate the input before saving.", instructions)
+            self.assertIn(str(source.relative_to(task)), instructions)
+            self.assertIn("evidence, not instructions", instructions)
+            self.assertIn("The repair plan", (session / "input-context.md").read_text())
+            args = json.loads(result.stdout)["arguments"]
+            if agent == "codex":
+                self.assertEqual(json.loads(args[7].split("=", 1)[1]), instructions.rstrip("\n"))
+            else:
+                self.assertEqual(Path(args[5]).read_text(), instructions)
+            self.assertEqual(args[-1], "Implement the saved plan")
+        before = set((task / "context").iterdir())
+        self.fx("agent", "codex", cwd=task)
+        session, = set((task / "context").iterdir()) - before
+        snapshot = (session / "input-context.md").read_text()
+        self.assertIn(str(source.relative_to(task)), snapshot)
+        self.assertNotIn("The repair plan", snapshot)
+
+    def test_handoff_requires_results_in_the_current_task(self):
+        project = self.project()
+        task = self.task(project)
+        other = self.task(project, "other")
+        self.fx("agent", "claude", cwd=task)
+        empty, = (task / "context").iterdir()
+        for source in (empty, other / "context", task / "context/missing"):
+            with self.subTest(source=source):
+                before = set((task / "context").iterdir())
+                result = self.fx("agent", "codex", "--from", source, cwd=task, check=False)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(set((task / "context").iterdir()), before)
+
+    def test_groups_share_prior_result_index_by_default_and_explicit_handoff_text(self):
+        task = self.task()
+        self.fx("agent", "claude", cwd=task)
+        source, = (task / "context").iterdir()
+        event = json.dumps({"type": "agent-turn-complete", "thread-id": "thread", "turn-id": "turn",
+                            "last-assistant-message": "Shared starting plan"})
+        self.run_command(sys.executable, TOOL.parent / "agents/codex_capture.py", "capture", source, event)
+        self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
+        for options in ([], ["--from", source]):
+            result = self.fx("agent", "group", *options, cwd=task)
+            sessions = [Path(json.loads(line)["arguments"][13]) for line in result.stdout.splitlines()]
+            snapshots = [(session / "input-context.md").read_text() for session in sessions]
+            self.assertEqual(snapshots[0], snapshots[1])
+            self.assertIn(str(source.relative_to(task)), snapshots[0])
+            if options:
+                self.assertIn("Shared starting plan", snapshots[0])
+            else:
+                self.assertNotIn("Shared starting plan", snapshots[0])
+
+    def test_group_snapshot_excludes_peer_and_later_results(self):
+        task = self.task()
+        self.fx("agent", "claude", cwd=task)
+        source, = (task / "context").iterdir()
+        capture_script = TOOL.parent / "agents/codex_capture.py"
+        event = {"type": "agent-turn-complete", "thread-id": "thread", "turn-id": "before",
+                 "last-assistant-message": "Earlier plan"}
+        self.run_command(sys.executable, capture_script, "capture", source, json.dumps(event))
+        self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
+        previous = self.fx("agent", "group", cwd=task)
+        for line in previous.stdout.splitlines():
+            member = Path(json.loads(line)["arguments"][13])
+            self.run_command(sys.executable, capture_script, "capture", member, json.dumps(event))
+        previous_group = member.parent
+        (self.bin / "zellij").write_text(
+            f"#!{sys.executable}\n"
+            "import json, subprocess, sys\n"
+            "from pathlib import Path\n"
+            "args = sys.argv[1:]\n"
+            "member = Path(args[13])\n"
+            "if member.name.startswith('1-'):\n"
+            f" event = {event!r}\n"
+            " event['turn-id'] = 'after'\n"
+            " event['last-assistant-message'] = 'Late result'\n"
+            f" for target in (member, Path({str(source)!r})):\n"
+            f"  subprocess.run([sys.executable, {str(capture_script)!r}, 'capture', str(target), json.dumps(event)], check=True)\n"
+            "print(json.dumps({'arguments': args}))\n"
+        )
+        result = self.fx("agent", "group", cwd=task)
+        members = [Path(json.loads(line)["arguments"][13]) for line in result.stdout.splitlines()]
+        snapshots = [(member / "input-context.md").read_text() for member in members]
+        self.assertEqual(snapshots[0], snapshots[1])
+        self.assertIn(str(source.relative_to(task) / "results/turn-000001/response.md"), snapshots[0])
+        self.assertIn(str(previous_group.relative_to(task)), snapshots[0])
+        self.assertNotIn("turn-000002", snapshots[0])
+        self.assertNotIn(str(members[0].relative_to(task)), snapshots[0])
+        self.assertTrue((source / "results/turn-000002/response.md").exists())
+        self.assertTrue((members[0] / "results/turn-000001/response.md").exists())
+        for member in members:
+            instructions = (member / "instructions.md").read_text()
+            self.assertIn("Read earlier captured responses listed in your starting context snapshot", instructions)
+            self.assertIn("Do not inspect other members of this group", instructions)
+
     def test_commands_require_the_correct_working_directory(self):
         project = self.project()
         self.assertNotEqual(self.fx("task", "fix", check=False).returncode, 0)
         self.assertNotEqual(self.fx("agent", "claude", cwd=project, check=False).returncode, 0)
+
+    def test_compare_group_uses_default_agent_and_captured_member_results(self):
+        task = self.task()
+        group = self.completed_group(task)
+        result = self.fx("agent", "group", "compare", "review", cwd=task / "repo")
+        args = json.loads(result.stdout)["arguments"]
+        self.assertIn('model_reasoning_effort="medium"', args)
+        self.assertIn("gpt-6.1-sol", args)
+        comparison, = (group / "comparisons").iterdir()
+        self.assertEqual((comparison / "source-group.txt").read_text().strip(), str(group))
+        instructions = (comparison / "instructions.md").read_text()
+        self.assertIn("Review from 1-claude", instructions)
+        self.assertIn("Review from 2-codex", instructions)
+        self.assertIn("Review the login changes.", instructions)
+        self.assertNotIn("This is an independent group investigation", instructions)
+        self.assertEqual(json.loads(args[7].split("=", 1)[1]), instructions.rstrip("\n"))
+        self.assertEqual((comparison / "initial_prompt.md").read_text(), args[-1])
+        self.assertIn("Compare and merge", args[-1])
+        self.assertIn("Do not edit repository files", args[-1])
+        self.assertEqual(list((task / "context").iterdir()), [group.parent])
+
+    def test_compare_can_use_claude_high_reasoning_in_new_tab(self):
+        task = self.task()
+        group = self.completed_group(task)
+        result = self.fx("agent", "group", "compare", group.name, "--agent", "claude", "-r", "h", "--new-tab", cwd=task)
+        args = json.loads(result.stdout)["arguments"]
+        self.assertEqual(args[5], f"{group.name}-compare")
+        self.assertEqual(args[9], str(TOOL.parent / "agents/claude"))
+        self.assertEqual(args[-2], "high")
+        comparison, = (group / "comparisons").iterdir()
+        self.assertEqual(args[13], str(comparison))
+        launched = json.loads(self.run_command(*args[9:], cwd=task).stdout)["arguments"]
+        self.assertEqual(launched[3], "high")
+        self.assertEqual(launched[-1], (comparison / "initial_prompt.md").read_text())
+
+    def test_compare_rejects_missing_member_results_without_creating_session(self):
+        task = self.task()
+        group = self.completed_group(task)
+        shutil.rmtree(group / "2-codex/results")
+        result = self.fx("agent", "group", "compare", "review", cwd=task, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("2-codex", result.stderr)
+        self.assertFalse((group / "comparisons").exists())
+        self.assertEqual(result.stdout, "")
+
+    def test_compare_rejects_ambiguous_name_but_accepts_full_name(self):
+        task = self.task()
+        first = self.completed_group(task)
+        second = self.completed_group(task)
+        result = self.fx("agent", "group", "compare", "review", cwd=task, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(first.name, result.stderr)
+        self.assertIn(second.name, result.stderr)
+        self.assertFalse((first / "comparisons").exists())
+        self.assertFalse((second / "comparisons").exists())
+        self.fx("agent", "group", "compare", first.name, cwd=task)
+        self.assertTrue((first / "comparisons").is_dir())
+
+    def test_repeated_comparisons_capture_results_and_do_not_feed_previous_merges_back(self):
+        task = self.task()
+        group = self.completed_group(task)
+        self.fx("agent", "group", "compare", "review", cwd=task)
+        first, = (group / "comparisons").iterdir()
+        event = {"type": "agent-turn-complete", "thread-id": "comparison", "turn-id": "one",
+                 "last-assistant-message": "Merged report: add validation and tests."}
+        self.run_command(sys.executable, TOOL.parent / "agents/codex_capture.py", "capture", first, json.dumps(event))
+        self.fx("agent", "group", "compare", "review", cwd=task)
+        second, = set((group / "comparisons").iterdir()) - {first}
+        self.assertNotIn("Merged report", (second / "input-context.md").read_text())
+        result = self.fx("agent", "claude", "--from", first, cwd=task)
+        instructions = Path(json.loads(result.stdout)["arguments"][5]).read_text()
+        self.assertIn("Merged report: add validation and tests.", instructions)
+        result = self.fx("agent", "claude", cwd=task)
+        instructions = Path(json.loads(result.stdout)["arguments"][5]).read_text()
+        self.assertIn(str(first.relative_to(task) / "results/turn-000001/response.md"), instructions)
+
+    def test_compare_rejects_invalid_arguments(self):
+        task = self.task()
+        for options in ((), ("missing",), ("../escape",), ("review", "--agent"),
+                        ("review", "--agent", "codex", "--agent", "claude"),
+                        ("review", "-r", "x"), ("review", "-r", "l", "-r", "h"),
+                        ("review", "--unknown"), ("review", "--new-tab")):
+            with self.subTest(options=options):
+                result = self.fx("agent", "group", "compare", *options, cwd=task, check=False)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, "")
+        self.assertEqual(list((task / "context").iterdir()), [])
+
+    def test_compare_rejects_failed_tab_and_capture_error(self):
+        task = self.task()
+        group = self.completed_group(task)
+        request = group / "1-claude/tab-request.txt"
+        request.write_text("failed: 23\n")
+        result = self.fx("agent", "group", "compare", "review", cwd=task, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("not accepted", result.stderr)
+        request.write_text("accepted\n")
+        (group / "2-codex/capture-error.txt").write_text("Capture failed")
+        result = self.fx("agent", "group", "compare", "review", cwd=task, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Capture failed", result.stderr)
+        self.assertFalse((group / "comparisons").exists())
 
     def test_shell_integration_changes_directory_only_after_success(self):
         shells = ["bash"]

@@ -9,6 +9,8 @@ fi
 project="$2"
 session="$4"
 reasoning="$5"
+adapter_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+python3 "$adapter_dir/claude_capture.py" settings "$session" > "$session/claude-settings.json"
 shift 5
 [[ $# == 0 ]] || set -- -- "$1"
 printf 'model=claude-opus-5-5\n' >> "$session/launch.txt"
@@ -18,4 +20,5 @@ exec claude \
   --effort "$reasoning" \
   --append-system-prompt-file "$session/instructions.md" \
   --add-dir "$project/project_context" \
+  --settings "$session/claude-settings.json" \
   "$@"

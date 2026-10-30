@@ -10,6 +10,8 @@ project="$2"
 task="$3"
 session="$4"
 reasoning="$5"
+adapter_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+capture_config="$(python3 "$adapter_dir/codex_capture.py" config "$session")"
 shift 5
 [[ $# == 0 ]] || set -- -- "$1"
 instructions="$(cat "$session/instructions.md")"
@@ -25,4 +27,5 @@ exec codex \
   -c "model_reasoning_effort=\"$reasoning\"" \
   -c "developer_instructions=\"$instructions\"" \
   --add-dir "$project/project_context" \
+  -c "$capture_config" \
   "$@"
