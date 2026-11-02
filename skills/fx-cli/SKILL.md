@@ -71,11 +71,14 @@ repository instructions before edits.
 New tasks use `feature/<task-name>` and the fetched default base from
 `origin/HEAD`. Use `--base develop` or `--base origin/release` when required.
 A local base with an upstream uses the fetched upstream, not its unpushed
-local commits. Tags and commit identifiers are not accepted. If task naming
-conflicts with project rules, resolve that before creation; there is no
-branch-prefix flag.
+local commits. A missing local base is created from the fetched default branch.
+It has no upstream and is not pushed. The task tracks that new local base.
+Missing remote-prefixed bases still fail. Tags and commit identifiers are not
+accepted. If task naming conflicts with project rules, resolve that before
+creation; there is no branch-prefix flag.
 
-Existing tasks preserve files and branches. Reopening does not fetch or reset.
+Existing tasks preserve files and branches. Reopening does not reset. It fetches
+only when an explicit local base is missing and must be created.
 For existing tasks, `--base` changes the upstream only. It does not move commits.
 New branches track the base. When publication is requested, `git push origin HEAD`
 retains that relationship; adding `-u` changes it to the published branch.
@@ -168,7 +171,8 @@ errors stop the launch. One saved turn per member does not prove group completio
 - If setup rejects a different repository, select the correct project. Do not
   replace the clone to bypass the check.
 - If base discovery or fetch fails, inspect the reported remote and branch.
-  Supply a valid `--base` when needed. Do not reset work or use stale commits.
+  Supply an existing remote base or a local `--base` when needed.
+  Do not reset work or use stale commits.
 - If Zellij attachment fails after task preparation, reuse the task. It remains
   available through `--no-attach`.
 - If a group tab request fails, inspect `tab-request.txt` and the opened tabs.

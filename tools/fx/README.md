@@ -94,7 +94,13 @@ from the fetched `origin/main` when local `main` tracks it. Unpushed commits on
 local `main` are not included. The main clone's branch and files are preserved.
 If neither upstream exists, the task starts from and tracks the local base.
 The command reports this local-only base because it has no remote updates.
-Tags and commit identifiers are not accepted as branch names.
+If a requested local base does not exist after fetching, the command creates it
+from the fetched default branch recorded by `origin/HEAD`. For example,
+`fx task fix-login --base release/new` creates local `release/new` and then
+`feature/fix-login`. The task branch tracks `release/new`. The new base has no
+upstream and is not pushed to a remote. A missing remote-prefixed base such as
+`origin/release/new` produces an error. Tags and commit identifiers are not
+accepted as base branches.
 
 The command fetches the configured upstream remote, or `origin` when none is
 configured. An explicit remote prefix such as `upstream/develop` selects that
@@ -119,8 +125,10 @@ from `origin`. If discovery fails, supply `--base`. The directory named
 An existing task branch can be attached if it is not checked out elsewhere.
 A conflicting checkout or worktree produces an error. Existing task files and
 customized instructions are preserved. A switched task branch is not reset.
-Reopening an existing task or attaching an existing task branch does not fetch.
-For these tasks, `--base` updates only the upstream using available references.
+Reopening an existing task or attaching an existing task branch does not fetch
+when the selected base already exists. A missing local `--base` branch requires
+a fetch of the default branch before creation. For existing tasks, `--base`
+updates only the upstream.
 It does not reset commits, merge, rebase, or replace uncommitted files.
 Omitting `--base` preserves the existing upstream. An invalid base produces an error.
 

@@ -152,8 +152,8 @@ EOF
   printf '%s\n' "$project"
 }
 
-resolve_base_branch() {
-  local clone="$1" requested="$2" reference
+resolve_or_create_base_branch() {
+  local clone="$1" requested="$2" refresh_default="${3:-true}" reference remote default_base
   if [[ -z "$requested" ]]; then
     reference="$(git -C "$clone" symbolic-ref --quiet refs/remotes/origin/HEAD)" ||
       fail 'The repository default branch is unknown. Supply --base <branch>.'
@@ -170,7 +170,26 @@ resolve_base_branch() {
       return
     fi
   done
-  fail "Base branch not found: $requested. Fetch it into the main clone first."
+  while IFS= read -r remote; do
+    [[ "$requested" != "$remote/"* ]] || fail "Remote base branch not found: $requested"
+  done < <(git -C "$clone" remote)
+  [[ "$requested" != refs/* ]] || fail "Invalid base branch: $requested"
+  if git -C "$clone" rev-parse --verify "$requested^{commit}" >/dev/null 2>&1; then
+    fail "The base must be a branch, not a tag or commit: $requested"
+  fi
+  if [[ "$refresh_default" == true ]]; then
+    default_base="$(fetch_base_branch "$clone" '')" || return
+  else
+    if ! git -C "$clone" symbolic-ref --quiet refs/remotes/origin/HEAD >/dev/null; then
+      git -C "$clone" remote set-head origin --auto >&2 ||
+        fail 'The repository default branch is unknown. Cannot create the missing base branch.'
+    fi
+    default_base="$(resolve_or_create_base_branch "$clone" '')" || return
+  fi
+  printf 'fx: Creating local base branch %s from %s\n' "$requested" "$default_base" >&2
+  git -C "$clone" branch --no-track -- "$requested" "$default_base" >&2 ||
+    fail "Could not create base branch: $requested"
+  printf 'refs/heads/%s\n' "$requested"
 }
 
 resolve_base_upstream() {
@@ -221,7 +240,7 @@ fetch_base_branch() {
     git -C "$clone" show-ref --verify --quiet "$expected_upstream" ||
       fail "The base branch's upstream is unavailable after fetching: $expected_upstream"
   fi
-  reference="$(resolve_base_branch "$clone" "$requested")" || return
+  reference="$(resolve_or_create_base_branch "$clone" "$requested" false)" || return
   reference="$(resolve_base_upstream "$clone" "$reference")" || return
   if [[ "$reference" == refs/heads/* ]]; then
     printf 'fx: Using local base %s; it has no remote upstream.\n' "${reference#refs/heads/}" >&2
@@ -309,7 +328,7 @@ open_task() {
   fi
   if git -C "$project/repo/main" show-ref --verify --quiet "refs/heads/$branch"; then
     if [[ -n "$base" ]]; then
-      base_reference="$(resolve_base_branch "$project/repo/main" "$base")"
+      base_reference="$(resolve_or_create_base_branch "$project/repo/main" "$base")"
       upstream="$(resolve_base_upstream "$project/repo/main" "$base_reference")"
       [[ "$upstream" != "refs/heads/$branch" ]] || fail 'A task branch cannot track itself. Supply a remote base branch.'
     fi
@@ -317,6 +336,7 @@ open_task() {
       git -C "$project/repo/main" worktree add "$task/repo" "$branch" >&2
     fi
   else
+    [[ "$base" != "$branch" ]] || fail 'A task branch cannot track itself. Supply a different base branch.'
     base_reference="$(fetch_base_branch "$project/repo/main" "$base")"
     upstream="$base_reference"
     printf 'fx: Creating task branch from %s\n' "$base_reference" >&2
@@ -804,7 +824,8 @@ Load shell-init in Bash or Zsh to enter projects and tasks automatically.
 Tasks open a Zellij session named <project_name>-<task_name>. Use --no-attach to skip Zellij.
 Delete removes the task directory, Git worktree, and Zellij session. Git branches are kept.
 Use delete --force to discard uncommitted files or a detached worktree. Run outside the target Zellij session.
-New feature/<task_name> branches start from the fetched base upstream. Existing tasks are not reset or fetched.
+New feature/<task_name> branches start from the fetched base upstream.
+Missing local --base branches are created from the fetched default. Existing tasks are not reset.
 Repository accepts owner/repository, a Git URL, or a local repository path.
 Agent names correspond to executable adapters in agents/.
 Reasoning: l = low, m = medium (default), h = high.
