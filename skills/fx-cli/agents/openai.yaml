@@ -1,0 +1,3 @@
+interface:
+  display_name: "fx CLI"
+  short_description: "Set up fx and manage task workspaces and agents"
