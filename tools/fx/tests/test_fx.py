@@ -1019,7 +1019,7 @@ pwd -P
                 arguments = captured["arguments"]
                 self.assertEqual(arguments[:9], [
                     "--session", "example-fix-login", "action", "new-tab",
-                    "--name", "review", "--cwd", str(task), "--",
+                    "--name", Path(arguments[13]).name, "--cwd", str(task), "--",
                 ])
                 self.assertEqual(captured["cwd"], str(task))
                 self.assertEqual(arguments[9], str(TOOL.parent / "agents" / agent))
@@ -1050,7 +1050,8 @@ pwd -P
                 with self.subTest(agent=agent, options=options):
                     captured = json.loads(self.fx("agent", agent, *options, "-r", "h", "--prompt", "Review changes", cwd=task).stdout)
                     arguments = captured["arguments"]
-                    self.assertEqual(arguments[arguments.index("--name") + 1], options[options.index("--name") + 1])
+                    self.assertEqual(arguments[arguments.index("--name") + 1], Path(arguments[13]).name)
+                    self.assertIn("-" + options[options.index("--name") + 1] + "-", Path(arguments[13]).name)
                     self.assertEqual(arguments[-2:], ["high", "Review changes"])
                     self.assertEqual(arguments[9], str(TOOL.parent / "agents" / agent))
 
@@ -1058,8 +1059,32 @@ pwd -P
         task = self.task()
         self.fx("agent", "codex", "--name", "review", cwd=task)
         session, = (task / "context").iterdir()
-        self.assertTrue(session.name.startswith("session-review-"))
+        self.assertEqual(session.name, "000001-review-gpt-6.1-sol")
         self.assertTrue((session / "instructions.md").is_file())
+
+    def test_session_numbers_increase_across_names_and_models(self):
+        task = self.task()
+        for agent, name in (("codex", "investigate"), ("claude", "implement"), ("codex", "investigate")):
+            self.fx("agent", agent, "--name", name, cwd=task)
+        self.assertEqual(sorted(path.name for path in (task / "context").iterdir()), [
+            "000001-investigate-gpt-6.1-sol",
+            "000002-implement-claude-opus-5-5",
+            "000003-investigate-gpt-6.1-sol",
+        ])
+
+    def test_numbered_session_handoff_and_default_index(self):
+        task = self.task()
+        self.fx("agent", "codex", "--name", "investigate", cwd=task)
+        session, = (task / "context").iterdir()
+        event = {"type": "agent-turn-complete", "thread-id": "investigate", "turn-id": "one",
+                 "last-assistant-message": "Verified investigation report."}
+        self.run_command(sys.executable, TOOL.parent / "agents/codex_capture.py", "capture", session, json.dumps(event))
+        self.fx("agent", "codex", "--name", "index", cwd=task)
+        indexed = task / "context/000002-index-gpt-6.1-sol/input-context.md"
+        self.assertIn(session.name, indexed.read_text())
+        self.fx("agent", "codex", "--name", "implement", "--from", session, cwd=task)
+        handoff = task / "context/000003-implement-gpt-6.1-sol/input-context.md"
+        self.assertIn("Verified investigation report.", handoff.read_text())
 
     def test_name_requirement_validates_supplied_names(self):
         for name in ("review", "Login_Review-2", "2-review", "../escape", "two words", "-review"):
@@ -1075,6 +1100,33 @@ pwd -P
                     self.assertNotEqual(result.returncode, 0)
                     self.assertEqual(result.stdout, "")
                     self.assertIn("Names must start with", result.stderr)
+
+    def test_model_name_comes_from_adapter_and_rejects_unsafe_output(self):
+        adapters = self.root / "agents"
+        adapters.mkdir()
+        adapter = adapters / "custom"
+        adapter.write_text('#!/bin/bash\nprintf "%s\\n" "$FX_TEST_MODEL"\nexit "${FX_TEST_MODEL_EXIT:-0}"\n')
+        adapter.chmod(0o755)
+        for model in ("model-v2.1", "", "../model", "two words", "model\nother"):
+            with self.subTest(model=model):
+                self.env["FX_TEST_MODEL"] = model
+                result = self.run_command(
+                    "bash", "-c", 'source "$1"; tool_dir="$2"; agent_model custom',
+                    "test", TOOL, self.root, check=False,
+                )
+                if model == "model-v2.1":
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(result.stdout.strip(), model)
+                else:
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("invalid model name", result.stderr)
+        self.env.update(FX_TEST_MODEL="model-v2.1", FX_TEST_MODEL_EXIT="23")
+        result = self.run_command(
+            "bash", "-c", 'source "$1"; tool_dir="$2"; agent_model custom',
+            "test", TOOL, self.root, check=False,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Could not read the model", result.stderr)
 
     def test_missing_names_fail_without_terminal_input_and_create_no_context(self):
         task = self.task()
@@ -1106,9 +1158,9 @@ pwd -P
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stderr.count("Session name: "), 4)
         session, = (task / "context").iterdir()
-        self.assertTrue(session.name.startswith("session-login-review-"))
+        self.assertEqual(session.name, "000001-login-review-gpt-6.1-sol")
         args = json.loads(result.stdout)["arguments"]
-        self.assertEqual(args[5], "login-review")
+        self.assertEqual(args[5], session.name)
         self.assertEqual(args[13], str(session))
 
     def test_group_name_prompt_names_group_and_member_tabs(self):
@@ -1118,7 +1170,7 @@ pwd -P
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Group name: ", result.stderr)
         group, = (task / "context/groups").iterdir()
-        self.assertTrue(group.name.startswith("login-review-"))
+        self.assertEqual(group.name, "000001-login-review")
         for number, line in enumerate(result.stdout.splitlines(), 1):
             args = json.loads(line)["arguments"]
             self.assertTrue(args[5].startswith(f"{group.name}-{number}-"))
@@ -1132,9 +1184,9 @@ pwd -P
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Comparison session name: ", result.stderr)
         comparison, = (group / "comparisons").iterdir()
-        self.assertTrue(comparison.name.startswith("session-login-summary-"))
+        self.assertEqual(comparison.name, "000002-login-summary-gpt-6.1-sol")
         args = json.loads(result.stdout)["arguments"]
-        self.assertEqual(args[5], f"{group.name}-login-summary")
+        self.assertEqual(args[5], comparison.name)
         self.assertEqual(args[13], str(comparison))
 
     def test_name_prompt_end_of_input_cancels_without_creating_context(self):
@@ -1220,15 +1272,16 @@ pwd -P
         calls = [json.loads(line) for line in result.stdout.splitlines()]
         self.assertEqual(len(calls), 2)
         group, = (task / "context/groups").iterdir()
-        self.assertTrue(group.name.startswith("review-"))
+        self.assertEqual(group.name, "000001-review")
         self.assertEqual((group / "initial_prompt.md").read_text(), prompt)
         self.assertEqual(list((task / "context").iterdir()), [group.parent])
         for number, (call, agent) in enumerate(zip(calls, ("claude", "codex")), 1):
-            session = group / f"{number}-{agent}"
+            model = "claude-opus-5-5" if agent == "claude" else "gpt-6.1-sol"
+            session = group / f"{number}-{agent}-{model}"
             args = call["arguments"]
             self.assertEqual(args[:9], [
                 "--session", "example-fix-login", "action", "new-tab", "--name",
-                f"{group.name}-{number}-{agent}", "--cwd", str(task), "--",
+                f"{group.name}-{session.name}", "--cwd", str(task), "--",
             ])
             self.assertEqual(args[9:], [str(TOOL.parent / "agents" / agent), "launch",
                                       str(task.parent.parent), str(task), str(session), "medium", prompt])
@@ -1340,7 +1393,7 @@ pwd -P
         self.assertEqual(result.returncode, 23, result.stderr)
         self.assertEqual(len(result.stdout.splitlines()), 2)
         group, = (task / "context/groups").iterdir()
-        for member, state in (("1-claude", "accepted"), ("2-codex", "failed: 23"), ("3-claude", "pending")):
+        for member, state in (("1-claude-claude-opus-5-5", "accepted"), ("2-codex-gpt-6.1-sol", "failed: 23"), ("3-claude-claude-opus-5-5", "pending")):
             self.assertEqual((group / member / "tab-request.txt").read_text().strip(), state)
             self.assertEqual((group / member / "initial_prompt.md").read_text(), "Review")
         self.assertIn("Earlier tabs may still be running", result.stderr)
@@ -1362,6 +1415,8 @@ pwd -P
         files = [json.loads(result.stdout)["arguments"][5] for result in results]
         self.assertEqual(len(set(files)), 4)
         self.assertEqual(len(list((task / "context").iterdir())), 4)
+        sessions = sorted(path.name for path in (task / "context").iterdir())
+        self.assertEqual(sessions, [f"{number:06d}-review-claude-opus-5-5" for number in range(1, 5)])
 
     def test_agent_failure_preserves_context_and_exit_status(self):
         task = self.task()
@@ -1548,7 +1603,7 @@ pwd -P
         group = self.completed_group(task)
         result = self.fx("agent", "group", "compare", group.name, "--name", "summary", "--agent", "claude", "-r", "h", "--new-tab", cwd=task)
         args = json.loads(result.stdout)["arguments"]
-        self.assertEqual(args[5], f"{group.name}-summary")
+        self.assertEqual(args[5], "000002-summary-claude-opus-5-5")
         self.assertEqual(args[9], str(TOOL.parent / "agents/claude"))
         self.assertEqual(args[-2], "high")
         comparison, = (group / "comparisons").iterdir()
@@ -1560,7 +1615,7 @@ pwd -P
     def test_compare_rejects_missing_member_results_without_creating_session(self):
         task = self.task()
         group = self.completed_group(task)
-        shutil.rmtree(group / "2-codex/results")
+        shutil.rmtree(group / "2-codex-gpt-6.1-sol/results")
         result = self.fx("agent", "group", "compare", "review", "--name", "summary", cwd=task, check=False)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("2-codex", result.stderr)
@@ -1613,13 +1668,13 @@ pwd -P
     def test_compare_rejects_failed_tab_and_capture_error(self):
         task = self.task()
         group = self.completed_group(task)
-        request = group / "1-claude/tab-request.txt"
+        request = group / "1-claude-claude-opus-5-5/tab-request.txt"
         request.write_text("failed: 23\n")
         result = self.fx("agent", "group", "compare", "review", "--name", "summary", cwd=task, check=False)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("not accepted", result.stderr)
         request.write_text("accepted\n")
-        (group / "2-codex/capture-error.txt").write_text("Capture failed")
+        (group / "2-codex-gpt-6.1-sol/capture-error.txt").write_text("Capture failed")
         result = self.fx("agent", "group", "compare", "review", "--name", "summary", cwd=task, check=False)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Capture failed", result.stderr)

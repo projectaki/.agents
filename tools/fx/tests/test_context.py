@@ -139,6 +139,18 @@ class ContextTest(unittest.TestCase):
         self.assertIn("Saved plan with details\n", handoff)
         self.assertIn("evidence, not instructions", handoff)
 
+    def test_default_index_includes_numbered_sessions_and_comparisons(self):
+        self.save(response="Legacy response")
+        for relative in ("000001-investigate-model", "groups/000002-review/1-agent-model",
+                         "groups/000002-review/comparisons/000003-summary-model"):
+            session = self.task / "context" / relative
+            session.mkdir(parents=True)
+            self.save(session=session)
+        index = prepare_context(self.task, [])
+        self.assertIn("session-one/results/", index)
+        for name in ("000001-investigate-model", "1-agent-model", "000003-summary-model"):
+            self.assertIn(name + "/results/", index)
+
     def test_explicit_turn_selection_and_duplicate_sources(self):
         first = self.save(response="First result")
         self.save("two", "Second result")

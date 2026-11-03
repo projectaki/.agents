@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+model=gpt-6.1-sol
+if [[ "${1-}" == model ]]; then
+  printf '%s\n' "$model"
+  exit
+fi
+
 if [[ "${1-}" == check ]]; then
   command -v codex >/dev/null
   exit
@@ -30,10 +36,10 @@ instructions="${instructions//\"/\\\"}"
 instructions="${instructions//$'\n'/\\n}"
 instructions="${instructions//$'\r'/\\r}"
 instructions="${instructions//$'\t'/\\t}"
-printf 'model=gpt-6.1-sol\n' >> "$session/launch.txt"
+printf 'model=%s\n' "$model" >> "$session/launch.txt"
 exec codex \
   --cd "$task" \
-  --model gpt-6.1-sol \
+  --model "$model" \
   -c "model_reasoning_effort=\"$reasoning\"" \
   -c "developer_instructions=\"$instructions\"" \
   --add-dir "$project/project_context" \

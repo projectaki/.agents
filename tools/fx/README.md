@@ -1,8 +1,9 @@
 # fx
 
 `fx` prepares filesystem workspaces and starts interactive coding agents.
-It uses Bash, Git, Zellij, and Python 3.9 or later. It does not schedule work. An initial assignment
+It uses Bash, Git, Zellij, and Python 3.9 or later. An initial assignment
 can be supplied with `fx agent --prompt`.
+The sentry command can repeat diagnostic checks. Other agent commands remain interactive.
 
 ## Load the command
 
@@ -285,12 +286,17 @@ Names start with a letter or digit. Remaining characters can be letters,
 digits, underscores, or hyphens. Spaces are not accepted. Repeated `--name`
 flags are rejected. These rules also apply to groups and comparison sessions.
 
-Session directories use `context/session-<name>-XXXXXXXX/`. The random suffix
-keeps repeated and concurrent launches separate. Use the printed directory
-path to refer to a specific session or supply it with `--from`.
+Session directories use `context/<number>-<name>-<model>/`, such as
+`context/000001-investigate-gpt-6.1-sol/`. Numbers increase per task across
+individual launches, groups, and comparisons. Six-digit padding keeps names
+in launch order when sorted. Allocation uses a locked task counter, so
+concurrent launches receive different numbers. Failed launches can leave gaps.
+Existing directories keep their names and remain available for handoffs.
+Use the printed path to select a session with `--from`.
 
 The tab opens in the task directory and receives focus. Its title is the
-session name. The same `--name` option applies in the current terminal.
+numbered session directory name, including the model. The same `--name`
+option applies in the current terminal.
 The tab belongs to the current Zellij session. Each invocation creates one
 agent context directory. The command returns after Zellij creates the tab;
 agent startup errors appear in that tab. A failed tab request preserves the
@@ -354,29 +360,30 @@ file. Adapter selection and model defaults work as for individual launches.
 
 Each invocation requires a group name. Supply `--name` or enter the name at
 the terminal prompt. Without terminal input, a missing name produces an error.
-Each invocation creates a fresh directory under `context/groups/`. A random
-suffix distinguishes repeated runs and concurrent launches. For example:
+Each invocation creates a fresh numbered directory under `context/groups/`.
+Groups share the task counter with individual sessions and comparisons.
+Member names include their position, adapter, and model. For example:
 
 ```text
-context/groups/review-Ab12Cd34/
+context/groups/000001-review/
 ├── group.md
 ├── initial_prompt.md
-├── 1-claude/
+├── 1-claude-claude-opus-5-5/
 │   ├── findings.md
 │   ├── instructions.md
 │   ├── initial_prompt.md
 │   ├── launch.txt
 │   └── tab-request.txt
-└── 2-codex/
+└── 2-codex-gpt-6.1-sol/
     └── ...
 ```
 
 `group.md` lists the members, reasoning levels, and tab titles. Tabs use the
-group directory name plus the member number and agent name, such as
-`review-Ab12Cd34-1-claude`. They are individual tabs in the current Zellij
+group directory name plus the member number, agent name, and model, such as
+`000001-review-1-claude-claude-opus-5-5`. They are individual tabs in the current Zellij
 session. The shared prefix identifies the group.
-Member session names use the member number and agent name within the named
-group. The command does not prompt separately for each member.
+Member session names use the member number, agent name, and model within
+the named group. The command does not prompt separately for each member.
 
 Group instructions require independent investigation. Members can read the
 task rules, project memory, project context, repository, and earlier captured
@@ -420,7 +427,7 @@ current terminal unless `--new-tab` is supplied.
 ```bash
 fx agent group compare review --name summary
 fx agent group compare review --name summary --agent claude -r h --new-tab
-fx agent group compare review-Ab12Cd34 --name summary --new-tab
+fx agent group compare 000001-review --name summary --new-tab
 ```
 
 Names resolve within the current task. A short name such as `review` works
@@ -432,7 +439,7 @@ file. `--agent` overrides it for one comparison.
 The comparison session requires its own name through `--name` or the terminal
 prompt. Without terminal input, `--name` is required. The positional group
 name selects the existing group. It does not name the new session.
-Comparison tabs use the full group directory name followed by the session name.
+Comparison tabs use the numbered comparison directory name, including the model.
 
 The comparison assignment asks the agent to combine duplicate findings,
 preserve useful unique details, check disagreements against evidence, cite
@@ -444,7 +451,7 @@ correct earlier ones. Previous comparison reports are excluded from the input.
 Each invocation creates its own session under the selected group:
 
 ```text
-context/groups/review-Ab12Cd34/comparisons/session-summary-XXXXXXXX/
+context/groups/000001-review/comparisons/000002-summary-gpt-6.1-sol/
 ├── source-group.txt
 ├── input-context.md
 ├── initial_prompt.md
@@ -469,6 +476,68 @@ sessions. Input is fixed at comparison launch. The same 48 KB handoff limit
 applies. If the combined input is larger, use a normal agent launch with
 `--from` selecting the relevant individual turns.
 
+## Task sentry
+
+Run sentry from a task directory or its `repo/` worktree:
+
+```bash
+fx agent sentry
+fx agent sentry --headless
+fx agent sentry --headless --interval 30
+fx agent sentry --headless --once
+```
+
+Both modes use Claude Code with the `haiku` model alias. Claude Code must be
+installed and authenticated. The interactive session starts with a diagnostic
+assessment. Ask follow-up questions such as “Which sessions need attention?”
+or “Has the implementation moved outside the task goal?” It refreshes evidence
+when answering questions; it does not check automatically between prompts.
+Use `--prompt 'Check the repeated test failures'` to supply a specific focus.
+
+Headless mode starts a fresh Claude check every 60 seconds by default.
+`--interval` changes the time between check starts. A longer check delays the
+next start; checks never overlap. Each check has a 90-second timeout, at most
+12 agent turns, and a requested Claude budget limit of $0.25. `--timeout`
+changes the timeout. The budget is a per-check limit, not a total spending
+limit or a guarantee of subscription billing. `--once` runs one check and exits.
+Press Ctrl+C to stop monitoring and terminate its current headless check.
+A timeout, failed Claude call, exhausted limit, or empty report stops the
+monitor with a nonzero exit status. It does not silently retry.
+
+Each check prints its timestamp, session count, and report in the terminal.
+The report identifies concerns, evidence, impact, recommended human action,
+and session status. This command does not send desktop notifications or stop
+the monitored sessions. Automatic detection is periodic and model-based.
+
+Sentry explicitly receives diagnostic analysis authority for this task.
+It inventories sessions through `context/**/launch.txt`, including group members
+and comparison sessions, regardless of their agent provider. It reads bounded
+excerpts of assignments, findings, captured responses, and files directly under
+each session's `events/` directory. Reports identify truncation and missing
+evidence. The read-only Claude tools can inspect additional files when needed.
+Use `task.md` to state the overall goal. Without it, sentry reports uncertainty
+and uses individual assignments as evidence.
+
+Process command-line matches provide limited presence evidence. They do not
+establish progress, and missing matches do not establish exit. Sessions outside
+fx's task context are not automatically discovered. Missing events and crashes
+can prevent a complete assessment. Sentry reports unknown status when needed.
+
+Claude receives only the `Read`, `Glob`, and `Grep` built-in tools. MCP servers,
+slash commands, and configurable hooks are disabled for the sentry session.
+It cannot run shell commands, edit source, or dispatch agents through its tools.
+The wrapper saves its instructions, fresh `snapshot.json`, and latest headless
+report in `.fx-sentry/<run-id>/` under the task. These files stay outside the
+normal result index and handoffs. They contain diagnostic data; preserve them
+as private task evidence. Each run gets a new directory. The latest snapshot
+and report replace the previous ones within that run.
+
+Task-specific agent commands register an executable in `agent-commands/` under
+their command name. The launcher passes the project directory, task directory,
+and remaining arguments to that executable. These commands own their options
+and session behavior. Standard agent adapters and group launches continue to
+use `agents/`.
+
 ## Captured responses and handoffs
 
 Each agent adapter saves final response text through a CLI callback. Claude
@@ -478,7 +547,7 @@ The capture script receives the response directly. It does not parse terminal
 screens, copy tool output, or require the agent to write a file.
 
 ```text
-context/session-review-XXXXXXXX/
+context/000001-review-gpt-6.1-sol/
 ├── findings.md
 ├── input-context.md
 ├── last_turn_results.md
@@ -518,7 +587,7 @@ them. To supply the actual text directly, use `--from`:
 fx agent claude --name plan-login --prompt 'Plan the login fix.'
 
 # After the planning response is captured, use its actual session directory.
-fx agent codex --name implement-login --from context/session-plan-login-XXXXXXXX \
+fx agent codex --name implement-login --from context/000001-plan-login-claude-opus-5-5 \
   --prompt 'Implement the supplied plan.'
 ```
 
@@ -569,7 +638,7 @@ Capture runs in harness callbacks and native logging code. It does not ask
 the model to write event records.
 
 ```text
-context/session-review-XXXXXXXX/events/
+context/000001-review-gpt-6.1-sol/events/
 ├── harness-version.txt
 ├── callbacks.jsonl
 └── codex-session.jsonl       # Codex sessions
@@ -649,16 +718,19 @@ my-project/
 ├── repo/main/
 └── tasks/fix-login/
     ├── AGENTS.md
+    ├── .fx-session-sequence
     ├── repo/
-    └── context/session-review-XXXXXXXX/
+    └── context/000001-review-gpt-6.1-sol/
         ├── instructions.md
         ├── findings.md
         └── launch.txt
 ```
 
 `AGENTS.md` contains editable task rules. Add `task.md` if a durable task
-description is useful. The launcher creates session instructions with exact
-paths and a findings file. It records the selected agent, model, and reasoning
+description is useful. The `.fx-session-sequence` file stores the task counter.
+Keep it when retaining task context.
+The launcher creates session instructions with exact paths and a findings file.
+It records the selected agent, model, and reasoning
 in `launch.txt`. Session files remain available after an agent exits or fails.
 
 Agents are instructed to read relevant context and update their own findings
@@ -691,8 +763,13 @@ bash -n tools/fx/fx tools/fx/agents/claude tools/fx/agents/codex
 
 Each executable in `agents/` registers an agent under its filename.
 The main command does not contain agent-specific branches.
-An adapter supports `check` to verify its CLI exists and
+An adapter supports `check` to verify its CLI exists,
+`model` to print the configured model name without starting the CLI, and
 `launch <project> <task> <session> <reasoning> [prompt]` to start it.
+The launcher uses the reported model in session and tab names. Model names
+start with a letter or digit and contain only letters, digits, underscores,
+dots, or hyphens. Use one model value for reporting, launch metadata, and
+the CLI argument.
 The main command sets the working directory to the task before launch.
 Keep model defaults and CLI-specific configuration inside the adapter.
 

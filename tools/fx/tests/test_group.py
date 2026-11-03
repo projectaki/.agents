@@ -27,6 +27,17 @@ class GroupNameTest(unittest.TestCase):
         self.assertEqual(resolve_group(self.task, "review"), group)
         self.assertEqual(resolve_group(self.task, group.name), group)
 
+    def test_numbered_group_short_and_exact_names_resolve(self):
+        group = self.group("000001-review")
+        self.assertEqual(resolve_group(self.task, "review"), group)
+        self.assertEqual(resolve_group(self.task, group.name), group)
+
+    def test_numbered_and_legacy_groups_with_same_name_are_ambiguous(self):
+        self.group("000001-review")
+        self.group("review-Ab12Cd34")
+        with self.assertRaisesRegex(ValueError, "ambiguous"):
+            resolve_group(self.task, "review")
+
     def test_similar_names_do_not_match_another_group(self):
         self.group("review-deep-Ab12Cd34")
         with self.assertRaisesRegex(ValueError, "not found"):

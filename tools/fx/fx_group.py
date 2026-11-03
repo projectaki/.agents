@@ -14,8 +14,10 @@ def resolve_group(task, name):
         raise ValueError("The groups directory must not be a symbolic link.")
     exact = root / name
     candidates = [exact] if exact.exists() else [
-        path for path in root.glob(f"{name}-????????")
-        if (path / "group.md").is_file()
+        path for path in root.iterdir()
+        if (re.fullmatch(rf"[0-9]+-{re.escape(name)}", path.name)
+            or re.fullmatch(rf"{re.escape(name)}-[a-zA-Z0-9]{{8}}", path.name))
+        and (path / "group.md").is_file()
     ]
     if not candidates:
         raise ValueError(f"Group not found in this task: {name}")

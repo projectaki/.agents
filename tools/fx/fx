@@ -13,6 +13,13 @@ validate_name() {
     fail 'Names must start with a letter or digit and contain only letters, digits, underscores, or hyphens.'
 }
 
+agent_model() {
+  local model
+  model="$("$tool_dir/agents/$1" model)" || fail "Could not read the model from the $1 adapter."
+  [[ "$model" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]*$ ]] || fail "The $1 adapter returned an invalid model name."
+  printf '%s\n' "$model"
+}
+
 require_name() {
   local kind="$1" name="$2"
   if [[ -n "$name" ]]; then
@@ -511,11 +518,18 @@ EOF
 
 launch_agent() {
   [[ $# -ge 1 ]] || fail 'Usage: fx agent <agent> [--name <name>] [-r l|m|h] [--prompt <text>] [--from <context-directory>] [--new-tab]'
-  local agent="$1" reasoning=medium adapter project task session prompt='' name='' captured_context
+  local agent="$1" reasoning=medium adapter project task session prompt='' name='' captured_context model
   local prompt_supplied=false reasoning_supplied=false new_tab=false
   local -a context_args=()
   validate_name "$agent"
   shift
+  local command_adapter="$tool_dir/agent-commands/$agent"
+  if [[ -x "$command_adapter" ]]; then
+    project="$(find_project)"
+    task="$(find_task "$project")"
+    cd -- "$task"
+    exec "$command_adapter" "$project" "$task" "$@"
+  fi
   while [[ $# -gt 0 ]]; do
     case "$1" in
       -r)
@@ -554,14 +568,15 @@ launch_agent() {
   adapter="$tool_dir/agents/$agent"
   [[ -x "$adapter" ]] || fail "No agent adapter is installed for: $agent"
   "$adapter" check || fail "The $agent CLI is not available. Install and authenticate it first."
+  model="$(agent_model "$agent")"
   project="$(find_project)"
   task="$(find_task "$project")"
   command -v python3 >/dev/null || fail 'Install Python 3 to capture and load agent results.'
   captured_context="$(python3 "$tool_dir/fx_context.py" "$task" "${context_args[@]}")"
   name="$(require_name Session "$name")"
   ensure_directory "$task/context"
-  session="$(mktemp -d "$task/context/session-$name-XXXXXXXX")"
-  set -- "$agent" "$project" "$task" "$session" "$reasoning" "$captured_context" "$name" "$new_tab"
+  session="$(python3 "$tool_dir/fx_session.py" "$task" "$task/context" "$name-$model")"
+  set -- "$agent" "$project" "$task" "$session" "$reasoning" "$captured_context" "$(basename -- "$session")" "$new_tab"
   [[ "$prompt_supplied" == false ]] || set -- "$@" "$prompt"
   run_agent_session "$@"
 }
@@ -582,7 +597,7 @@ run_agent_session() {
 launch_agent_group() {
   local name='' prompt='' default_reasoning=m project task group spec agent level session tab_name status index captured_context
   local prompt_supplied=false reasoning_supplied=false
-  local -a specs=() agents=() levels=() sessions=() tabs=()
+  local -a specs=() agents=() levels=() models=() sessions=() tabs=()
   local -a context_args=()
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -635,6 +650,7 @@ launch_agent_group() {
     "$tool_dir/agents/$agent" check || fail "The $agent CLI is not available. Install and authenticate it first."
     agents+=("$agent")
     levels+=("$level")
+    models+=("$(agent_model "$agent")")
   done
   [[ -n "${ZELLIJ-}" && -n "${ZELLIJ_SESSION_NAME-}" ]] ||
     fail 'Run fx agent group inside a Zellij session. Use fx task <task_name> to open one.'
@@ -646,7 +662,7 @@ launch_agent_group() {
   name="$(require_name Group "$name")"
   ensure_directory "$task/context"
   ensure_directory "$task/context/groups"
-  group="$(mktemp -d "$task/context/groups/$name-XXXXXXXX")"
+  group="$(python3 "$tool_dir/fx_session.py" "$task" "$task/context/groups" "$name")"
   name="$(basename -- "$group")"
   printf 'fx: Group context: %s\n' "$group" >&2
   if [[ "$prompt_supplied" == true ]]; then
@@ -666,8 +682,8 @@ Tab request state is in each session's tab-request.txt. It does not indicate age
 EOF
   for index in "${!agents[@]}"; do
     agent="${agents[$index]}"
-    session="$group/$((index + 1))-$agent"
-    tab_name="$name-$((index + 1))-$agent"
+    session="$group/$((index + 1))-$agent-${models[$index]}"
+    tab_name="$name-$(basename -- "$session")"
     ensure_directory "$session"
     set -- "$project" "$task" "$session" "$agent" "${levels[$index]}" "$group" "$captured_context"
     [[ "$prompt_supplied" == false ]] || set -- "$@" "$prompt"
@@ -699,7 +715,7 @@ EOF
 compare_agent_group() {
   [[ $# -ge 1 ]] || fail 'Usage: fx agent group compare <group_name> [--name <name>] [--agent <agent>] [-r l|m|h] [--new-tab]'
   local name="$1" agent='' reasoning=medium reasoning_supplied=false new_tab=false
-  local project task group session captured_context prompt session_name=''
+  local project task group session captured_context prompt session_name='' model
   shift
   validate_name "$name"
   while [[ $# -gt 0 ]]; do
@@ -730,6 +746,7 @@ compare_agent_group() {
   validate_name "$agent"
   [[ -x "$tool_dir/agents/$agent" ]] || fail "No agent adapter is installed for: $agent"
   "$tool_dir/agents/$agent" check || fail "The $agent CLI is not available. Install and authenticate it first."
+  model="$(agent_model "$agent")"
   if [[ "$new_tab" == true ]]; then
     [[ -n "${ZELLIJ-}" && -n "${ZELLIJ_SESSION_NAME-}" ]] || fail 'Run --new-tab inside a Zellij session.'
     command -v zellij >/dev/null || fail 'Install Zellij to use --new-tab.'
@@ -741,7 +758,7 @@ compare_agent_group() {
   captured_context="$(python3 "$tool_dir/fx_group.py" context "$task" "$(basename -- "$group")")"
   session_name="$(require_name 'Comparison session' "$session_name")"
   ensure_directory "$group/comparisons"
-  session="$(mktemp -d "$group/comparisons/session-$session_name-XXXXXXXX")"
+  session="$(python3 "$tool_dir/fx_session.py" "$task" "$group/comparisons" "$session_name-$model")"
   printf '%s\n' "$group" > "$session/source-group.txt"
   prompt="Compare and merge the supplied captured results from group $(basename -- "$group").
 Use the original group assignment, when supplied, to assess coverage.
@@ -754,7 +771,7 @@ Work from the supplied snapshot. Do not read later group responses or previous c
 Merge the analysis only. Do not edit repository files, project memory, shared context, or member results.
 Write the merged report to your own findings file and return it as your final response so fx captures it."
   printf 'fx: Comparing group: %s\nfx: Comparison context: %s\n' "$group" "$session" >&2
-  run_agent_session "$agent" "$project" "$task" "$session" "$reasoning" "$captured_context" "$(basename -- "$group")-$session_name" "$new_tab" "$prompt"
+  run_agent_session "$agent" "$project" "$task" "$session" "$reasoning" "$captured_context" "$(basename -- "$session")" "$new_tab" "$prompt"
 }
 
 shell_init() {
@@ -788,7 +805,7 @@ EOF
 }
 
 main() {
-  local subcommand="${1-help}"
+  local subcommand="${1-help}" command_adapter
   [[ $# == 0 ]] || shift
   case "$subcommand" in
     setup) setup_project "$@" ;;
@@ -815,6 +832,7 @@ Usage:
   fx task <task_name> [--base <branch>] [--no-attach]
   fx delete <task_name> [--force]
   fx agent <agent> [--name <name>] [-r l|m|h] [--prompt <text>] [--from <context-directory>] [--new-tab]
+  fx agent <command> [command-options]
   fx agent group [--name <name>] [--agent <agent[:l|m|h]> ...] [-r l|m|h] [--prompt <text>] [--from <context-directory>]
   fx agent group compare <group_name> [--name <name>] [--agent <agent>] [-r l|m|h] [--new-tab]
   fx shell-init
@@ -828,6 +846,7 @@ New feature/<task_name> branches start from the fetched base upstream.
 Missing local --base branches are created from the fetched default. Existing tasks are not reset.
 Repository accepts owner/repository, a Git URL, or a local repository path.
 Agent names correspond to executable adapters in agents/.
+Task-specific agent commands register executable handlers in agent-commands/.
 Reasoning: l = low, m = medium (default), h = high.
 Use --prompt to supply an initial assignment. Without it, the agent waits for interactive input.
 Use --new-tab inside Zellij to launch the agent in a new tab in the current session.
@@ -842,6 +861,10 @@ Use --from to supply saved responses from a session, group, or results/turn-* di
 Group compare requires captured results from every member. Run it after their intended responses finish.
 Comparisons use default-compare-agent, medium reasoning, and the current terminal unless --new-tab is supplied.
 EOF
+      printf '\nAvailable task agent commands:\n'
+      for command_adapter in "$tool_dir/agent-commands/"*; do
+        [[ ! -x "$command_adapter" || -d "$command_adapter" ]] || printf '  %s\n' "$(basename -- "$command_adapter")"
+      done
       ;;
     *) fail "Unknown subcommand: $subcommand. Run fx help." ;;
   esac

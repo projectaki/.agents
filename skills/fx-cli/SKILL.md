@@ -5,8 +5,9 @@ description: "Set up and use the projectaki fx CLI for project clones, task work
 
 # fx CLI
 
-Use `fx` to prepare workspaces and start interactive coding agents. It does
-not schedule work or wait for groups to finish. A worktree is a separate Git
+Use `fx` to prepare workspaces and start interactive coding agents. The sentry
+command can repeat diagnostic checks. Other commands do not schedule work or
+wait for groups to finish. A worktree is a separate Git
 checkout that shares repository history.
 
 ## Check the environment
@@ -32,7 +33,8 @@ files together. Do not install a package named `fx` from a package registry.
   Do not capture that command's output with command substitution.
 - Agent sessions remain interactive even with `--prompt`. Use an interactive
   terminal, or `--new-tab` from inside an existing Zellij session. Do not treat
-  the command as an unattended batch interface.
+  standard agent launches as an unattended batch interface. Sentry's explicit
+  `--headless` mode supports unattended diagnostic checks.
 
 ## Prepare a project and task
 
@@ -100,8 +102,9 @@ fx agent codex --name review-login -r h --new-tab \
 ```
 
 Omit `--new-tab` to use the current interactive terminal. The option requires
-an existing Zellij session. Each launch creates a new conversation and context
-directory, even when the name is reused. Record the printed context path.
+an existing Zellij session. Each launch creates a new conversation and a numbered context directory
+ending in the model name, even when the name is reused. Numbers increase per
+task across sessions, groups, and comparisons. Record the printed context path.
 
 Adapters are executable files in `tools/fx/agents/`. Model selection belongs
 to those adapters. Inspect the selected adapter when exact model choice matters;
@@ -113,6 +116,33 @@ a file with `--prompt "$(cat /absolute/path/assignment.txt)"`.
 Only one session may edit task source at a time. Shared project memory and
 context also need one assigned editor. Other sessions can investigate without
 edits. A returned tab request confirms tab creation, not successful agent work.
+
+## Inspect task sessions with sentry
+
+Run `fx agent sentry` inside a task or its worktree to open an interactive,
+read-only Claude Haiku session. It starts with a diagnostic assessment and
+answers follow-up questions using fresh evidence. This command supplies its
+own assignment and does not require `--name` or `--prompt`.
+
+```bash
+fx agent sentry
+fx agent sentry --headless --interval 30
+fx agent sentry --headless --once
+```
+
+Headless checks start every 60 seconds by default and never overlap. Each uses
+a fresh conversation, a 90-second timeout, at most 12 turns, and a requested
+$0.25 Claude budget limit. `--timeout` changes the timeout. A failed or timed-out
+check stops monitoring with an error. Ctrl+C stops the current headless check.
+Reports appear in the terminal; desktop notifications and process intervention
+are not implemented. `--prompt` supplies an optional diagnostic focus.
+
+Sentry has explicit authority to inspect this task's diagnostic events. It
+includes all provider sessions with `launch.txt`, group members, and comparisons.
+It uses bounded log excerpts and reports missing evidence and unknown liveness.
+The overall goal comes from `task.md` when present. Its tools only read files.
+Its snapshots and latest headless report live under `.fx-sentry/<run-id>/`,
+outside normal captured response indexes and `--from` handoffs.
 
 ## Independent groups and comparison
 
@@ -134,10 +164,10 @@ After every member finishes the intended response, compare the full group
 name printed at launch:
 
 ```bash
-fx agent group compare review-Ab12Cd34 --name summary --new-tab
+fx agent group compare 000001-review --name summary --new-tab
 ```
 
-Replace the example suffix with the actual one. Short names work only when
+Replace the example number with the actual one. Short names work only when
 one group matches. Comparison uses `default-compare-agent`; `--agent` can
 override it. Comparison combines analysis and checks disagreements. It does
 not authorize source edits. Read its own captured response for the outcome.
@@ -156,7 +186,7 @@ Use `--from` to include selected saved text in a new session:
 
 ```bash
 fx agent codex --name implement-login --new-tab \
-  --from context/session-plan-login-Ab12Cd34/results/turn-000001 \
+  --from context/000001-plan-login-gpt-6.1-sol/results/turn-000001 \
   --prompt 'Implement the supplied plan and run the relevant tests.'
 ```
 

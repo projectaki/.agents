@@ -134,8 +134,10 @@ def prepare_context(task, sources):
         directories = sorted(set(selected))
     else:
         directories = list(context.glob("session-*/results/turn-*"))
+        directories += list(context.glob("[0-9]*-*/results/turn-*"))
         directories += list(context.glob("groups/*/*/results/turn-*"))
         directories += list(context.glob("groups/*/comparisons/session-*/results/turn-*"))
+        directories += list(context.glob("groups/*/comparisons/[0-9]*-*/results/turn-*"))
     records = []
     for directory in directories:
         resolved = directory.resolve(strict=True)
