@@ -1480,6 +1480,104 @@ pwd -P
         session, = (task / "context").iterdir()
         self.assertTrue((session / "instructions.md").exists())
 
+    def resume_claude_stub(self):
+        executable = self.bin / "claude"
+        executable.write_text(
+            f"#!{sys.executable}\n"
+            "import fcntl, json, os, subprocess, sys\n"
+            "from pathlib import Path\n"
+            "args = sys.argv[1:]\n"
+            "if '--version' in args:\n"
+            " print('Test Claude version')\n"
+            " sys.exit(0)\n"
+            "settings_path = Path(args[args.index('--settings') + 1])\n"
+            "lock = (settings_path.parent / '.fx-agent.lock').open()\n"
+            "try:\n"
+            " fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)\n"
+            " raise AssertionError('Agent process must hold the session lock')\n"
+            "except BlockingIOError:\n"
+            " pass\n"
+            "settings = json.loads(settings_path.read_text())\n"
+            "resuming = '--resume' in args\n"
+            "identity = args[args.index('--resume') + 1] if resuming else 'original-conversation'\n"
+            "def hook(name, **extra):\n"
+            " event = dict(hook_event_name=name, session_id=identity, **extra)\n"
+            " subprocess.run(settings['hooks'][name][0]['hooks'][0]['command'], shell=True,\n"
+            "                input=json.dumps(event), text=True, capture_output=True, check=True)\n"
+            "hook('SessionStart', source='resume' if resuming else 'startup')\n"
+            "Path(args[args.index('--debug-file') + 1]).write_text('Resumed log' if resuming else 'Original log')\n"
+            "if os.environ.get('FX_TEST_NO_FINAL'):\n"
+            " sys.exit(130)\n"
+            "hook('Stop', prompt_id='two' if resuming else 'one',\n"
+            "     last_assistant_message='Resumed response' if resuming else 'Original response')\n"
+            "print(json.dumps({'arguments': args, 'cwd': os.getcwd()}))\n"
+        )
+
+    def test_claude_resume_keeps_original_context_and_appends_events_and_responses(self):
+        task = self.task()
+        self.resume_claude_stub()
+        self.fx("agent", "claude", "--name", "review", "-r", "h", "--prompt", "Original assignment", cwd=task)
+        session, = (task / "context").iterdir()
+        launch = session / "launch.txt"
+        launch.write_text(launch.read_text().replace("model=claude-opus-5-5", "model=saved-claude-model"))
+        (session / "findings.md").write_text("Keep these findings")
+        preserved = {name: (session / name).read_bytes() for name in (
+            "launch.txt", "instructions.md", "input-context.md", "initial_prompt.md", "findings.md", "claude-settings.json")}
+        old_events = (session / "events/callbacks.jsonl").read_bytes()
+        result = self.fx("agent", "claude", "--resume", session, cwd=task / "repo")
+        args = json.loads(result.stdout)["arguments"]
+        self.assertEqual(args[args.index('--resume') + 1], "original-conversation")
+        self.assertEqual(args[args.index('--model') + 1], "saved-claude-model")
+        self.assertEqual(args[args.index('--effort') + 1], "high")
+        self.assertEqual(args[args.index('--settings') + 1], str(session / "claude-settings.json"))
+        self.assertNotIn("Original assignment", args)
+        self.assertEqual(list((task / "context").iterdir()), [session])
+        for name, data in preserved.items():
+            self.assertEqual((session / name).read_bytes(), data, name)
+        self.assertTrue((session / "events/callbacks.jsonl").read_bytes().startswith(old_events))
+        self.assertEqual((session / "events/claude-debug.log").read_text(), "Original log")
+        self.assertEqual(len(list((session / "events").glob("claude-debug-resume-*.log"))), 1)
+        self.assertEqual([path.read_text() for path in sorted((session / "results").glob("turn-*/response.md"))],
+                         ["Original response", "Resumed response"])
+
+    def test_claude_resume_after_interrupt_before_first_response(self):
+        task = self.task()
+        self.resume_claude_stub()
+        self.env["FX_TEST_NO_FINAL"] = "1"
+        result = self.fx("agent", "claude", "--name", "review", cwd=task, check=False)
+        self.assertEqual(result.returncode, 130)
+        session, = (task / "context").iterdir()
+        self.assertFalse((session / "results").exists())
+        self.env.pop("FX_TEST_NO_FINAL")
+        self.fx("agent", "claude", "--resume", session.relative_to(task), cwd=task)
+        self.assertEqual((session / "last_turn_results.md").read_text(), "Resumed response")
+
+    def test_claude_resume_rejects_missing_identity_and_conflicting_options(self):
+        task = self.task()
+        self.fx("agent", "claude", "--name", "review", cwd=task)
+        session, = (task / "context").iterdir()
+        before = (session / "findings.md").read_bytes()
+        for extra in ((), ("--name", "other"), ("--prompt", "new task"), ("-r", "h"), ("--from", str(session))):
+            with self.subTest(extra=extra):
+                result = self.fx("agent", "claude", "--resume", session, *extra, cwd=task, check=False)
+                self.assertNotEqual(result.returncode, 0)
+        self.assertEqual((session / "findings.md").read_bytes(), before)
+        self.assertEqual(list((task / "context").iterdir()), [session])
+        self.assertEqual(list((session / "events").glob("claude-debug-resume-*")), [])
+        result = self.fx("agent", "codex", "--resume", session, cwd=task, check=False)
+        self.assertIn("does not support resume", result.stderr)
+
+    def test_claude_resume_new_tab_uses_resume_adapter_and_same_session(self):
+        task = self.task()
+        self.fx("agent", "claude", "--name", "review", cwd=task)
+        session, = (task / "context").iterdir()
+        self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
+        result = self.fx("agent", "claude", "--resume", session, "--new-tab", cwd=task)
+        args = json.loads(result.stdout)["arguments"]
+        self.assertIn(str(TOOL.parent / "agents/claude.resume"), args)
+        self.assertIn(str(session), args)
+        self.assertEqual(list((task / "context").iterdir()), [session])
+
     def test_claude_final_responses_are_captured_without_agent_file_writes(self):
         task = self.task()
         executable = self.bin / "claude"

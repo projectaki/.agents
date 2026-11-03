@@ -519,7 +519,7 @@ EOF
 launch_agent() {
   [[ $# -ge 1 ]] || fail 'Usage: fx agent <agent> [--name <name>] [-r l|m|h] [--prompt <text>] [--from <context-directory>] [--new-tab]'
   local agent="$1" reasoning=medium adapter project task session prompt='' name='' captured_context model
-  local prompt_supplied=false reasoning_supplied=false new_tab=false
+  local prompt_supplied=false reasoning_supplied=false new_tab=false resume_source='' resume_adapter
   local -a context_args=()
   validate_name "$agent"
   shift
@@ -532,6 +532,11 @@ launch_agent() {
   fi
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      --resume)
+        [[ $# -ge 2 && -z "$resume_source" && -n "$2" && "$2" != -* ]] || fail 'Supply one session directory after --resume.'
+        resume_source="$2"
+        shift 2
+        ;;
       -r)
         [[ $# -ge 2 && "$reasoning_supplied" == false ]] || fail 'Supply one reasoning value after -r.'
         reasoning="$(reasoning_level "$2")"
@@ -568,10 +573,25 @@ launch_agent() {
   adapter="$tool_dir/agents/$agent"
   [[ -x "$adapter" ]] || fail "No agent adapter is installed for: $agent"
   "$adapter" check || fail "The $agent CLI is not available. Install and authenticate it first."
-  model="$(agent_model "$agent")"
   project="$(find_project)"
   task="$(find_task "$project")"
   command -v python3 >/dev/null || fail 'Install Python 3 to capture and load agent results.'
+  if [[ -n "$resume_source" ]]; then
+    [[ -z "$name" && "$prompt_supplied" == false && "$reasoning_supplied" == false && ${#context_args[@]} == 0 ]] ||
+      fail 'Resume preserves the original session. Do not combine --resume with --name, --prompt, -r, or --from.'
+    resume_adapter="$tool_dir/agents/$agent.resume"
+    [[ -x "$resume_adapter" ]] || fail "The $agent adapter does not support resume."
+    session="$(python3 "$tool_dir/fx_resume.py" resolve "$task" "$agent" "$resume_source")"
+    reasoning="$(python3 "$tool_dir/fx_resume.py" metadata "$session" reasoning)"
+    printf 'fx: Resuming session context: %s\n' "$session" >&2
+    cd -- "$task"
+    if [[ "$new_tab" == true ]]; then
+      exec zellij --session "$ZELLIJ_SESSION_NAME" action new-tab \
+        --name "$(basename -- "$session")" --cwd "$task" -- "$resume_adapter" "$project" "$task" "$session" "$reasoning"
+    fi
+    exec "$resume_adapter" "$project" "$task" "$session" "$reasoning"
+  fi
+  model="$(agent_model "$agent")"
   captured_context="$(python3 "$tool_dir/fx_context.py" "$task" "${context_args[@]}")"
   name="$(require_name Session "$name")"
   ensure_directory "$task/context"
@@ -840,6 +860,7 @@ Usage:
   fx task <command> [command-options]
   fx delete <task_name> [--force]
   fx agent <agent> [--name <name>] [-r l|m|h] [--prompt <text>] [--from <context-directory>] [--new-tab]
+  fx agent <agent> --resume <session-directory> [--new-tab]
   fx agent <command> [command-options]
   fx agent group [--name <name>] [--agent <agent[:l|m|h]> ...] [-r l|m|h] [--prompt <text>] [--from <context-directory>]
   fx agent group compare <group_name> [--name <name>] [--agent <agent>] [-r l|m|h] [--new-tab]

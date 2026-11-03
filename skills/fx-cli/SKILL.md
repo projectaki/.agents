@@ -126,7 +126,8 @@ command does not aggregate findings across tasks automatically.
 ## Launch an assigned agent
 
 Launching an agent requires an assignment within the user's authorized scope.
-Always supply `--name` and a complete `--prompt` in automated invocations.
+Always supply `--name` and a complete `--prompt` when starting a new session in
+automated invocations. Resume uses the original session and its conversation.
 Names start with a letter or digit and contain only letters, digits,
 underscores, or hyphens. This rule also applies to projects, tasks, and groups.
 
@@ -136,7 +137,7 @@ fx agent codex --name review-login -r h --new-tab \
 ```
 
 Omit `--new-tab` to use the current interactive terminal. The option requires
-an existing Zellij session. Each launch creates a new conversation and a numbered context directory
+an existing Zellij session. Each new launch creates a new conversation and a numbered context directory
 ending in the model name, even when the name is reused. Numbers increase per
 task across sessions, groups, and comparisons. Record the printed context path.
 
@@ -150,6 +151,35 @@ a file with `--prompt "$(cat /absolute/path/assignment.txt)"`.
 Only one session may edit task source at a time. Shared project memory and
 context also need one assigned editor. Other sessions can investigate without
 edits. A returned tab request confirms tab creation, not successful agent work.
+
+## Resume a Claude conversation
+
+Use the original session directory printed at launch:
+
+```bash
+fx agent claude --resume context/000001-review-claude-opus-5-5
+```
+
+Replace the example with the actual directory. Paths resolve from the invoking
+directory and must stay inside this task's context. Absolute paths also work.
+`--new-tab` is supported in Zellij. Do not combine resume with `--name`, `--prompt`,
+`-r`, or `--from`. Resume supports Claude; other providers need their own
+`agents/<agent>.resume` handler. Group members and comparison or analysis sessions
+can be resumed by their own session directories.
+
+Resume preserves the model, reasoning, original instructions, settings, findings,
+and starting context. It appends callback events and captures new responses in
+the same session. Each resumed launch gets its own native debug log under
+`events/claude-debug-resume-<unique-id>.log`; original logs remain unchanged.
+It does not resend the initial assignment or allocate a new context directory.
+
+Fx reads the conversation identifier from its recorded Claude hook events or
+response metadata. A startup event is enough to resume before the first response.
+Missing or conflicting identifiers and partial callback tails stop resume.
+The provider's local conversation history must still exist. Fx does not guess
+the latest conversation or reconstruct deleted history from diagnostic logs.
+Claude launches now hold a session lock. A duplicate launch fails while the
+session runs. Exit sessions launched before this support was installed first.
 
 ## Inspect task sessions with sentry
 

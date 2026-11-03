@@ -12,16 +12,34 @@ if [[ "${1-}" == check ]]; then
   exit
 fi
 
+adapter_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+if [[ "${1-}" == launch || "${1-}" == resume ]]; then
+  exec python3 "$adapter_dir/../fx_resume.py" lock "$4" "$adapter_dir/claude" "locked-$1" "${@:2}"
+fi
+[[ "${1-}" == locked-launch || "${1-}" == locked-resume ]] || { printf 'fx: Unsupported Claude adapter action.\n' >&2; exit 1; }
+action="$1"
 project="$2"
 session="$4"
 reasoning="$5"
-adapter_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-events_dir="$(python3 "$adapter_dir/../fx_events.py" "$session" claude-debug.log)"
-claude --version > "$events_dir/harness-version.txt"
-python3 "$adapter_dir/claude_capture.py" settings "$session" > "$session/claude-settings.json"
+native_log=claude-debug.log
+resume_args=()
+if [[ "$action" == locked-resume ]]; then
+  conversation="$(python3 "$adapter_dir/claude_capture.py" resume-id "$session")"
+  model="$(python3 "$adapter_dir/../fx_resume.py" metadata "$session" model)"
+  [[ -f "$session/claude-settings.json" && ! -L "$session/claude-settings.json" ]] || { printf 'fx: Original Claude settings are missing or are a symbolic link.\n' >&2; exit 1; }
+  native_log="claude-debug-resume-$(python3 -c 'import uuid; print(uuid.uuid4())').log"
+  resume_args=(--resume "$conversation")
+fi
+events_dir="$(python3 "$adapter_dir/../fx_events.py" "$session" "$native_log")"
+if [[ "$action" == locked-resume ]]; then
+  claude --version > "$events_dir/$native_log.version.txt"
+else
+  claude --version > "$events_dir/harness-version.txt"
+  python3 "$adapter_dir/claude_capture.py" settings "$session" > "$session/claude-settings.json"
+  printf 'model=%s\n' "$model" >> "$session/launch.txt"
+fi
 shift 5
 [[ $# == 0 ]] || set -- -- "$1"
-printf 'model=%s\n' "$model" >> "$session/launch.txt"
 unset CLAUDE_CODE_EFFORT_LEVEL
 exec claude \
   --model "$model" \
@@ -29,5 +47,6 @@ exec claude \
   --append-system-prompt-file "$session/instructions.md" \
   --add-dir "$project/project_context" \
   --settings "$session/claude-settings.json" \
-  --debug-file "$events_dir/claude-debug.log" \
+  --debug-file "$events_dir/$native_log" \
+  "${resume_args[@]}" \
   "$@"

@@ -324,11 +324,43 @@ fx agent codex --new-tab --name review
 fx agent codex --new-tab --name review -r h --prompt 'Review the current changes without editing source.'
 ```
 
-Every session requires a name. Supply it with `--name`, or enter it at the
+Every new session requires a name. Supply it with `--name`, or enter it at the
 terminal prompt when the option is omitted. Invalid prompt input asks again.
 End the input to cancel without creating a session. Commands without terminal
 input must supply `--name`; they fail without creating context if it is missing.
 An explicitly empty or invalid `--name` fails without prompting.
+
+To return to a Claude conversation after exiting or pressing Ctrl+C, use the
+session directory printed by its original launch:
+
+```bash
+fx agent claude --resume context/000001-investigate-claude-opus-5-5
+```
+
+Replace the example path with the actual session directory. Paths resolve from
+the invoking directory and must stay inside this task's `context/`. Absolute
+paths work from the task's source directory. `--new-tab` also works in Zellij.
+Resume supports Claude sessions, including group members, comparisons, and task
+analyses. Other providers need an executable `agents/<agent>.resume` handler.
+
+Resume reuses the original model, reasoning, instructions, settings, findings,
+starting context, and response directory. It does not send the original prompt
+again. Do not combine `--resume` with `--name`, `--prompt`, `-r`, or `--from`.
+The command starts from the task directory. It restores all configured fx hooks.
+New callbacks append to `events/callbacks.jsonl`. Each resumed launch writes a
+new `events/claude-debug-resume-<unique-id>.log` and its provider version file.
+The original native log and version file remain unchanged. New final responses
+continue the existing numbered `results/turn-*` directories.
+
+The conversation identifier comes from recorded Claude hook events or captured
+response metadata. A recorded startup event permits resume before any response
+was captured. Missing or conflicting identifiers stop resume. Fx does not guess
+the most recent conversation. The provider's own conversation history must still
+exist locally. Fx logs cannot replace deleted Claude history. A partial callback
+record also stops resume because further callbacks cannot append safely.
+Claude sessions launched through fx hold a session lock until the process exits.
+A second launch of the same session fails. Sessions opened before this support
+was installed do not hold that lock; exit them before using fx resume.
 
 Names start with a letter or digit. Remaining characters can be letters,
 digits, underscores, or hyphens. Spaces are not accepted. Repeated `--name`

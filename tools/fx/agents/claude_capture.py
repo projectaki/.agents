@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+import re
 import shlex
 import sys
 
@@ -18,8 +19,57 @@ HOOK_EVENTS = (
 )
 
 
+def resume_id(session):
+    session = Path(session)
+    identities = set()
+    events = session / "events"
+    path = events / "callbacks.jsonl"
+    if events.is_symlink() or path.is_symlink():
+        raise ValueError("Conversation records must not be symbolic links.")
+    if path.exists():
+        with path.open() as stream:
+            for line in stream:
+                if not line.endswith("\n"):
+                    raise ValueError("The callback log has an incomplete last record. Preserve it before repairing capture.")
+                try:
+                    record = json.loads(line)
+                except ValueError:
+                    continue
+                if not isinstance(record, dict) or record.get("agent") != "claude":
+                    continue
+                event = record.get("payload")
+                if not isinstance(event, dict) or event.get("agent_id"):
+                    continue
+                identity = event.get("session_id")
+                if isinstance(identity, str) and re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]*", identity):
+                    identities.add(identity)
+    results = session / "results"
+    if results.is_symlink():
+        raise ValueError("Conversation results must not be symbolic links.")
+    for directory in sorted(results.glob("turn-*")):
+        path = directory / "metadata.json"
+        if directory.is_symlink() or path.is_symlink():
+            raise ValueError("Conversation metadata must not be symbolic links.")
+        metadata = json.loads(path.read_text())
+        if not isinstance(metadata, dict):
+            raise ValueError(f"Expected conversation metadata in {path}.")
+        identity = metadata.get("conversation_id")
+        if metadata.get("agent") == "claude" and isinstance(identity, str) and re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]*", identity):
+            identities.add(identity)
+    if len(identities) != 1:
+        raise ValueError("The session needs exactly one recorded Claude conversation identifier. No conversation was selected.")
+    return identities.pop()
+
+
 def main():
     session = Path(sys.argv[2])
+    if sys.argv[1] == "resume-id":
+        try:
+            print(resume_id(session))
+        except (OSError, ValueError) as error:
+            print(f"fx: Cannot identify the Claude conversation: {error}", file=sys.stderr)
+            return 1
+        return 0
     if sys.argv[1] == "settings":
         print(json.dumps({"hooks": {name: [{"hooks": [{
             "type": "command",
