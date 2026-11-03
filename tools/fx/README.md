@@ -47,6 +47,54 @@ Each launch requires a session name and creates a new session directory.
 Omit `--name` to enter the name at an interactive terminal prompt.
 It does not resume a previous conversation. Exit the agent to return to the task shell.
 
+## Analyze a task
+
+Run a retrospective from the project directory:
+
+```bash
+fx task analyze fix-login
+fx task analyze fix-login --agent claude -r h
+```
+
+Inside a task or its source directory, omit the task name:
+
+```bash
+fx task analyze
+fx task analyze --new-tab
+```
+
+The command starts an interactive analysis session. The default provider is
+`codex`, configured in `default-analyze-agent`. Reasoning defaults to high.
+`--new-tab` requires Zellij. The command analyzes an existing task. It does not
+create a task, fetch source, or resume implementation. `analyze` is a reserved
+task action name. Task actions register through executables in `task-commands/`.
+
+Each run saves an evidence inventory and its report in a new numbered directory
+under `context/analyses/`. The complete report goes in `findings.md` and the
+normal captured final responses. Earlier reports remain available for comparison.
+The inventory streams each evidence file with bounded memory. It records size,
+line count, modification time, and a SHA-256 content hash. It records read errors
+and skips symbolic links, source files under `repo/`, and prior analysis sessions.
+The analyst inspects relevant source and instructions separately.
+
+The assignment covers all recorded sessions, provider events, planning,
+implementation, review groups, comparisons, fixes, tests, and delivery. It asks
+for detailed event sequences and exact evidence references. Later discoveries
+must be traced through earlier planning and review decisions. It also covers
+memory failures, context limits, crashes, retries, recovery, lost findings, and
+instruction conflicts. Recommendations name a concrete project instruction,
+Factory skill, or helper, plus a way to check whether the change works.
+
+This is an analysis assignment. It does not apply recommendations or edit
+source, project instructions, shared context, or original evidence. Agents use
+their normal CLI permissions; the launcher does not enforce a filesystem sandbox.
+Large logs must be read in bounded sections. The report must list unread files
+and ranges when the agent cannot finish. The inventory is not a frozen copy.
+Changes during or after inventory limit historical certainty. Linked Factory
+records are included only when their recorded identity matches this task.
+The command does not search unrelated chat archives or create missing history.
+It does not automatically combine reports into cross-task statistics.
+
 ## Commands
 
 ### `fx setup <project_name> [repository]`
@@ -490,8 +538,9 @@ fx agent sentry --headless --once
 Both modes use Claude Code with the `haiku` model alias. Claude Code must be
 installed and authenticated. The interactive session starts with a diagnostic
 assessment. Ask follow-up questions such as “Which sessions need attention?”
-or “Has the implementation moved outside the task goal?” It refreshes evidence
-when answering questions; it does not check automatically between prompts.
+or “Has the implementation moved outside the task goal?” It reads fresh evidence
+for the sessions that were running at launch. Start a new check to refresh process
+presence. It does not check automatically between prompts.
 Use `--prompt 'Check the repeated test failures'` to supply a specific focus.
 
 Headless mode starts a fresh Claude check every 60 seconds by default.
@@ -504,24 +553,55 @@ Press Ctrl+C to stop monitoring and terminate its current headless check.
 A timeout, failed Claude call, exhausted limit, or empty report stops the
 monitor with a nonzero exit status. It does not silently retry.
 
-Each check prints its timestamp, session count, and report in the terminal.
-The report identifies concerns, evidence, impact, recommended human action,
-and session status. This command does not send desktop notifications or stop
-the monitored sessions. Automatic detection is periodic and model-based.
+Each headless check prints a timestamped summary and one plain-text line per
+session. `OK` means no ongoing progress problem was observed. `ISSUE` means
+evidence shows blocked progress, repeated unsuccessful recovery, or work outside
+the assignment. Only a concern gets a short reason, limited to 160 characters.
+`UNKNOWN` means there is too little evidence to assess progress; it does not
+count as a confirmed issue. Recovered errors, pending tests, unfinished work,
+and missing `task.md` do not establish an issue on their own.
+
+```text
+[10:00:00 UTC] 1 issue
+OK     implement-login
+ISSUE  review-login: Repeated memory failures prevent test verification.
+```
+
+Claude returns structured classifications. The wrapper validates that every
+inventoried session appears exactly once and renders the terminal text itself.
+If no matching agent process is running, it prints “No running agent sessions”
+without calling Claude. Use the
+interactive sentry to investigate a concern in detail. This command does not
+send desktop notifications or stop the monitored sessions. Automatic detection
+is periodic and model-based.
 
 Sentry explicitly receives diagnostic analysis authority for this task.
-It inventories sessions through `context/**/launch.txt`, including group members
-and comparison sessions, regardless of their agent provider. It reads bounded
+It discovers session records through `context/**/launch.txt`, including group
+members and comparisons. It includes only sessions with a matching live provider
+process. It reads bounded
 excerpts of assignments, findings, captured responses, and files directly under
 each session's `events/` directory. Reports identify truncation and missing
 evidence. The read-only Claude tools can inspect additional files when needed.
 Use `task.md` to state the overall goal. Without it, sentry reports uncertainty
 and uses individual assignments as evidence.
 
-Process command-line matches provide limited presence evidence. They do not
-establish progress, and missing matches do not establish exit. Sessions outside
-fx's task context are not automatically discovered. Missing events and crashes
-can prevent a complete assessment. Sentry reports unknown status when needed.
+Each headless check refreshes the operating system process list before reading
+session logs. Provider detectors match the executable name and session-specific
+launch arguments. Claude uses its settings-file argument; Codex uses its final
+response callback configuration. Existing fx sessions work without relaunching
+their agents. Historical directories, unrelated processes that mention a session
+path, and terminated processes awaiting collection are excluded. A process that
+is still open but waiting for input remains included. A matching process does
+not establish useful progress. Processes can exit after the check starts.
+
+Process inspection failures stop monitoring with a visible error. They do not
+cause sentry to analyze all historical sessions. A provider registers its detector
+as an executable `agents/<agent>.process` companion. Given the session directory,
+it prints two lines: the native executable name and a distinctive sequence from
+that session's launch arguments. Claude and Codex have detectors. Unsupported
+providers produce an explicit error. Sessions outside fx's task context are not
+automatically discovered. Missing events can still prevent a complete progress
+assessment. Sentry reports unknown progress status when needed.
 
 Claude receives only the `Read`, `Glob`, and `Grep` built-in tools. MCP servers,
 slash commands, and configurable hooks are disabled for the sentry session.

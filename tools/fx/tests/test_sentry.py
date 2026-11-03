@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+import signal
 import subprocess
 import sys
 import tempfile
@@ -24,7 +25,7 @@ class SentryTest(unittest.TestCase):
         self.task.mkdir()
         (self.task / "context").mkdir()
 
-    def session(self, relative="first", agent="other-provider"):
+    def session(self, relative="first", agent="claude"):
         session = self.task / "context" / relative
         session.mkdir(parents=True)
         (session / "launch.txt").write_text(f"agent={agent}\n")
@@ -36,6 +37,101 @@ class SentryTest(unittest.TestCase):
         executable.write_text(f"#!{sys.executable}\n" + source)
         executable.chmod(0o755)
         return executable
+
+    def test_snapshot_excludes_closed_sessions_before_reading_their_logs(self):
+        active = self.session("active", "claude")
+        closed = self.session("closed", "codex")
+        presence = {"command_line_matches": {str(active): [{"pid": "42"}], str(closed): []}}
+        with patch("fx_sentry.process_presence", return_value=presence):
+            snapshot = fx_sentry.build_snapshot(self.task)
+        self.assertEqual([item["directory"] for item in snapshot["sessions"]], [str(active)])
+
+    def test_failed_process_inspection_does_not_analyze_historical_sessions(self):
+        self.session()
+        with patch("fx_sentry.process_presence", return_value={"error": "ps failed"}):
+            with self.assertRaisesRegex(RuntimeError, "ps failed"):
+                fx_sentry.build_snapshot(self.task)
+
+    @unittest.skipUnless(sys.platform == "linux", "Process naming fixture uses Linux prctl.")
+    def test_live_process_is_included_and_disappears_after_interrupt_for_both_providers(self):
+        for agent in ("claude", "codex"):
+            with self.subTest(agent=agent):
+                session = self.session(agent, agent)
+                detector = TOOL_DIRECTORY / "agents" / f"{agent}.process"
+                name, marker = subprocess.run([str(detector), str(session)], check=True,
+                                               capture_output=True, text=True).stdout.splitlines()
+                code = ("import ctypes,time; "
+                        f"ctypes.CDLL(None).prctl(15, {name.encode()!r}, 0, 0, 0); "
+                        "print('ready',flush=True); time.sleep(60)")
+                process = subprocess.Popen([sys.executable, "-c", code, marker],
+                                           stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+                try:
+                    self.assertEqual(process.stdout.readline().strip(), "ready")
+                    snapshot = fx_sentry.build_snapshot(self.task)
+                    self.assertEqual([item["directory"] for item in snapshot["sessions"]], [str(session)])
+                    process.send_signal(signal.SIGINT)
+                    process.wait(timeout=3)
+                    self.assertEqual(fx_sentry.build_snapshot(self.task)["sessions"], [])
+                finally:
+                    if process.poll() is None:
+                        process.kill()
+                        process.wait()
+                    process.stdout.close()
+
+    def test_classifications_render_one_plain_line_per_session(self):
+        first = self.session("implement")
+        second = self.session("groups/review/member")
+        snapshot = {"task": str(self.task), "observed_at": "2026-11-03T10:00:00+00:00",
+                    "sessions": [{"directory": str(first)}, {"directory": str(second)}]}
+        classification = {"sessions": [
+            {"session": str(second), "status": "issue", "reason": "Repeated memory failures; no progress."},
+            {"session": str(first), "status": "ok", "reason": "Long healthy-session explanation."},
+        ]}
+        report = fx_sentry.format_report(snapshot, classification)
+        self.assertEqual(report.splitlines()[1:], [
+            "OK     implement", "ISSUE  groups/review/member: Repeated memory failures; no progress."])
+        self.assertIn("1 issue", report.splitlines()[0])
+        self.assertNotIn("Long healthy-session explanation", report)
+        self.assertNotIn(str(self.task), report)
+
+    def test_classifications_reject_missing_duplicate_and_invented_sessions(self):
+        session = self.session()
+        snapshot = {"task": str(self.task), "observed_at": "2026-11-03T10:00:00+00:00",
+                    "sessions": [{"directory": str(session)}]}
+        valid = {"session": str(session), "status": "ok", "reason": ""}
+        invalid = [[], [valid, valid], [dict(valid, session="invented")],
+                   [dict(valid, status="healthy")], [dict(valid, status="issue")],
+                   [dict(valid, reason="x" * 161)]]
+        for sessions in invalid:
+            with self.subTest(sessions=sessions), self.assertRaises(ValueError):
+                fx_sentry.format_report(snapshot, {"sessions": sessions})
+
+    def test_unknown_evidence_is_not_classified_as_a_progress_failure(self):
+        session = self.session()
+        snapshot = {"task": str(self.task), "observed_at": "2026-11-03T10:00:00+00:00",
+                    "sessions": [{"directory": str(session)}]}
+        report = fx_sentry.format_report(snapshot, {"sessions": [
+            {"session": str(session), "status": "unknown", "reason": "No recent event evidence."}]})
+        self.assertIn("UNKNOWN first: No recent event evidence.", report)
+        self.assertNotIn("ISSUE", report)
+
+    def test_empty_task_prints_one_line_without_calling_claude(self):
+        with patch("fx_sentry.shutil.which", return_value="claude"), \
+             patch("fx_sentry.run_check") as check, \
+             patch("builtins.print") as output:
+            status = fx_sentry.main([str(self.root), str(self.task), "--headless", "--once"])
+        self.assertEqual(status, 0)
+        check.assert_not_called()
+        output.assert_called_once()
+        self.assertIn("No running agent sessions", output.call_args.args[0])
+
+    def test_healthy_task_prints_all_good_without_explanation(self):
+        session = self.session()
+        snapshot = {"task": str(self.task), "observed_at": "2026-11-03T10:00:00+00:00",
+                    "sessions": [{"directory": str(session)}]}
+        self.assertEqual(fx_sentry.format_report(snapshot, {"sessions": [
+            {"session": str(session), "status": "ok", "reason": ""}]}),
+            "[10:00:00 UTC] All good\nOK     first")
 
     def test_discovers_all_providers_members_and_comparisons_without_diagnostics(self):
         sessions = [self.session(), self.session("groups/review/member", "claude"),
@@ -76,7 +172,8 @@ class SentryTest(unittest.TestCase):
         (events / "another-provider.log").write_text("old" * 10000 + "memory exhausted")
         (events / "capture-error.txt").write_text("capture failed")
         (self.task / "task.md").write_text("Make login accept valid credentials.")
-        with patch("fx_sentry.process_presence", return_value={"error": "ps unavailable"}):
+        presence = {"command_line_matches": {str(session): [{"pid": "42"}]}}
+        with patch("fx_sentry.process_presence", return_value=presence):
             snapshot = fx_sentry.build_snapshot(self.task)
         self.assertEqual(snapshot["goal"]["text"], "Make login accept valid credentials.")
         files = snapshot["sessions"][0]["files"]
@@ -85,12 +182,13 @@ class SentryTest(unittest.TestCase):
         self.assertTrue(log["text"].endswith("memory exhausted"))
         self.assertLessEqual(len(log["text"]), 8192)
         self.assertEqual(files["events/capture-error.txt"]["text"], "capture failed")
-        self.assertEqual(snapshot["process_presence"], {"error": "ps unavailable"})
+        self.assertEqual(snapshot["process_presence"], presence)
 
     def test_snapshot_does_not_follow_symlinked_events_or_task_context(self):
         session = self.session()
         (session / "events").symlink_to(self.root)
-        snapshot = fx_sentry.build_snapshot(self.task)
+        with patch("fx_sentry.process_presence", return_value={"command_line_matches": {str(session): [{"pid": "42"}]}}):
+            snapshot = fx_sentry.build_snapshot(self.task)
         self.assertIn("error", snapshot["sessions"][0]["files"]["events"])
         (self.task / "context/first/launch.txt").unlink()
         (session / "events").unlink()
@@ -113,13 +211,19 @@ class SentryTest(unittest.TestCase):
             with self.assertRaisesRegex(PermissionError, "cannot inspect"):
                 fx_sentry.discover_sessions(self.task)
 
-    def test_process_presence_reports_matches_without_assuming_liveness(self):
+    def test_process_presence_requires_provider_and_own_launch_marker_and_skips_zombies(self):
         session = self.session()
-        result = subprocess.CompletedProcess([], 0, f"42 1 00:03 claude --debug-file {session}/events/log\n99 1 00:01 other\n")
-        with patch("fx_sentry.subprocess.run", return_value=result):
+        marker = f"--settings {session}/claude-settings.json"
+        result = subprocess.CompletedProcess([], 0, (
+            f"42 1 S 00:03 claude claude {marker}\n"
+            f"43 1 S 00:03 bash bash -c echo claude {marker}\n"
+            f"44 1 Z 00:03 claude claude {marker}\n"
+            f"45 1 S 00:03 claude claude --prompt Read {session}/findings.md\n"))
+        descriptor = subprocess.CompletedProcess([], 0, f"claude\n{marker}\n")
+        with patch("fx_sentry.subprocess.run", side_effect=[result, descriptor]):
             presence = fx_sentry.process_presence([session])
         self.assertEqual(presence["command_line_matches"][str(session)],
-                         [{"pid": "42", "parent_pid": "1", "elapsed": "00:03"}])
+                         [{"pid": "42", "parent_pid": "1", "state": "S", "elapsed": "00:03"}])
         with patch("fx_sentry.subprocess.run", side_effect=OSError("missing ps")):
             self.assertIn("error", fx_sentry.process_presence([session]))
 
@@ -140,9 +244,9 @@ class SentryTest(unittest.TestCase):
         self.assertNotIn("--print", fx_sentry.claude_command(Path("instructions.md")))
 
     def test_run_check_uses_stdin_and_accepts_successful_report(self):
-        executable = self.fake_claude("import json, sys\ntext = sys.stdin.read()\nprint(json.dumps({'subtype':'success','result':text,'is_error':False}))\n")
+        executable = self.fake_claude("import json, sys\ntext = sys.stdin.read()\nprint(json.dumps({'subtype':'success','structured_output':{'prompt':text},'is_error':False}))\n")
         prompt = 'Evidence with `commands` and $(substitution) and "quotes"'
-        self.assertEqual(fx_sentry.run_check([str(executable)], prompt, self.task, 3), prompt)
+        self.assertEqual(fx_sentry.run_check([str(executable)], prompt, self.task, 3), {"prompt": prompt})
 
     def test_failed_empty_invalid_and_budget_limited_checks_are_errors(self):
         outputs = ["not JSON", json.dumps({"subtype": "success", "result": ""}),
@@ -166,10 +270,11 @@ class SentryTest(unittest.TestCase):
             os.kill(int(pid_file.read_text()), 0)
 
     def test_once_prints_and_saves_report_without_entering_poll_loop(self):
-        self.session()
+        session = self.session()
+        classification = {"sessions": [{"session": str(session), "status": "issue", "reason": "Repeated memory failures."}]}
         with patch("fx_sentry.shutil.which", return_value="claude"), \
-             patch("fx_sentry.process_presence", return_value={}), \
-             patch("fx_sentry.run_check", return_value="Attention required: memory exhausted.") as check, \
+             patch("fx_sentry.process_presence", return_value={"command_line_matches": {str(session): [{"pid": "42"}]}}), \
+             patch("fx_sentry.run_check", return_value=classification) as check, \
              patch("fx_sentry.time.sleep") as sleep:
             status = fx_sentry.main([str(self.root), str(self.task), "--headless", "--once"])
         self.assertEqual(status, 0)
@@ -178,16 +283,17 @@ class SentryTest(unittest.TestCase):
         prompt = check.call_args.args[1]
         self.assertIn("Fix login validation", prompt)
         reports = list((self.task / ".fx-sentry").glob("*/latest-report.txt"))
-        self.assertEqual(reports[0].read_text(), "Attention required: memory exhausted.")
+        self.assertEqual(reports[0].read_text().splitlines()[1], "ISSUE  first: Repeated memory failures.")
         self.assertEqual(len(fx_sentry.discover_sessions(self.task)), 1)
 
     def test_polling_refreshes_inventory_and_stops_after_failed_check(self):
-        self.session()
+        session = self.session()
+        classification = {"sessions": [{"session": str(session), "status": "ok", "reason": ""}]}
         def add_session(_):
             self.session("second")
         with patch("fx_sentry.shutil.which", return_value="claude"), \
-             patch("fx_sentry.process_presence", return_value={}), \
-             patch("fx_sentry.run_check", side_effect=["No issue observed.", RuntimeError("authentication failed")]) as check, \
+             patch("fx_sentry.process_presence", side_effect=lambda sessions: {"command_line_matches": {str(item): [{"pid": "42"}] for item in sessions}}), \
+             patch("fx_sentry.run_check", side_effect=[classification, RuntimeError("authentication failed")]) as check, \
              patch("fx_sentry.time.sleep", side_effect=add_session):
             status = fx_sentry.main([str(self.root), str(self.task), "--headless", "--interval", "30"])
         self.assertEqual(status, 1)
@@ -207,7 +313,7 @@ class SentryTest(unittest.TestCase):
         self.assertIn("fresh evidence", command[-1])
         instructions = Path(command[command.index("--system-prompt-file") + 1]).read_text()
         self.assertIn("explicitly authorizes", instructions)
-        self.assertIn("refresh", instructions)
+        self.assertIn("fresh evidence", instructions)
         self.assertEqual(len(list((self.task / ".fx-sentry").glob("*/snapshot.json"))), 1)
 
     def test_headless_only_options_fail_before_creating_files(self):
@@ -233,14 +339,25 @@ class SentryCommandTest(unittest.TestCase):
             tool = TOOL_DIRECTORY / "fx"
             project = Path(run(tool, "setup", "sample", origin).stdout.strip())
             task = Path(run(tool, "task", "inspect", "--no-attach", cwd=project).stdout.strip())
+            session = task / "context/worker"
+            session.mkdir()
+            (session / "launch.txt").write_text("agent=claude\n")
+            process_listing = root / "ps"
+            process_listing.write_text(f"#!{sys.executable}\nprint({f'42 1 S 00:03 claude claude --settings {session}/claude-settings.json'!r})\n")
+            process_listing.chmod(0o755)
+            captured = root / "input.txt"
             executable = root / "claude"
-            executable.write_text(f"#!{sys.executable}\nimport json, sys\ntext=sys.stdin.read()\nprint(json.dumps({{'subtype':'success','result':text,'is_error':False}}))\n")
+            classification = {"sessions": [{"session": str(session), "status": "ok", "reason": ""}]}
+            executable.write_text(f"#!{sys.executable}\nimport json, sys\nfrom pathlib import Path\nPath({str(captured)!r}).write_text(sys.stdin.read())\nprint(json.dumps({{'subtype':'success','structured_output':{classification!r},'is_error':False}}))\n")
             executable.chmod(0o755)
             env["PATH"] = f"{root}:{env['PATH']}"
             result = run(tool, "agent", "sentry", "--headless", "--once", "--prompt",
                          'Check `literal` and $(literal)', cwd=task / "repo")
-            self.assertIn('Check `literal` and $(literal)', result.stdout)
-            self.assertIn('"task": "' + str(task), result.stdout)
+            self.assertIn('Check `literal` and $(literal)', captured.read_text())
+            self.assertIn('"task": "' + str(task), captured.read_text())
+            self.assertEqual(result.stdout.splitlines()[1], "OK     worker")
+            self.assertEqual(len(result.stdout.splitlines()), 2)
+            self.assertEqual(result.stderr, "")
             self.assertFalse((task / "repo/.fx-sentry").exists())
             invalid = run(tool, "agent", "sentry", "--unknown", cwd=task, check=False)
             self.assertNotEqual(invalid.returncode, 0)

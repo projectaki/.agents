@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+tool_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+source "$tool_dir/fx"
+
+usage='Usage: fx task analyze [task_name] [--agent <agent>] [-r l|m|h] [--new-tab]'
+name=''
+agent=''
+reasoning=high
+reasoning_supplied=false
+new_tab=false
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --help|-h) printf '%s\n' "$usage"; exit ;;
+    --agent)
+      [[ $# -ge 2 && -z "$agent" ]] || fail "$usage"
+      validate_name "$2"
+      agent="$2"
+      shift 2
+      ;;
+    -r)
+      [[ $# -ge 2 && "$reasoning_supplied" == false ]] || fail "$usage"
+      reasoning="$(reasoning_level "$2")"
+      reasoning_supplied=true
+      shift 2
+      ;;
+    --new-tab) new_tab=true; shift ;;
+    -*) fail "$usage" ;;
+    *)
+      [[ -z "$name" ]] || fail "$usage"
+      validate_name "$1"
+      name="$1"
+      shift
+      ;;
+  esac
+done
+project="$(find_project)"
+if [[ -n "$name" ]]; then
+  task="$project/tasks/$name"
+  [[ -d "$task" && ! -L "$project/tasks" && ! -L "$task" ]] || fail "Task not found: $task"
+else
+  task="$(find_task "$project")"
+fi
+[[ -d "$task/context" && ! -L "$task/context" ]] || fail "Task context is missing or is a symbolic link: $task/context"
+[[ -n "$agent" ]] || agent="$(cat "$tool_dir/default-analyze-agent")"
+validate_name "$agent"
+[[ -x "$tool_dir/agents/$agent" ]] || fail "No agent adapter is installed for: $agent"
+"$tool_dir/agents/$agent" check || fail "The $agent CLI is not available. Install and authenticate it first."
+model="$(agent_model "$agent")"
+if [[ "$new_tab" == true ]]; then
+  [[ -n "${ZELLIJ-}" && -n "${ZELLIJ_SESSION_NAME-}" ]] || fail 'Run --new-tab inside a Zellij session.'
+  command -v zellij >/dev/null || fail 'Install Zellij to use --new-tab.'
+fi
+command -v python3 >/dev/null || fail 'Install Python 3 to inventory task evidence.'
+ensure_directory "$task/context/analyses"
+session="$(python3 "$tool_dir/fx_session.py" "$task" "$task/context/analyses" "analyze-$model")"
+python3 "$tool_dir/fx_analyze.py" "$task" "$session" > "$session/evidence-inventory.json"
+prompt="$(cat "$tool_dir/templates/analyze.md")
+
+Analyze this task: $task
+Use this evidence inventory: $session/evidence-inventory.json
+Write the complete report here: $session/findings.md
+The inventory was taken before this analysis session started."
+captured_context="This is an assigned diagnostic retrospective. Its evidence boundary is recorded in $session/evidence-inventory.json. Read the full recorded history within that boundary."
+run_agent_session "$agent" "$project" "$task" "$session" "$reasoning" "$captured_context" "$(basename -- "$session")" "$new_tab" "$prompt"

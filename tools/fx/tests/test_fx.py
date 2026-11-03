@@ -107,6 +107,60 @@ class FxTest(unittest.TestCase):
             self.run_command(sys.executable, TOOL.parent / "agents/codex_capture.py", "capture", member, json.dumps(event))
         return member.parent
 
+    def test_task_analysis_inventories_all_sessions_and_preserves_source(self):
+        project = self.project()
+        task = self.task(project)
+        source = task / "repo/source.txt"
+        source.write_text("Uncommitted change\n")
+        events = task / "context/old-session/events"
+        events.mkdir(parents=True)
+        (events / "native.jsonl").write_text('{"error":"out of memory"}\n')
+        result = self.fx("task", "analyze", "fix-login", cwd=project)
+        launched = json.loads(result.stdout)
+        self.assertEqual(launched["cwd"], str(task))
+        session = next((task / "context/analyses").iterdir())
+        inventory = json.loads((session / "evidence-inventory.json").read_text())
+        self.assertIn("context/old-session/events/native.jsonl", [record["path"] for record in inventory["files"]])
+        self.assertFalse(any(record["path"].startswith("context/analyses/") for record in inventory["files"]))
+        self.assertEqual((session / "launch.txt").read_text().splitlines()[:2], ["agent=codex", "reasoning=high"])
+        prompt = (session / "initial_prompt.md").read_text()
+        self.assertIn("every review round", prompt)
+        self.assertIn("earliest supported symptom", prompt)
+        self.assertIn("exact unprocessed files", prompt)
+        self.assertIn(str(session / "evidence-inventory.json"), prompt)
+        self.assertEqual(source.read_text(), "Uncommitted change\n")
+
+    def test_task_analysis_uses_current_task_and_supports_provider_and_reasoning(self):
+        task = self.task()
+        self.fx("task", "analyze", "--agent", "claude", "-r", "m", cwd=task / "repo")
+        self.fx("task", "analyze", "--agent", "claude", cwd=task)
+        sessions = sorted((task / "context/analyses").iterdir())
+        self.assertEqual(len(sessions), 2)
+        self.assertIn("agent=claude\nreasoning=medium", (sessions[0] / "launch.txt").read_text())
+        self.assertNotEqual(sessions[0].name, sessions[1].name)
+
+    def test_task_analysis_rejects_invalid_requests_before_creating_session(self):
+        project = self.project()
+        task = self.task(project)
+        for arguments in (("missing",), ("../fix-login",), ("--no-attach",),
+                          ("fix-login", "-r", "bad"), ("fix-login", "--agent", "missing"),
+                          ("fix-login", "--new-tab")):
+            with self.subTest(arguments=arguments):
+                result = self.fx("task", "analyze", *arguments, cwd=project, check=False)
+                self.assertNotEqual(result.returncode, 0)
+        self.assertFalse((task / "context/analyses").exists())
+        self.assertFalse((project / "tasks/missing").exists())
+
+    def test_task_analysis_help_and_new_tab(self):
+        result = self.fx("task", "analyze", "--help")
+        self.assertIn("fx task analyze", result.stdout)
+        task = self.task()
+        self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
+        result = self.fx("task", "analyze", "--new-tab", cwd=task)
+        request = json.loads(result.stdout)
+        self.assertIn("new-tab", request["arguments"])
+        self.assertEqual(request["cwd"], str(task))
+
     def test_setup_reuses_clone_and_preserves_memory_and_dirty_files(self):
         project = self.project()
         memory = project / "project_memory.md"

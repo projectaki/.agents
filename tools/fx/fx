@@ -809,7 +809,14 @@ main() {
   [[ $# == 0 ]] || shift
   case "$subcommand" in
     setup) setup_project "$@" ;;
-    task) open_task "$@" ;;
+    task)
+      command_adapter="$tool_dir/task-commands/${1-}"
+      if [[ -n "${1-}" && "$1" != */* && -f "$command_adapter" && -x "$command_adapter" ]]; then
+        shift
+        exec "$command_adapter" "$@"
+      fi
+      open_task "$@"
+      ;;
     delete) delete_task "$@" ;;
     agent)
       if [[ "${1-}" == group ]]; then
@@ -830,6 +837,7 @@ main() {
 Usage:
   fx setup <project_name> [repository]
   fx task <task_name> [--base <branch>] [--no-attach]
+  fx task <command> [command-options]
   fx delete <task_name> [--force]
   fx agent <agent> [--name <name>] [-r l|m|h] [--prompt <text>] [--from <context-directory>] [--new-tab]
   fx agent <command> [command-options]
@@ -847,6 +855,7 @@ Missing local --base branches are created from the fetched default. Existing tas
 Repository accepts owner/repository, a Git URL, or a local repository path.
 Agent names correspond to executable adapters in agents/.
 Task-specific agent commands register executable handlers in agent-commands/.
+Task actions register executable handlers in task-commands/.
 Reasoning: l = low, m = medium (default), h = high.
 Use --prompt to supply an initial assignment. Without it, the agent waits for interactive input.
 Use --new-tab inside Zellij to launch the agent in a new tab in the current session.
@@ -861,6 +870,10 @@ Use --from to supply saved responses from a session, group, or results/turn-* di
 Group compare requires captured results from every member. Run it after their intended responses finish.
 Comparisons use default-compare-agent, medium reasoning, and the current terminal unless --new-tab is supplied.
 EOF
+      printf '\nAvailable task actions:\n'
+      for command_adapter in "$tool_dir/task-commands/"*; do
+        [[ ! -x "$command_adapter" || -d "$command_adapter" ]] || printf '  %s\n' "$(basename -- "$command_adapter")"
+      done
       printf '\nAvailable task agent commands:\n'
       for command_adapter in "$tool_dir/agent-commands/"*; do
         [[ ! -x "$command_adapter" || -d "$command_adapter" ]] || printf '  %s\n' "$(basename -- "$command_adapter")"

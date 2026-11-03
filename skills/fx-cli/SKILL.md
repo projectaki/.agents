@@ -89,6 +89,40 @@ Only ignored `appsettings.json` and `appsettings.*.json` files are copied from
 the main clone. Existing task files are preserved. Files such as `.env` are
 not copied. Reopening fills missing eligible settings.
 
+## Analyze a task's recorded history
+
+Use `fx task analyze <task_name>` from the project directory for an assigned
+retrospective. Inside a task or its worktree, omit the task name. This starts an
+interactive agent with an explicit assignment to inspect all recorded provider
+events, closed sessions, review groups, and comparisons for this task.
+
+```bash
+fx task analyze fix-login
+fx task analyze --agent claude -r h --new-tab
+```
+
+The default provider comes from `default-analyze-agent` (`codex` by default).
+Reasoning defaults to high. `--new-tab` requires an existing Zellij session.
+This command supplies its own assignment and session name. It does not create
+or reopen the selected task. `analyze` is a reserved task action name.
+
+Each run writes `evidence-inventory.json` and its own `findings.md` under
+`context/analyses/<number>-analyze-<model>/`. Normal response capture preserves
+the final report. The assignment requires full log coverage in bounded chunks,
+detailed sequences, exact citations, and explicit unread ranges. It traces
+later defects through planning, implementation, reviews, discovery, and proof.
+It covers memory failures, crashes, retries, recovery, and instruction conflicts.
+Recommendations must identify a concrete project or Factory change and how to
+validate it. The assignment permits writing only its own report and notes.
+Normal provider permissions still apply; this is not a filesystem sandbox.
+
+The inventory excludes prior analyses, symbolic links, and the source worktree.
+The analyst reads relevant source and instructions separately. Files can change
+after inventory. Missing logs and historical instruction versions limit claims.
+Do not claim full coverage from inventory alone. Keep recommendations as proposals
+until assigned implementation. Reports can support later comparisons; the
+command does not aggregate findings across tasks automatically.
+
 ## Launch an assigned agent
 
 Launching an agent requires an assignment within the user's authorized scope.
@@ -120,8 +154,10 @@ edits. A returned tab request confirms tab creation, not successful agent work.
 ## Inspect task sessions with sentry
 
 Run `fx agent sentry` inside a task or its worktree to open an interactive,
-read-only Claude Haiku session. It starts with a diagnostic assessment and
-answers follow-up questions using fresh evidence. This command supplies its
+read-only Claude Haiku session. It starts with a diagnostic assessment of sessions
+that have a matching live provider process. Follow-up questions use fresh file
+evidence for that starting list; start a new check to refresh process presence.
+This command supplies its
 own assignment and does not require `--name` or `--prompt`.
 
 ```bash
@@ -134,12 +170,20 @@ Headless checks start every 60 seconds by default and never overlap. Each uses
 a fresh conversation, a 90-second timeout, at most 12 turns, and a requested
 $0.25 Claude budget limit. `--timeout` changes the timeout. A failed or timed-out
 check stops monitoring with an error. Ctrl+C stops the current headless check.
-Reports appear in the terminal; desktop notifications and process intervention
-are not implemented. `--prompt` supplies an optional diagnostic focus.
+Headless output is one plain-text status per session: `OK`, `ISSUE`, or `UNKNOWN`.
+Only a concern gets a short reason. Issues require evidence of blocked progress,
+repeated unsuccessful recovery, or work outside the assignment. Recovered errors
+and unfinished work do not count on their own. Use interactive mode for details.
+Desktop notifications and process intervention are not implemented.
+`--prompt` supplies an optional diagnostic focus.
 
-Sentry has explicit authority to inspect this task's diagnostic events. It
-includes all provider sessions with `launch.txt`, group members, and comparisons.
-It uses bounded log excerpts and reports missing evidence and unknown liveness.
+Sentry has explicit authority to inspect this task's diagnostic events. Each
+headless check filters `launch.txt` records to matching live provider processes,
+including group members and comparisons. Closed sessions are excluded before
+reading logs or calling Claude. Claude and Codex have process detectors in
+`agents/<agent>.process`; other providers need their own detector. A process-list
+failure stops monitoring with an error. An open agent waiting for input still
+counts as running. It uses bounded log excerpts and reports missing evidence.
 The overall goal comes from `task.md` when present. Its tools only read files.
 Its snapshots and latest headless report live under `.fx-sentry/<run-id>/`,
 outside normal captured response indexes and `--from` handoffs.
