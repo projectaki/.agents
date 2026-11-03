@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import fx_sentry
+from fx_context import save_response
 
 
 TOOL_DIRECTORY = Path(__file__).resolve().parents[1]
@@ -51,6 +52,19 @@ class SentryTest(unittest.TestCase):
         with patch("fx_sentry.process_presence", return_value={"error": "ps failed"}):
             with self.assertRaisesRegex(RuntimeError, "ps failed"):
                 fx_sentry.build_snapshot(self.task)
+
+    def test_snapshot_separates_verified_response_from_auxiliary_and_legacy_output(self):
+        session = self.session()
+        (session / "last_turn_results.md").write_text("Legacy auxiliary approval")
+        presence = {"command_line_matches": {str(session): [{"pid": "42"}]}}
+        with patch("fx_sentry.process_presence", return_value=presence):
+            snapshot = fx_sentry.build_snapshot(self.task)["sessions"][0]
+            self.assertNotIn("last_turn_results.md", snapshot["files"])
+            self.assertIn("error", snapshot["latest_main_response"])
+            save_response(session, "test", "main", "one", "Main review has unresolved findings")
+            snapshot = fx_sentry.build_snapshot(self.task)["sessions"][0]
+        self.assertEqual(snapshot["latest_main_response"]["metadata"]["origin"], "main_conversation")
+        self.assertIn("unresolved findings", snapshot["latest_main_response"]["response"]["text"])
 
     @unittest.skipUnless(sys.platform == "linux", "Process naming fixture uses Linux prctl.")
     def test_live_process_is_included_and_disappears_after_interrupt_for_both_providers(self):

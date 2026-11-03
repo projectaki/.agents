@@ -9,6 +9,21 @@ import sys
 import time
 
 
+def event_origin(source, payload):
+    if not isinstance(payload, dict):
+        return "unknown"
+    if source != "hook" or payload.get("agent_id"):
+        return "auxiliary_output"
+    event = payload.get("hook_event_name")
+    if event == "UserPromptSubmit":
+        return "user_input"
+    if event == "Stop":
+        return "main_response"
+    if event in ("SubagentStart", "SubagentStop", "MessageDisplay", "UserPromptExpansion"):
+        return "auxiliary_output"
+    return "lifecycle_event"
+
+
 def prepare_events(session):
     events = Path(session).resolve(strict=True) / "events"
     if events.is_symlink():
@@ -33,6 +48,7 @@ def save_event(session, agent, source, raw_payload):
         record["payload"] = json.loads(raw_payload)
     except ValueError:
         record["raw_payload"] = raw_payload
+    record["origin"] = event_origin(source, record.get("payload"))
     path = prepare_events(session) / "callbacks.jsonl"
     descriptor = os.open(path, os.O_RDWR | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW, 0o600)
     try:

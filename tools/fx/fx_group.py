@@ -1,4 +1,5 @@
 import argparse
+import json
 from pathlib import Path
 import re
 import sys
@@ -36,7 +37,17 @@ def comparison_context(task, group):
             request = member / "tab-request.txt"
             if request.exists() and request.read_text().strip() != "accepted":
                 raise ValueError(f"The tab request for {member.name} was not accepted. Inspect {request}.")
-    return prepare_context(task, [group])
+    context = prepare_context(task, [group])
+    subject = group / "source.json"
+    if subject.is_symlink():
+        raise ValueError("The group source record must not be a symbolic link.")
+    if subject.exists():
+        identity = json.loads(subject.read_text())
+        context += "\n## Original group source identity\n\n" + json.dumps(identity) + "\n"
+        context += "Compare this identity with the current source before using review conclusions. A hash records content; it does not preserve a source copy.\n"
+    else:
+        context += "\nThe legacy group has no recorded source identity. Its reviewed source is unverified.\n"
+    return context
 
 
 def main():

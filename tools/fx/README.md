@@ -476,6 +476,19 @@ use the live task worktree. Keep source and shared context unchanged while
 they investigate; the command does not snapshot the repository or shared
 project files, or acquire locks on them.
 
+Fx records one `source.json` for the group and copies it to each member.
+It contains the launch commit and a hash of tracked and nonignored untracked
+file contents, names, executable modes, and symlink targets. Ignored setup
+files and external symlink contents are outside that identity. Submodules,
+special files, inaccessible repositories, and detected concurrent edits produce
+an unavailable identity. Members must report affected coverage as unverified.
+The hash records an identity; it does not preserve a source copy or prevent edits.
+
+For code reviews, each member uses its own `review-record.md`. The comparison
+uses `context/review-record.md` as the persistent task record. Independent
+members receive any existing task record in their starting snapshot and must
+not read later updates or current peers' private records.
+
 After every member finishes, start a separate agent to compare the results.
 Use the short group name if it identifies one run, or the full name printed
 by the launcher:
@@ -528,6 +541,15 @@ questions and next steps. It merges the analysis. It does not authorize code
 changes or edits to the members' results. Later responses from a member can
 correct earlier ones. Previous comparison reports are excluded from the input.
 
+For code reviews, the assignment also requires a disposition for every material
+member finding in `context/review-record.md`: unresolved, fixed, accepted risk,
+or dismissed. Each disposition needs evidence. Only an original decision from
+me can establish accepted risk. The comparison may update this record, but
+cannot fix source. Only one assigned session may write the record at a time.
+The prior task record is included as a launch snapshot, even when it came from
+an earlier comparison. The group source identity accompanies the responses so
+the comparison can distinguish reviewed source from subsequent corrections.
+
 Each invocation creates its own session under the selected group:
 
 ```text
@@ -555,6 +577,45 @@ The command does not wait for completion; run it after checking the member
 sessions. Input is fixed at comparison launch. The same 48 KB handoff limit
 applies. If the combined input is larger, use a normal agent launch with
 `--from` selecting the relevant individual turns.
+
+
+### Response origin and compact handoffs
+
+The commands and flags are unchanged. Codex answers are captured through the
+main-conversation `Stop` hook. Notifications are diagnostic events and never
+publish answers. Claude capture excludes subagent stop events. Captured response
+metadata identifies the provider, conversation, turn, assistant role, capture
+source, and source-content identity at capture. Main-conversation origin does
+not establish correctness or user approval.
+
+Codex lifecycle hooks must be enabled and trusted in Codex. Fx does not bypass
+hook trust. If the main stop hook does not run, no answer is captured. Legacy
+responses without origin metadata remain on disk but are excluded from normal
+indexes. Explicit handoff of such responses fails with a request to recapture
+a main-conversation turn. Sentry separates verified main responses from raw
+diagnostic output and treats missing origin as unknown.
+
+Every new session starts with `handoff.md`. The assigned agent keeps this file
+under 8,000 bytes and replaces obsolete information. It records scope, success
+criteria, original approval references and limits, exact source, required test
+setup, completed checks, and unresolved findings. Unknown information stays
+explicitly unverified. Fx copies this summary into each captured turn.
+Selecting an older turn with `--from` uses that turn's saved summary.
+
+The existing `--from` option supplies saved responses, summaries, and recorded
+source identities. The default context supplies an index plus the current task
+review record, rather than all session summaries. The task review record has a
+24,000-byte limit; link detailed evidence instead of copying it. The combined
+handoff retains the 48 KB limit and fails instead of silently truncating.
+Summaries are agent-maintained evidence. They cannot grant approval. No check
+runner, build control, or retry policy is added.
+
+Normal source searches belong in `repo/`. Exclude `events/`, `.fx-sentry/`, and
+`context/analyses/` from normal task searches. Diagnostic events remain outside
+normal response handoffs. Read explicitly selected analysis reports separately
+when assigned. Fx instructions define these search boundaries; they are not
+filesystem restrictions.
+
 
 ## Task sentry
 

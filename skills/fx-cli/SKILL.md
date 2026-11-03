@@ -246,16 +246,39 @@ one group matches. Comparison uses `default-compare-agent`; `--agent` can
 override it. Comparison combines analysis and checks disagreements. It does
 not authorize source edits. Read its own captured response for the outcome.
 
+Each group records one `source.json` identity and supplies it to every member.
+This identifies the commit and tracked plus nonignored untracked source content.
+It is not a preserved source copy. Keep the live source unchanged during review.
+Report unavailable identity or changed source as a verification gap.
+For code review, members use private session review records. Comparison carries
+every material finding into `context/review-record.md` with its disposition and
+evidence. Only one assigned session may update that task record. Only an original
+decision from me can establish accepted risk. Subsequent launches receive a
+snapshot of the prior task record, including earlier comparison decisions.
+
 ## Read results and pass context
 
 - `findings.md` contains agent-written working notes.
 - `last_turn_results.md` contains the latest captured final response.
 - `results/turn-*/response.md` preserves individual captured responses.
 - `input-context.md` records the supplied context snapshot.
+- `handoff.md` is the agent-maintained current summary of scope, success criteria,
+  approval references and limits, source, setup, checks, and unresolved findings.
+  Keep it under 8,000 bytes. Fx saves a copy with each captured response.
+- `source.json` identifies source at launch. Response metadata identifies source
+  at capture. Ignored files, external symlink contents, and build identity need
+  separate setup evidence. Submodules and special files produce unavailable identity.
 
 Do not edit generated response files. During independent investigation, read
 only the earlier response paths allowed by the starting snapshot.
 The default index lists earlier responses; it does not include their full text.
+Codex captures main-conversation `Stop` hooks; notifications never publish answers.
+Hooks must be enabled and trusted in Codex. Fx does not bypass trust.
+Responses without origin metadata remain on disk but are excluded from the index
+and cannot be supplied with `--from`. Recapture a main-conversation turn.
+Verified assistant origin does not establish user approval or correct conclusions.
+Normal source searches stay in `repo/`; exclude diagnostic and analysis directories.
+The current task review record is supplied as a launch snapshot, up to 24,000 bytes.
 Use `--from` to include selected saved text in a new session:
 
 ```bash

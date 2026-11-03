@@ -1,5 +1,6 @@
 import concurrent.futures
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -222,6 +223,85 @@ class ContextTest(unittest.TestCase):
                                  json.dumps({"type": "approval-requested"})], capture_output=True)
         self.assertEqual(result.returncode, 0)
         self.assertFalse((self.session / "results").exists())
+
+    def test_codex_notifications_never_publish_auxiliary_answers(self):
+        script = Path(__file__).resolve().parents[1] / "agents/codex_capture.py"
+        for thread, text in (("title", "Generated title"), ("summary", "Approved suggestion")):
+            event = {"type": "agent-turn-complete", "thread-id": thread,
+                     "turn-id": "one", "last-assistant-message": text}
+            result = subprocess.run([sys.executable, script, "capture", self.session,
+                                     json.dumps(event)], capture_output=True)
+            self.assertEqual(result.returncode, 0)
+        self.assertFalse((self.session / "results").exists())
+        self.assertFalse((self.session / "last_turn_results.md").exists())
+
+    def test_codex_main_stop_publishes_response_but_subagent_stop_does_not(self):
+        script = Path(__file__).resolve().parents[1] / "agents/codex_capture.py"
+        event = {"hook_event_name": "SubagentStop", "session_id": "main",
+                 "turn_id": "one", "agent_id": "child", "last_assistant_message": "Auxiliary approval"}
+        for name in ("SubagentStop", "Stop"):
+            event["hook_event_name"] = name
+            result = subprocess.run([sys.executable, script, "hook"],
+                                    env={**os.environ, "FX_SESSION_CONTEXT_DIR": str(self.session)},
+                                    input=json.dumps(event), capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse((self.session / "results").exists())
+        del event["agent_id"]
+        event["last_assistant_message"] = "Main review"
+        result = subprocess.run([sys.executable, script, "hook"],
+                                env={**os.environ, "FX_SESSION_CONTEXT_DIR": str(self.session)},
+                                input=json.dumps(event), capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.session / "last_turn_results.md").read_text(), "Main review")
+        metadata = json.loads(next((self.session / "results").glob("*/metadata.json")).read_text())
+        self.assertEqual(metadata["origin"], "main_conversation")
+        self.assertEqual(metadata["role"], "assistant")
+
+    def test_handoff_is_frozen_with_selected_turn(self):
+        summary = self.session / "handoff.md"
+        summary.write_text("Scope: login. Setup: local fixture. Approval: none.")
+        first = self.save()
+        summary.write_text("Later cleanup complete.")
+        second = self.save("two", "Second response")
+        context = prepare_context(self.task, [first])
+        self.assertIn("Setup: local fixture", context)
+        self.assertNotIn("Later cleanup", context)
+        self.assertIn("Later cleanup complete", prepare_context(self.task, [second]))
+
+    def test_unknown_response_origin_is_not_indexed_or_explicitly_handed_off(self):
+        result = self.save()
+        metadata_path = result / "metadata.json"
+        metadata = json.loads(metadata_path.read_text())
+        metadata.pop("origin", None)
+        metadata_path.write_text(json.dumps(metadata))
+        self.assertNotIn("response.md", prepare_context(self.task, []))
+        with self.assertRaisesRegex(ValueError, "origin"):
+            prepare_context(self.task, [result])
+        self.save("two", "Recaptured main answer")
+        handoff = prepare_context(self.task, [self.session])
+        self.assertIn("Recaptured main answer", handoff)
+        self.assertNotIn("turn-000001/response.md", handoff)
+
+    def test_summary_limits_and_symlinks_fail_without_publishing_a_partial_answer(self):
+        summary = self.session / "handoff.md"
+        summary.write_text("x" * 8001)
+        with self.assertRaisesRegex(ValueError, "exceeds"):
+            self.save()
+        summary.unlink()
+        outside = self.task / "outside.md"
+        outside.write_text("Do not read")
+        summary.symlink_to(outside)
+        with self.assertRaisesRegex(ValueError, "symbolic link"):
+            self.save()
+        self.assertFalse((self.session / "last_turn_results.md").exists())
+
+    def test_task_review_record_is_supplied_as_a_launch_snapshot(self):
+        review = self.task / "context/review-record.md"
+        review.write_text("Unresolved ownership finding; evidence in previous review.")
+        snapshot = prepare_context(self.task, [])
+        review.write_text("Fixed with regression evidence.")
+        self.assertIn("Unresolved ownership", snapshot)
+        self.assertNotIn("Fixed with regression", snapshot)
 
 
 if __name__ == "__main__":

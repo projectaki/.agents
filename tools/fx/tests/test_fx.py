@@ -75,6 +75,13 @@ class FxTest(unittest.TestCase):
             check=check,
         )
 
+    def capture_codex(self, session, event):
+        return subprocess.run(
+            [sys.executable, str(TOOL.parent / "agents/codex_capture.py"), "hook"],
+            input=json.dumps(event), text=True, capture_output=True, check=True,
+            env={**self.env, "FX_SESSION_CONTEXT_DIR": str(session)},
+        )
+
     def fx(self, *arguments, cwd=None, check=True):
         return self.run_command(TOOL, *arguments, cwd=cwd, check=check)
 
@@ -102,9 +109,9 @@ class FxTest(unittest.TestCase):
         launched = self.fx("agent", "group", "--name", name, "--prompt", "Review the login changes.", cwd=task)
         for line in launched.stdout.splitlines():
             member = Path(json.loads(line)["arguments"][13])
-            event = {"type": "agent-turn-complete", "thread-id": member.name, "turn-id": "one",
-                     "last-assistant-message": f"Review from {member.name}: validate login input."}
-            self.run_command(sys.executable, TOOL.parent / "agents/codex_capture.py", "capture", member, json.dumps(event))
+            event = {"hook_event_name": "Stop", "session_id": member.name, "turn_id": "one",
+                     "last_assistant_message": f"Review from {member.name}: validate login input."}
+            self.capture_codex(member, event)
         return member.parent
 
     def test_task_analysis_inventories_all_sessions_and_preserves_source(self):
@@ -1130,9 +1137,9 @@ pwd -P
         task = self.task()
         self.fx("agent", "codex", "--name", "investigate", cwd=task)
         session, = (task / "context").iterdir()
-        event = {"type": "agent-turn-complete", "thread-id": "investigate", "turn-id": "one",
-                 "last-assistant-message": "Verified investigation report."}
-        self.run_command(sys.executable, TOOL.parent / "agents/codex_capture.py", "capture", session, json.dumps(event))
+        event = {"hook_event_name": "Stop", "session_id": "investigate", "turn_id": "one",
+                 "last_assistant_message": "Verified investigation report."}
+        self.capture_codex(session, event)
         self.fx("agent", "codex", "--name", "index", cwd=task)
         indexed = task / "context/000002-index-gpt-6.1-sol/input-context.md"
         self.assertIn(session.name, indexed.read_text())
@@ -1602,17 +1609,17 @@ pwd -P
         self.assertEqual((session / "findings.md").read_text(), "# Findings\n\nNo findings recorded.\n")
         self.assertEqual((session / "last_turn_results.md").read_text(), "Plan: validate before saving.\n")
 
-    def test_codex_final_response_is_captured_by_notification(self):
+    def test_codex_final_response_is_captured_by_main_stop_hook(self):
         task = self.task()
         executable = self.bin / "codex"
         executable.write_text(
             f"#!{sys.executable}\n"
-            "import json, subprocess, sys\n"
+            "import json, subprocess, sys, tomllib\n"
             "for argument in sys.argv[1:]:\n"
-            " if argument.startswith('notify='):\n"
-            "  command = json.loads(argument.split('=', 1)[1])\n"
-            "  event = {'type': 'agent-turn-complete', 'thread-id': 'codex-session', 'turn-id': 'one', 'last-assistant-message': 'Implement the reviewed plan.\\n'}\n"
-            "  subprocess.run(command + [json.dumps(event)], check=True)\n"
+            " if argument.startswith('hooks.Stop='):\n"
+            "  hook = tomllib.loads(argument)['hooks']['Stop'][0]['hooks'][0]\n"
+            "  event = {'hook_event_name': 'Stop', 'session_id': 'codex-session', 'turn_id': 'one', 'last_assistant_message': 'Implement the reviewed plan.\\n'}\n"
+            "  subprocess.run(hook['command'], shell=True, input=json.dumps(event), text=True, check=True)\n"
         )
         self.fx("agent", "codex", "--name", "review", cwd=task)
         session, = (task / "context").iterdir()
@@ -1625,9 +1632,9 @@ pwd -P
         task = self.task()
         self.fx("agent", "claude", "--name", "review", cwd=task)
         source, = (task / "context").iterdir()
-        event = json.dumps({"type": "agent-turn-complete", "thread-id": "thread", "turn-id": "turn",
-                            "last-assistant-message": "The repair plan: validate the input before saving.\n"})
-        self.run_command(sys.executable, TOOL.parent / "agents/codex_capture.py", "capture", source, event)
+        event = json.dumps({"hook_event_name": "Stop", "session_id": "thread", "turn_id": "turn",
+                            "last_assistant_message": "The repair plan: validate the input before saving.\n"})
+        self.capture_codex(source, json.loads(event))
         for agent in ("codex", "claude"):
             before = set((task / "context").iterdir())
             result = self.fx("agent", agent, "--name", "review", "--from", source, "--prompt", "Implement the saved plan", cwd=task)
@@ -1667,9 +1674,9 @@ pwd -P
         task = self.task()
         self.fx("agent", "claude", "--name", "review", cwd=task)
         source, = (task / "context").iterdir()
-        event = json.dumps({"type": "agent-turn-complete", "thread-id": "thread", "turn-id": "turn",
-                            "last-assistant-message": "Shared starting plan"})
-        self.run_command(sys.executable, TOOL.parent / "agents/codex_capture.py", "capture", source, event)
+        event = json.dumps({"hook_event_name": "Stop", "session_id": "thread", "turn_id": "turn",
+                            "last_assistant_message": "Shared starting plan"})
+        self.capture_codex(source, json.loads(event))
         self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
         for options in ([], ["--from", source]):
             result = self.fx("agent", "group", "--name", "review", *options, cwd=task)
@@ -1687,27 +1694,27 @@ pwd -P
         self.fx("agent", "claude", "--name", "review", cwd=task)
         source, = (task / "context").iterdir()
         capture_script = TOOL.parent / "agents/codex_capture.py"
-        event = {"type": "agent-turn-complete", "thread-id": "thread", "turn-id": "before",
-                 "last-assistant-message": "Earlier plan"}
-        self.run_command(sys.executable, capture_script, "capture", source, json.dumps(event))
+        event = {"hook_event_name": "Stop", "session_id": "thread", "turn_id": "before",
+                 "last_assistant_message": "Earlier plan"}
+        self.capture_codex(source, event)
         self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
         previous = self.fx("agent", "group", "--name", "review", cwd=task)
         for line in previous.stdout.splitlines():
             member = Path(json.loads(line)["arguments"][13])
-            self.run_command(sys.executable, capture_script, "capture", member, json.dumps(event))
+            self.capture_codex(member, event)
         previous_group = member.parent
         (self.bin / "zellij").write_text(
             f"#!{sys.executable}\n"
-            "import json, subprocess, sys\n"
+            "import json, os, subprocess, sys\n"
             "from pathlib import Path\n"
             "args = sys.argv[1:]\n"
             "member = Path(args[13])\n"
             "if member.name.startswith('1-'):\n"
             f" event = {event!r}\n"
-            " event['turn-id'] = 'after'\n"
-            " event['last-assistant-message'] = 'Late result'\n"
+            " event['turn_id'] = 'after'\n"
+            " event['last_assistant_message'] = 'Late result'\n"
             f" for target in (member, Path({str(source)!r})):\n"
-            f"  subprocess.run([sys.executable, {str(capture_script)!r}, 'capture', str(target), json.dumps(event)], check=True)\n"
+            f"  subprocess.run([sys.executable, {str(capture_script)!r}, 'hook'], input=json.dumps(event), text=True, env={{**os.environ, 'FX_SESSION_CONTEXT_DIR': str(target)}}, capture_output=True, check=True)\n"
             "print(json.dumps({'arguments': args}))\n"
         )
         result = self.fx("agent", "group", "--name", "review", cwd=task)
@@ -1749,6 +1756,30 @@ pwd -P
         self.assertIn("Compare and merge", args[-1])
         self.assertIn("Do not edit repository files", args[-1])
         self.assertEqual(list((task / "context").iterdir()), [group.parent])
+
+    def test_group_source_identity_and_prior_review_survive_comparison_after_edits(self):
+        task = self.task()
+        record = task / "context/review-record.md"
+        record.write_text("Unresolved: ownership validation. Evidence: prior review.\n")
+        group = self.completed_group(task)
+        identity = json.loads((group / "source.json").read_text())
+        self.assertIsNotNone(identity["content_sha256"])
+        for member in group.iterdir():
+            if member.is_dir() and (member / "instructions.md").exists():
+                self.assertEqual(json.loads((member / "source.json").read_text()), identity)
+                self.assertIn("ownership validation", (member / "input-context.md").read_text())
+                self.assertIn(str(member / "review-record.md"), (member / "handoff.md").read_text())
+        (task / "repo/source.txt").write_text("Correction after review")
+        self.fx("agent", "group", "compare", "review", "--name", "summary", cwd=task)
+        comparison, = (group / "comparisons").iterdir()
+        current = json.loads((comparison / "source.json").read_text())
+        self.assertEqual(identity["revision"], current["revision"])
+        self.assertNotEqual(identity["content_sha256"], current["content_sha256"])
+        snapshot = (comparison / "input-context.md").read_text()
+        self.assertIn(identity["content_sha256"], snapshot)
+        self.assertIn("ownership validation", snapshot)
+        record.write_text("Fixed: ownership validation. Evidence: regression test.\n")
+        self.assertIn("Unresolved: ownership validation", snapshot)
 
     def test_compare_can_use_claude_high_reasoning_in_new_tab(self):
         task = self.task()
@@ -1792,9 +1823,9 @@ pwd -P
         group = self.completed_group(task)
         self.fx("agent", "group", "compare", "review", "--name", "summary", cwd=task)
         first, = (group / "comparisons").iterdir()
-        event = {"type": "agent-turn-complete", "thread-id": "comparison", "turn-id": "one",
-                 "last-assistant-message": "Merged report: add validation and tests."}
-        self.run_command(sys.executable, TOOL.parent / "agents/codex_capture.py", "capture", first, json.dumps(event))
+        event = {"hook_event_name": "Stop", "session_id": "comparison", "turn_id": "one",
+                 "last_assistant_message": "Merged report: add validation and tests."}
+        self.capture_codex(first, event)
         self.fx("agent", "group", "compare", "review", "--name", "summary", cwd=task)
         second, = set((group / "comparisons").iterdir()) - {first}
         self.assertNotIn("Merged report", (second / "input-context.md").read_text())

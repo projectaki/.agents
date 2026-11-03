@@ -56,6 +56,7 @@ Treat the principles below as review criteria, not instructions to make changes.
 - Check observable behavior through module interfaces, including interactions and isolated logic. Assertions must detect incorrect outcomes and important failure cases.
 - For stateful workflows, check allowed and rejected transitions, transition conditions, resulting effects, and important event sequences.
 - Check that test substitutes represent relevant production behavior.
+- For credential-related changes, assess whether isolated validation tests and integration tests through the protected mutation cover the same ownership and rejection contract. Keep this assessment about test design and project principles. Use x-code-review for actionable security defects.
 - Preserve useful unit coverage in proposed refactors. Do not treat coverage percentages as proof of correctness.
 
 ## Conditional checks

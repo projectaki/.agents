@@ -16,6 +16,7 @@ Investigate only. Do not implement the task or change external state.
 - Confirm the problem exists. Check whether the task is already complete or duplicates existing work. Reproduce reported bugs when practical.
 - Establish the goal, scope, exclusions, and observable success criteria. Separate facts, assumptions, and unknowns.
 - Assess affected users, behavior, shared interfaces, data, compatibility, and recovery. Consider relevant security and operational risks. Assess impact separately from change size.
+- For stored credentials or signed protected operations, trace the boundary using the [credential examples](../x-code-review/references/credential-boundaries.md). Identify the required ownership and rejection rules before implementation.
 - Identify the simplest compliant approach. Check required access, dependencies, and unresolved product or architecture decisions.
 - Map each success criterion and material risk to automated verification or existing evidence. Inspect whether checks detect relevant failures. Identify coverage limits and test maintenance costs.
 - Resolve gaps through focused investigation and safe checks where practical. Expand only when evidence requires it. Stop when further investigation needs human input or disproportionate effort. Explain that limit.
@@ -40,3 +41,8 @@ Keep detail proportional to the task. Make the report self-contained:
 5. **Human input:** For human involvement, list every identified unresolved gap. For each, state the consequence, automatic resolution considered, why it is insufficient, and the exact input or decision needed. Recommend a resolution when supported.
 
 After new input, reassess and replace obsolete report content. Human input alone does not establish readiness. Repeat triage if scope or affected code changes materially, or implementation invalidates an important assumption.
+
+When fx supplies a handoff file, update it with the current scope, success criteria,
+source identity, required test setup, completed checks, and unresolved findings.
+Include approved exceptions only with original decision references and limits.
+Keep the handoff short. Link detailed evidence in the report or findings.

@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from fx_events import capture_event, prepare_events, save_event
+from fx_events import capture_event, event_origin, prepare_events, save_event
 from fx_context import prepare_context, save_response
 
 
@@ -27,6 +27,20 @@ class EventsTest(unittest.TestCase):
 
     def records(self):
         return [json.loads(line) for line in (self.session / "events/callbacks.jsonl").read_text().splitlines()]
+
+    def test_event_origins_distinguish_prompts_main_responses_and_auxiliary_output(self):
+        cases = [
+            ("hook", {"hook_event_name": "UserPromptSubmit"}, "user_input"),
+            ("hook", {"hook_event_name": "Stop"}, "main_response"),
+            ("hook", {"hook_event_name": "Stop", "agent_id": "child"}, "auxiliary_output"),
+            ("hook", {"hook_event_name": "SubagentStop"}, "auxiliary_output"),
+            ("hook", {"hook_event_name": "SessionStart"}, "lifecycle_event"),
+            ("notify", {"type": "agent-turn-complete"}, "auxiliary_output"),
+            ("hook", None, "unknown"),
+        ]
+        for source, payload, expected in cases:
+            with self.subTest(source=source, payload=payload):
+                self.assertEqual(event_origin(source, payload), expected)
 
     def test_records_preserve_payloads_and_duplicates_with_order_and_timestamps(self):
         payload = {"hook_event_name": "PreToolUse", "tool_input": {"command": "echo café\n"}, "unknown": [1, None]}
@@ -188,6 +202,15 @@ class EventsTest(unittest.TestCase):
         self.assertEqual(self.records()[0]["raw_payload"], "invalid JSON")
         self.assertFalse((self.session / "capture-error.txt").exists())
 
+    def test_malformed_codex_hook_is_diagnostic_without_publishing_a_response(self):
+        script = TOOL_DIRECTORY / "agents/codex_capture.py"
+        result = subprocess.run([sys.executable, script, "hook"], input="invalid JSON", text=True,
+                                env={**os.environ, "FX_SESSION_CONTEXT_DIR": str(self.session)}, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout), {})
+        self.assertFalse((self.session / "results").exists())
+        self.assertFalse((self.session / "capture-error.txt").exists())
+
     def test_events_in_separate_sessions_stay_separate(self):
         other = self.task / "context/session-other"
         other.mkdir()
@@ -201,9 +224,10 @@ class EventsTest(unittest.TestCase):
     def test_failed_event_capture_does_not_prevent_final_response_capture(self):
         prepare_events(self.session)
         (self.session / "events/callbacks.jsonl").write_text("incomplete")
-        event = {"type": "agent-turn-complete", "thread-id": "thread", "turn-id": "turn", "last-assistant-message": "Final answer"}
+        event = {"hook_event_name": "Stop", "session_id": "thread", "turn_id": "turn", "last_assistant_message": "Final answer"}
         script = TOOL_DIRECTORY / "agents/codex_capture.py"
-        result = subprocess.run([sys.executable, script, "capture", self.session, json.dumps(event)], capture_output=True)
+        result = subprocess.run([sys.executable, script, "hook"], input=json.dumps(event), text=True,
+                                env={**os.environ, "FX_SESSION_CONTEXT_DIR": str(self.session)}, capture_output=True)
         self.assertEqual(result.returncode, 0)
         self.assertEqual((self.session / "last_turn_results.md").read_text(), "Final answer")
         self.assertTrue((self.session / "events/capture-error.txt").exists())
