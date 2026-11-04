@@ -6,8 +6,8 @@ description: "Set up and use the projectaki fx CLI for project clones, task work
 # fx CLI
 
 Use `fx` to prepare workspaces and start interactive coding agents. The sentry
-command can repeat diagnostic checks. Other commands do not schedule work or
-wait for groups to finish. A worktree is a separate Git
+command can repeat diagnostic checks. Groups run unattended investigations in
+parallel, wait for successful completion, then start one interactive synthesis. A worktree is a separate Git
 checkout that shares repository history.
 
 ## Check the environment
@@ -33,7 +33,8 @@ files together. Do not install a package named `fx` from a package registry.
   Do not capture that command's output with command substitution.
 - Agent sessions remain interactive even with `--prompt`. Use an interactive
   terminal, or `--new-tab` from inside an existing Zellij session. Do not treat
-  standard agent launches as an unattended batch interface. Sentry's explicit
+  standard agent launches as an unattended batch interface. Group members use
+  explicit batch adapters. Sentry's explicit
   `--headless` mode supports unattended diagnostic checks.
 
 ## Prepare a project and task
@@ -234,17 +235,43 @@ level use `-r`, which defaults to medium. No `--new-tab` flag is needed.
 Members must not read current peers' findings or later results. They may read
 earlier responses listed in their starting context snapshot.
 
-After every member finishes the intended response, compare the full group
-name printed at launch:
+A group opens one Zellij tab. Its members run without interactive input. Supply
+`--prompt`, or enter the assignment at the terminal before launch. The group tab
+shows member status. Each member saves its own response and diagnostic logs.
+After every member exits successfully with a saved response, the same tab starts
+an interactive synthesis session named `synthesis`. It uses
+`default-compare-agent` with medium reasoning. Continue the discussion there.
+
+Failures stop automatic synthesis. Other members can finish. Ctrl+C stops active
+member process groups. Inspect `run-state.json` and each member's `runner.log`.
+To retry only incomplete members in the current terminal:
+
+```bash
+fx agent group retry 000001-review
+```
+
+Use the full name printed at launch. Successful results remain available.
+Retries use fresh member directories and preserve failed attempts. The original
+assignment, context snapshot, and source identity still apply. Keep source
+unchanged. Concurrent runners for the same group are rejected.
+
+For another synthesis, or recovery after synthesis fails:
 
 ```bash
 fx agent group compare 000001-review --name summary --new-tab
 ```
 
-Replace the example number with the actual one. Short names work only when
-one group matches. Comparison uses `default-compare-agent`; `--agent` can
-override it. Comparison combines analysis and checks disagreements. It does
-not authorize source edits. Read its own captured response for the outcome.
+Comparison requires successful completion of every active member. Short names
+work only when one group matches. `--agent` overrides `default-compare-agent`.
+Comparison reads an exact list of saved response files, checks disagreements,
+and produces one merged report. It does not authorize source edits. The full
+reports remain in files, so their combined text can exceed the 48 KB inline
+handoff limit. Legacy interactive groups still require manual completion checks.
+
+Adapters implement unattended execution in `agents/<agent>.batch`. The group
+runner never branches on provider names. Claude uses print mode; Codex uses
+exec mode. Normal provider permissions still apply. Missing permissions must be
+reported as investigation gaps. A successful exit does not prove full coverage.
 
 Each group records one `source.json` identity and supplies it to every member.
 This identifies the commit and tracked plus nonignored untracked source content.
@@ -272,7 +299,8 @@ snapshot of the prior task record, including earlier comparison decisions.
 Do not edit generated response files. During independent investigation, read
 only the earlier response paths allowed by the starting snapshot.
 The default index lists earlier responses; it does not include their full text.
-Codex captures main-conversation `Stop` hooks; notifications never publish answers.
+Interactive Codex captures main-conversation `Stop` hooks. Batch capture uses
+completed provider output. Notifications never publish answers.
 Hooks must be enabled and trusted in Codex. Fx does not bypass trust.
 Responses without origin metadata remain on disk but are excluded from the index
 and cannot be supplied with `--from`. Recapture a main-conversation turn.
@@ -302,8 +330,9 @@ errors stop the launch. One saved turn per member does not prove group completio
   Do not reset work or use stale commits.
 - If Zellij attachment fails after task preparation, reuse the task. It remains
   available through `--no-attach`.
-- If a group tab request fails, inspect `tab-request.txt` and the opened tabs.
-  Earlier members may still be running. Rerunning creates an entirely new group.
+- If a group tab request fails, inspect the group's `tab-request.txt`. Use
+  `fx agent group retry <full-group-name>` to run its prepared members in the
+  current terminal. A fresh `group` invocation creates a different group.
 - If capture fails, inspect the session's `capture-error.txt` and saved turns.
   Do not claim that a missing response was captured or delete error markers
   merely to bypass a handoff failure.

@@ -61,7 +61,7 @@ def publish_latest_response(session, result):
             os.close(descriptor)
 
 
-def save_response(session, agent, conversation_id, turn_id, response):
+def save_response(session, agent, conversation_id, turn_id, response, capture_source="Stop"):
     if not all(isinstance(value, str) and value for value in
                (agent, conversation_id, turn_id, response)):
         raise ValueError("The completion event lacks a session ID, turn ID, or response text.")
@@ -96,7 +96,7 @@ def save_response(session, agent, conversation_id, turn_id, response):
                 "schema_version": 2,
                 "origin": "main_conversation",
                 "role": "assistant",
-                "capture_source": "Stop",
+                "capture_source": capture_source,
                 "source": source,
                 "identity": identity,
                 "agent": agent,
@@ -126,6 +126,28 @@ def report_capture_error(session, error):
         pass
 
 
+def group_sessions(group):
+    manifest = group / "run.json"
+    if manifest.is_symlink():
+        raise ValueError("The group manifest must not be a symbolic link.")
+    if not manifest.exists():
+        return [member for member in sorted(group.iterdir())
+                if member.is_dir() and (member / "instructions.md").is_file()]
+    records = json.loads(manifest.read_text())["members"]
+    sessions = []
+    for record in records:
+        name = record["session"]
+        if not isinstance(name, str) or not name or Path(name).name != name or name in (".", ".."):
+            raise ValueError("Invalid group member directory.")
+        member = group / name
+        if member.is_symlink() or not (member / "instructions.md").is_file():
+            raise ValueError(f"Invalid group member: {member}")
+        sessions.append(member)
+    if not sessions or len(set(sessions)) != len(sessions):
+        raise ValueError("The group needs distinct members.")
+    return sessions
+
+
 def captured_results(source):
     if (source / "capture-error.txt").exists():
         raise ValueError(f"Capture failed in {source}; inspect capture-error.txt before handing off.")
@@ -135,9 +157,7 @@ def captured_results(source):
         return [source]
     if (source / "group.md").is_file():
         results = []
-        for member in sorted(source.iterdir()):
-            if not member.is_dir() or not (member / "instructions.md").is_file():
-                continue
+        for member in group_sessions(source):
             if member.is_symlink():
                 raise ValueError(f"Group member must not be a symbolic link: {member}")
             member_results = captured_results(member)
@@ -145,11 +165,16 @@ def captured_results(source):
                 raise ValueError(f"No captured responses for group member {member}.")
             results.extend(member_results)
         return results
-    return [directory for directory in sorted((source / "results").glob("turn-*"))
-            if is_main_response(response_metadata(directory))]
+    results = [directory for directory in sorted((source / "results").glob("turn-*"))
+               if is_main_response(response_metadata(directory))]
+    for directory in results:
+        response = directory / "response.md"
+        if response.is_symlink() or not response.is_file():
+            raise ValueError(f"Captured result file is missing or is a symbolic link: {response}")
+    return results
 
 
-def prepare_context(task, sources):
+def prepare_context(task, sources, *, include_responses=True):
     task = Path(task).resolve(strict=True)
     context = task / "context"
     selected = []
@@ -188,6 +213,8 @@ def prepare_context(task, sources):
         for name in ("metadata.json", "response.md"):
             if (directory / name).is_symlink():
                 raise ValueError(f"Captured result must not be a symbolic link: {directory / name}")
+            if not (directory / name).is_file():
+                raise ValueError(f"Captured result file is missing: {directory / name}")
         metadata = response_metadata(directory)
         if not is_main_response(metadata):
             if sources:
@@ -199,7 +226,12 @@ def prepare_context(task, sources):
     for captured_at, directory, agent, source in sorted(records):
         response_path = directory / "response.md"
         index += f"- {captured_at} ({agent}): {response_path.relative_to(task)}\n"
-        if sources:
+        if sources and not include_responses:
+            index += f"  Source evidence: {(directory / 'metadata.json').relative_to(task)}\n"
+            if (directory / "handoff.md").exists() or (directory / "handoff.md").is_symlink():
+                read_summary(directory / "handoff.md")
+                index += f"  Saved handoff: {(directory / 'handoff.md').relative_to(task)}\n"
+        if sources and include_responses:
             handoff += f"\n## Saved response: {response_path.relative_to(task)}\n\n"
             handoff += response_path.read_text(encoding="utf-8") + "\n"
             handoff += "\nRecorded source at response capture: " + json.dumps(source) + "\n"

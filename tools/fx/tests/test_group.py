@@ -77,7 +77,30 @@ class GroupNameTest(unittest.TestCase):
         save_response(member, "test-agent", "conversation", "turn", "Login needs input validation.")
         context = comparison_context(self.task, group)
         self.assertIn("Review the login flow.", context)
-        self.assertIn("Login needs input validation.", context)
+        self.assertIn("1-agent/results/turn-000001/response.md", context)
+        self.assertIn("Read every response file", context)
+        self.assertNotIn("Login needs input validation.", context)
+
+    def test_comparison_lists_large_reports_without_truncating_them(self):
+        group = self.group("000001-review")
+        member = group / "1-agent"
+        member.mkdir()
+        (member / "instructions.md").write_text("Guidance")
+        response = "Detailed evidence.\n" * 10000
+        result = save_response(member, "agent", "conversation", "turn", response)
+        context = comparison_context(self.task, group)
+        self.assertIn(str(result.relative_to(self.task) / "response.md"), context)
+        self.assertEqual((result / "response.md").read_text(), response)
+
+    def test_comparison_rejects_a_missing_response_body(self):
+        group = self.group("000001-review")
+        member = group / "1-agent"
+        member.mkdir()
+        (member / "instructions.md").write_text("Guidance")
+        result = save_response(member, "agent", "conversation", "turn", "Report")
+        (result / "response.md").unlink()
+        with self.assertRaisesRegex(ValueError, "file is missing"):
+            comparison_context(self.task, group)
 
     def test_comparison_context_rejects_unaccepted_member_tab(self):
         group = self.group("review-Ab12Cd34")

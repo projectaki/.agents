@@ -4,9 +4,11 @@ import os
 from pathlib import Path
 import pty
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 
 
@@ -106,13 +108,18 @@ class FxTest(unittest.TestCase):
 
     def completed_group(self, task, name="review"):
         self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
-        launched = self.fx("agent", "group", "--name", name, "--prompt", "Review the login changes.", cwd=task)
-        for line in launched.stdout.splitlines():
-            member = Path(json.loads(line)["arguments"][13])
+        self.fx("agent", "group", "--name", name, "--prompt", "Review the login changes.", cwd=task)
+        group = sorted((task / "context/groups").iterdir())[-1]
+        manifest = json.loads((group / "run.json").read_text())
+        state = {"status": "finished", "members": {}}
+        for record in manifest["members"]:
+            member = group / record["session"]
             event = {"hook_event_name": "Stop", "session_id": member.name, "turn_id": "one",
                      "last_assistant_message": f"Review from {member.name}: validate login input."}
             self.capture_codex(member, event)
-        return member.parent
+            state["members"][member.name] = {"status": "finished", "exit_code": 0}
+        (group / "run-state.json").write_text(json.dumps(state))
+        return group
 
     def test_task_analysis_inventories_all_sessions_and_preserves_source(self):
         project = self.project()
@@ -1224,17 +1231,18 @@ pwd -P
         self.assertEqual(args[5], session.name)
         self.assertEqual(args[13], str(session))
 
-    def test_group_name_prompt_names_group_and_member_tabs(self):
+    def test_group_name_prompt_names_one_group_tab(self):
         task = self.task()
         self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
-        result = self.fx_with_terminal_input("agent", "group", cwd=task, input_bytes=b"login-review\n")
+        result = self.fx_with_terminal_input("agent", "group", cwd=task, input_bytes=b"login-review\nReview login\n")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Group name: ", result.stderr)
+        self.assertIn("Group assignment: ", result.stderr)
         group, = (task / "context/groups").iterdir()
         self.assertEqual(group.name, "000001-login-review")
-        for number, line in enumerate(result.stdout.splitlines(), 1):
-            args = json.loads(line)["arguments"]
-            self.assertTrue(args[5].startswith(f"{group.name}-{number}-"))
+        args = json.loads(result.stdout)["arguments"]
+        self.assertEqual(args[5], group.name)
+        self.assertEqual((group / "initial_prompt.md").read_text(), "Review login")
 
     def test_comparison_session_name_prompt_names_directory_and_tab(self):
         task = self.task()
@@ -1330,69 +1338,59 @@ pwd -P
         self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
         prompt = 'Review "login".\nKeep $(touch should-not-exist) and `pwd` literal.\n'
         result = self.fx("agent", "group", "--name", "review", "--prompt", prompt, cwd=task / "repo")
-        calls = [json.loads(line) for line in result.stdout.splitlines()]
-        self.assertEqual(len(calls), 2)
+        call = json.loads(result.stdout)
         group, = (task / "context/groups").iterdir()
         self.assertEqual(group.name, "000001-review")
         self.assertEqual((group / "initial_prompt.md").read_text(), prompt)
-        self.assertEqual(list((task / "context").iterdir()), [group.parent])
-        for number, (call, agent) in enumerate(zip(calls, ("claude", "codex")), 1):
-            model = "claude-opus-5-5" if agent == "claude" else "gpt-6.1-sol"
-            session = group / f"{number}-{agent}-{model}"
-            args = call["arguments"]
-            self.assertEqual(args[:9], [
-                "--session", "example-fix-login", "action", "new-tab", "--name",
-                f"{group.name}-{session.name}", "--cwd", str(task), "--",
-            ])
-            self.assertEqual(args[9:], [str(TOOL.parent / "agents" / agent), "launch",
-                                      str(task.parent.parent), str(task), str(session), "medium", prompt])
-            self.assertEqual(call["cwd"], str(task))
+        self.assertEqual(call["arguments"][:9], ["--session", "example-fix-login", "action", "new-tab",
+                         "--name", group.name, "--cwd", str(task), "--"])
+        self.assertEqual(call["arguments"][9:], ["python3", str(TOOL.parent / "fx_group_run.py"), "run",
+                         str(task.parent.parent), str(task), group.name])
+        manifest = json.loads((group / "run.json").read_text())
+        self.assertEqual([member["agent"] for member in manifest["members"]], ["claude", "codex"])
+        for member in manifest["members"]:
+            session = group / member["session"]
             self.assertEqual((session / "initial_prompt.md").read_text(), prompt)
-            self.assertEqual((session / "tab-request.txt").read_text(), "accepted\n")
             instructions = (session / "instructions.md").read_text()
             self.assertIn("This is an independent group investigation", instructions)
             self.assertIn("Do not inspect other members of this group", instructions)
             self.assertIn("Do not edit source", instructions)
             self.assertIn(str(session / "findings.md"), instructions)
-            self.assertIn(session.name, (group / "group.md").read_text())
-            launched = json.loads(self.run_command(*args[9:], cwd=task).stdout)
-            self.assertEqual(launched["arguments"][-2:], ["--", prompt])
+            self.assertFalse((session / "tab-request.txt").exists())
+        self.assertEqual((group / "tab-request.txt").read_text(), "accepted\n")
         self.assertFalse((task / "should-not-exist").exists())
 
     def test_group_custom_members_replace_defaults_and_override_reasoning(self):
         task = self.task()
         self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
-        result = self.fx("agent", "group", "--name", "review", "--agent", "codex:l", "--agent", "claude:h",
-                         "--agent", "codex", "-r", "h", cwd=task)
-        calls = [json.loads(line)["arguments"] for line in result.stdout.splitlines()]
-        self.assertEqual([Path(args[9]).name for args in calls], ["codex", "claude", "codex"])
-        self.assertEqual([args[-1] for args in calls], ["low", "high", "high"])
-        self.assertEqual(len({args[13] for args in calls}), 3)
-        for args in calls:
-            session = Path(args[13])
-            self.assertFalse((session / "initial_prompt.md").exists())
-            self.assertIn("Wait for my interactive assignment", (session / "instructions.md").read_text())
+        self.fx("agent", "group", "--name", "review", "--agent", "codex:l", "--agent", "claude:h",
+                "--agent", "codex", "-r", "h", "--prompt", "Review", cwd=task)
         group, = (task / "context/groups").iterdir()
-        self.assertFalse((group / "initial_prompt.md").exists())
+        members = json.loads((group / "run.json").read_text())["members"]
+        self.assertEqual([member["agent"] for member in members], ["codex", "claude", "codex"])
+        self.assertEqual([member["reasoning"] for member in members], ["low", "high", "high"])
+        self.assertEqual(len({member["session"] for member in members}), 3)
 
     def test_group_default_reasoning_and_single_member(self):
         task = self.task()
         self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
         for options, count, reasoning in ((["-r", "l"], 2, "low"), (["--agent", "codex"], 1, "medium")):
             result = self.fx("agent", "group", "--name", "review", *options, "--prompt", "--help", cwd=task)
-            calls = [json.loads(line)["arguments"] for line in result.stdout.splitlines()]
-            self.assertEqual(len(calls), count)
-            self.assertTrue(all(args[-2:] == [reasoning, "--help"] for args in calls))
+            group = task / "context/groups" / json.loads(result.stdout)["arguments"][-1]
+            members = json.loads((group / "run.json").read_text())["members"]
+            self.assertEqual(len(members), count)
+            self.assertTrue(all(member["reasoning"] == reasoning for member in members))
+            self.assertEqual((group / "initial_prompt.md").read_text(), "--help")
 
     def test_repeated_concurrent_groups_get_unique_directories_and_tabs(self):
         task = self.task()
         self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
-            results = list(pool.map(lambda _: self.fx("agent", "group", "--name", "review", cwd=task), range(2)))
+            results = list(pool.map(lambda _: self.fx("agent", "group", "--name", "review", "--prompt", "Review", cwd=task), range(2)))
         groups = list((task / "context/groups").iterdir())
         self.assertEqual(len(groups), 2)
         tabs = [json.loads(line)["arguments"][5] for result in results for line in result.stdout.splitlines()]
-        self.assertEqual(len(set(tabs)), 4)
+        self.assertEqual(len(set(tabs)), 2)
 
     def test_invalid_group_arguments_create_no_context_or_tabs(self):
         task = self.task()
@@ -1436,28 +1434,17 @@ pwd -P
         self.assertIn("inside a task", result.stderr)
         self.assertEqual(list((task / "context").iterdir()), [])
 
-    def test_group_partial_tab_failure_preserves_all_context_and_stops(self):
+    def test_group_tab_failure_preserves_all_context_and_starts_no_members(self):
         task = self.task()
-        self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
-        (self.bin / "zellij").write_text(
-            f"#!{sys.executable}\n"
-            "import json, sys\n"
-            "from pathlib import Path\n"
-            "args = sys.argv[1:]\n"
-            "session = Path(args[13])\n"
-            "assert len(list(session.parent.glob('*/instructions.md'))) == 3\n"
-            "print(json.dumps({'arguments': args}))\n"
-            "sys.exit(23 if session.name.startswith('2-') else 0)\n"
-        )
-        result = self.fx("agent", "group", "--name", "review", "--agent", "claude", "--agent", "codex",
-                         "--agent", "claude", "--prompt", "Review", cwd=task, check=False)
+        self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login", FX_TEST_ZELLIJ_EXIT="23")
+        result = self.fx("agent", "group", "--name", "review", "--prompt", "Review", cwd=task, check=False)
         self.assertEqual(result.returncode, 23, result.stderr)
-        self.assertEqual(len(result.stdout.splitlines()), 2)
+        self.assertEqual(len(result.stdout.splitlines()), 1)
         group, = (task / "context/groups").iterdir()
-        for member, state in (("1-claude-claude-opus-5-5", "accepted"), ("2-codex-gpt-6.1-sol", "failed: 23"), ("3-claude-claude-opus-5-5", "pending")):
-            self.assertEqual((group / member / "tab-request.txt").read_text().strip(), state)
-            self.assertEqual((group / member / "initial_prompt.md").read_text(), "Review")
-        self.assertIn("Earlier tabs may still be running", result.stderr)
+        self.assertEqual((group / "tab-request.txt").read_text().strip(), "failed: 23")
+        state = json.loads((group / "run-state.json").read_text())
+        self.assertTrue(all(member["status"] == "waiting" for member in state["members"].values()))
+        self.assertIn("group retry", result.stderr)
 
     def test_group_rejects_symlink_context_parent(self):
         task = self.task()
@@ -1679,8 +1666,9 @@ pwd -P
         self.capture_codex(source, json.loads(event))
         self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
         for options in ([], ["--from", source]):
-            result = self.fx("agent", "group", "--name", "review", *options, cwd=task)
-            sessions = [Path(json.loads(line)["arguments"][13]) for line in result.stdout.splitlines()]
+            result = self.fx("agent", "group", "--name", "review", "--prompt", "Review", *options, cwd=task)
+            group = task / "context/groups" / json.loads(result.stdout)["arguments"][-1]
+            sessions = [group / member["session"] for member in json.loads((group / "run.json").read_text())["members"]]
             snapshots = [(session / "input-context.md").read_text() for session in sessions]
             self.assertEqual(snapshots[0], snapshots[1])
             self.assertIn(str(source.relative_to(task)), snapshots[0])
@@ -1691,46 +1679,180 @@ pwd -P
 
     def test_group_snapshot_excludes_peer_and_later_results(self):
         task = self.task()
-        self.fx("agent", "claude", "--name", "review", cwd=task)
-        source, = (task / "context").iterdir()
-        capture_script = TOOL.parent / "agents/codex_capture.py"
-        event = {"hook_event_name": "Stop", "session_id": "thread", "turn_id": "before",
-                 "last_assistant_message": "Earlier plan"}
-        self.capture_codex(source, event)
-        self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
-        previous = self.fx("agent", "group", "--name", "review", cwd=task)
-        for line in previous.stdout.splitlines():
-            member = Path(json.loads(line)["arguments"][13])
-            self.capture_codex(member, event)
-        previous_group = member.parent
-        (self.bin / "zellij").write_text(
-            f"#!{sys.executable}\n"
-            "import json, os, subprocess, sys\n"
-            "from pathlib import Path\n"
-            "args = sys.argv[1:]\n"
-            "member = Path(args[13])\n"
-            "if member.name.startswith('1-'):\n"
-            f" event = {event!r}\n"
-            " event['turn_id'] = 'after'\n"
-            " event['last_assistant_message'] = 'Late result'\n"
-            f" for target in (member, Path({str(source)!r})):\n"
-            f"  subprocess.run([sys.executable, {str(capture_script)!r}, 'hook'], input=json.dumps(event), text=True, env={{**os.environ, 'FX_SESSION_CONTEXT_DIR': str(target)}}, capture_output=True, check=True)\n"
-            "print(json.dumps({'arguments': args}))\n"
-        )
-        result = self.fx("agent", "group", "--name", "review", cwd=task)
-        members = [Path(json.loads(line)["arguments"][13]) for line in result.stdout.splitlines()]
+        previous_group = self.completed_group(task)
+        self.fx("agent", "group", "--name", "review", "--prompt", "Review", cwd=task)
+        group = sorted((task / "context/groups").iterdir())[-1]
+        members = [group / member["session"] for member in json.loads((group / "run.json").read_text())["members"]]
+        event = {"hook_event_name": "Stop", "session_id": "peer", "turn_id": "after", "last_assistant_message": "Late result"}
+        self.capture_codex(members[0], event)
         snapshots = [(member / "input-context.md").read_text() for member in members]
         self.assertEqual(snapshots[0], snapshots[1])
-        self.assertIn(str(source.relative_to(task) / "results/turn-000001/response.md"), snapshots[0])
         self.assertIn(str(previous_group.relative_to(task)), snapshots[0])
-        self.assertNotIn("turn-000002", snapshots[0])
         self.assertNotIn(str(members[0].relative_to(task)), snapshots[0])
-        self.assertTrue((source / "results/turn-000002/response.md").exists())
-        self.assertTrue((members[0] / "results/turn-000001/response.md").exists())
-        for member in members:
-            instructions = (member / "instructions.md").read_text()
-            self.assertIn("Read earlier captured responses listed in your starting context snapshot", instructions)
-            self.assertIn("Do not inspect other members of this group", instructions)
+        self.assertNotIn("Late result", snapshots[0])
+
+    def batch_provider_stubs(self):
+        for agent in ("claude", "codex"):
+            executable = self.bin / agent
+            executable.write_text(
+                f"#!{sys.executable}\n" + '''import fcntl, json, os, sys, time
+from pathlib import Path
+args = sys.argv[1:]
+if '--version' in args:
+    print('test version')
+    sys.exit(0)
+session = Path(os.environ['FX_SESSION_CONTEXT_DIR'])
+if '--print' in args:
+    with (session / '.fx-agent.lock').open() as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            raise AssertionError('Batch session must hold its conversation lock')
+        except BlockingIOError:
+            pass
+if 'exec' not in args and '--print' not in args:
+    raise AssertionError('Expected batch execution')
+(session / 'started').write_text('started')
+manifest = json.loads((session.parent / 'run.json').read_text())
+deadline = time.monotonic() + 5
+while not all((session.parent / member['session'] / 'started').exists() for member in manifest['members']):
+    if time.monotonic() > deadline:
+        raise AssertionError('Group members did not run in parallel')
+    time.sleep(0.01)
+if session.name.startswith(os.environ.get('FX_TEST_FAIL_MEMBER', 'never-match')):
+    print('Provider authentication failed', file=sys.stderr)
+    sys.exit(23)
+if os.environ.get('FX_TEST_EMPTY_RESPONSE'):
+    sys.exit(0)
+response = 'Review result from ' + session.name
+if 'exec' in args:
+    for event in ({'type':'thread.started','thread_id':session.name},
+                  {'type':'item.completed','item':{'type':'agent_message','text':response}},
+                  {'type':'turn.completed','usage':{}}):
+        print(json.dumps(event))
+else:
+    print(json.dumps({'type':'result','subtype':'success','is_error':False,
+                      'session_id':session.name,'result':response}))
+''')
+
+    def launch_batch_group(self, task):
+        self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
+        launched = self.fx("agent", "group", "--name", "review", "--prompt", "Review changes", cwd=task)
+        args = json.loads(launched.stdout)["arguments"]
+        group = task / "context/groups" / args[-1]
+        return group, args[9:]
+
+    def test_group_runs_members_in_parallel_and_starts_one_interactive_synthesis(self):
+        task = self.task()
+        group, command = self.launch_batch_group(task)
+        self.batch_provider_stubs()
+        codex = self.bin / "codex"
+        batch = codex.read_text()
+        batch = batch.replace("session = Path(os.environ['FX_SESSION_CONTEXT_DIR'])", """if 'exec' not in args:
+    print(json.dumps({'interactive': True, 'arguments': args, 'cwd': os.getcwd()}))
+    sys.exit(0)
+session = Path(os.environ['FX_SESSION_CONTEXT_DIR'])""")
+        codex.write_text(batch)
+        result = self.run_command(*command, cwd=task)
+        final = json.loads(result.stdout.splitlines()[-1])
+        self.assertTrue(final['interactive'])
+        self.assertEqual(final['cwd'], str(task))
+        self.assertNotIn('new-tab', final['arguments'])
+        self.assertIn('All members finished', result.stdout)
+        state = json.loads((group / 'run-state.json').read_text())
+        self.assertEqual(state['status'], 'finished')
+        for member in state['members']:
+            self.assertEqual(state['members'][member]['status'], 'finished')
+            self.assertIn('Review result', (group / member / 'last_turn_results.md').read_text())
+        comparison, = (group / 'comparisons').iterdir()
+        self.assertIn('synthesis', comparison.name)
+        self.assertIn('1-claude', (comparison / 'input-context.md').read_text())
+        self.assertIn('2-codex', (comparison / 'input-context.md').read_text())
+
+    def test_group_failure_preserves_success_and_retry_runs_only_failed_member(self):
+        task = self.task()
+        group, command = self.launch_batch_group(task)
+        self.batch_provider_stubs()
+        self.env['FX_TEST_FAIL_MEMBER'] = '1-claude'
+        result = self.run_command(*command, cwd=task, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Group incomplete', result.stderr)
+        self.assertFalse((group / 'comparisons').exists())
+        successful = group / '2-codex-gpt-6.1-sol/last_turn_results.md'
+        saved = successful.read_bytes()
+        failed_log = group / '1-claude-claude-opus-5-5/runner.log'
+        self.assertIn('authentication failed', failed_log.read_text())
+        self.env.pop('FX_TEST_FAIL_MEMBER')
+        codex = self.bin / 'codex'
+        codex.write_text(f'#!{sys.executable}\nimport json, sys\nassert "exec" not in sys.argv\nprint(json.dumps({{"interactive":True}}))\n')
+        retry = self.fx('agent', 'group', 'retry', group.name, cwd=task)
+        self.assertTrue(json.loads(retry.stdout.splitlines()[-1])['interactive'])
+        self.assertEqual(successful.read_bytes(), saved)
+        self.assertTrue(failed_log.exists())
+        state = json.loads((group / 'run-state.json').read_text())
+        self.assertEqual(state['status'], 'finished')
+        self.assertEqual(state['members']['1-claude-claude-opus-5-5']['status'], 'failed')
+        self.assertEqual(state['members']['1-claude-claude-opus-5-5-retry-2']['status'], 'finished')
+        comparison, = (group / 'comparisons').iterdir()
+        snapshot = (comparison / 'input-context.md').read_text()
+        self.assertIn('1-claude-claude-opus-5-5-retry-2/results', snapshot)
+
+    def test_group_rejects_empty_successful_provider_output(self):
+        task = self.task()
+        group, command = self.launch_batch_group(task)
+        self.batch_provider_stubs()
+        self.env['FX_TEST_EMPTY_RESPONSE'] = '1'
+        result = self.run_command(*command, cwd=task, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse((group / 'comparisons').exists())
+        state = json.loads((group / 'run-state.json').read_text())
+        self.assertTrue(all(member['status'] == 'failed' for member in state['members'].values()))
+
+    def test_group_requires_assignment_without_creating_context(self):
+        task = self.task()
+        self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
+        result = self.fx('agent', 'group', '--name', 'review', cwd=task, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('assignment is required', result.stderr)
+        self.assertEqual(list((task / 'context').iterdir()), [])
+
+    def test_group_cancellation_stops_members_and_rejects_another_runner(self):
+        task = self.task()
+        group, command = self.launch_batch_group(task)
+        for agent in ('claude', 'codex'):
+            (self.bin / agent).write_text(f'#!{sys.executable}\n' + '''import os, signal, sys, time
+from pathlib import Path
+if '--version' in sys.argv:
+    print('test version')
+    sys.exit(0)
+session = Path(os.environ['FX_SESSION_CONTEXT_DIR'])
+signal.signal(signal.SIGTERM, signal.SIG_IGN)
+(session / 'provider-pid').write_text(str(os.getpid()))
+time.sleep(60)
+''')
+        process = subprocess.Popen(command, cwd=task, env=self.env, stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE, text=True)
+        try:
+            deadline = time.monotonic() + 10
+            while len(list(group.glob('*/provider-pid'))) != 2:
+                self.assertIsNone(process.poll())
+                self.assertLess(time.monotonic(), deadline)
+                time.sleep(0.02)
+            duplicate = self.run_command(*command, cwd=task, check=False)
+            self.assertNotEqual(duplicate.returncode, 0)
+            self.assertIn('already running', duplicate.stderr)
+            process.send_signal(signal.SIGTERM)
+            _, errors = process.communicate(timeout=10)
+            self.assertEqual(process.returncode, 130, errors)
+            state = json.loads((group / 'run-state.json').read_text())
+            self.assertTrue(all(member['status'] == 'cancelled' for member in state['members'].values()))
+            self.assertFalse((group / 'comparisons').exists())
+            for path in group.glob('*/provider-pid'):
+                result = self.run_command('ps', '-p', path.read_text(), '-o', 'stat=', check=False)
+                self.assertTrue(not result.stdout.strip() or result.stdout.strip().startswith('Z'))
+        finally:
+            if process.poll() is None:
+                process.send_signal(signal.SIGTERM)
+                process.communicate(timeout=10)
 
     def test_commands_require_the_correct_working_directory(self):
         project = self.project()
@@ -1747,8 +1869,8 @@ pwd -P
         comparison, = (group / "comparisons").iterdir()
         self.assertEqual((comparison / "source-group.txt").read_text().strip(), str(group))
         instructions = (comparison / "instructions.md").read_text()
-        self.assertIn("Review from 1-claude", instructions)
-        self.assertIn("Review from 2-codex", instructions)
+        self.assertIn("1-claude-claude-opus-5-5/results/turn-000001/response.md", instructions)
+        self.assertIn("2-codex-gpt-6.1-sol/results/turn-000001/response.md", instructions)
         self.assertIn("Review the login changes.", instructions)
         self.assertNotIn("This is an independent group investigation", instructions)
         self.assertEqual(json.loads(args[7].split("=", 1)[1]), instructions.rstrip("\n"))

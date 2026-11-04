@@ -3,7 +3,8 @@
 `fx` prepares filesystem workspaces and starts interactive coding agents.
 It uses Bash, Git, Zellij, and Python 3.9 or later. An initial assignment
 can be supplied with `fx agent --prompt`.
-The sentry command can repeat diagnostic checks. Other agent commands remain interactive.
+Groups run independent investigations without interactive input, then start one interactive synthesis.
+The sentry command can repeat diagnostic checks. Individual agent launches remain interactive.
 
 ## Load the command
 
@@ -411,10 +412,12 @@ output directory. Its hook commands retain the normal trust checks. Use
 
 ### `fx agent group [--name <name>] [--agent <agent[:l|m|h]> ...] [-r l|m|h] [--prompt <text>] [--from <context-directory>]`
 
-Run inside a task in a Zellij session. The command opens one interactive tab
-per member. The agents run concurrently after their tabs open. No `--new-tab`
-flag is needed. By default, the group contains one Claude session and one Codex
-session, both with medium reasoning:
+Run inside a task in a Zellij session. The command opens one tab for the group.
+Members run concurrently without interactive input. The tab shows their status.
+After every member exits successfully with a saved final response, the runner
+starts one interactive synthesis session in that same tab. You can discuss the
+merged report in that session. No `--new-tab` flag is needed. By default, the
+group contains one Claude session and one Codex session, both with medium reasoning:
 
 ```bash
 fx agent group --name review --prompt 'Review the current changes and record findings.'
@@ -434,9 +437,10 @@ fx agent group --name review -r h --prompt 'Review the current changes.'
 ```
 
 Every member receives the exact same prompt. The group and each member save
-that text in `initial_prompt.md`. Without `--prompt`, each session waits for
-interactive input. Default members are listed in the tool's `default-group`
-file. Adapter selection and model defaults work as for individual launches.
+that text in `initial_prompt.md`. Without `--prompt`, the command requests
+one assignment at the terminal before launch. A name and assignment are required
+when terminal input is unavailable. Default members are listed in the tool's
+`default-group` file. Adapter selection and model defaults work as for individual launches.
 
 Each invocation requires a group name. Supply `--name` or enter the name at
 the terminal prompt. Without terminal input, a missing name produces an error.
@@ -448,22 +452,33 @@ Member names include their position, adapter, and model. For example:
 context/groups/000001-review/
 ├── group.md
 ├── initial_prompt.md
+├── run.json
+├── run-state.json
+├── tab-request.txt
 ├── 1-claude-claude-opus-5-5/
 │   ├── findings.md
 │   ├── instructions.md
 │   ├── initial_prompt.md
 │   ├── launch.txt
-│   └── tab-request.txt
+│   ├── runner.log
+│   └── events/
 └── 2-codex-gpt-6.1-sol/
     └── ...
 ```
 
-`group.md` lists the members, reasoning levels, and tab titles. Tabs use the
-group directory name plus the member number, agent name, and model, such as
-`000001-review-1-claude-claude-opus-5-5`. They are individual tabs in the current Zellij
-session. The shared prefix identifies the group.
-Member session names use the member number, agent name, and model within
-the named group. The command does not prompt separately for each member.
+`group.md` lists the active members and reasoning levels. The single tab uses
+the numbered group name, such as `000001-review`. `run.json` records the active
+member directories and synthesis provider. `run-state.json` records member
+status, process identifiers, exit codes, and failures. Each member keeps its own
+`runner.log`, provider events, and captured responses.
+
+Provider adapters expose an executable `agents/<agent>.batch` handler. It accepts
+project, task, session, reasoning, and assignment arguments. It must run without
+terminal input, preserve diagnostics, save a verified main-conversation response,
+and return success only after completion. The runner does not contain provider
+branches. Claude uses print mode. Codex uses exec mode. Neither adapter bypasses
+provider permission checks. Operations that require unavailable permission can
+remain blocked or produce an incomplete report; members must report those gaps.
 
 Group instructions require independent investigation. Members can read the
 task rules, project memory, project context, repository, and earlier captured
@@ -489,33 +504,42 @@ uses `context/review-record.md` as the persistent task record. Independent
 members receive any existing task record in their starting snapshot and must
 not read later updates or current peers' private records.
 
-After every member finishes, start a separate agent to compare the results.
-Use the short group name if it identifies one run, or the full name printed
-by the launcher:
+The launcher returns after requesting the single group tab. Tab acceptance does
+not establish successful execution. The runner waits for process exit and checks
+saved responses before synthesis. It uses `default-compare-agent` with medium
+reasoning and the automatic session name `synthesis`.
+
+A failed member prevents automatic synthesis. Other members finish, and their
+results remain available. Ctrl+C or termination stops active member process
+groups. Completed results and failed attempts remain on disk.
+
+### `fx agent group retry <group_name>`
+
+Run this in the terminal where the group should continue:
 
 ```bash
-fx agent group compare review --name summary --new-tab
+fx agent group retry 000001-review
 ```
 
-The group command returns after requesting the tabs. It does not wait for
-agent completion or merge results automatically. It validates all selected
-agent commands before creating context. Authentication and model errors can
-still occur when the agent starts and appear in its tab.
+Retry runs only incomplete members. Each retry uses a fresh member directory and
+the original assignment and starting context. Successful members are reused.
+Previous attempts and their logs remain unchanged. The active member list selects
+which results synthesis receives. A group lock prevents concurrent runners.
+Keep source unchanged during retries; the original source identity still applies.
+After success, interactive synthesis starts in this terminal. A group whose
+members all succeeded must use `compare` to start synthesis again.
 
-Each member's `tab-request.txt` records `pending`, `requesting`, `accepted`,
-or `failed: <exit code>`. These describe the tab request, not agent progress.
-If a request fails, the command stops and returns its exit code. It preserves
-all prepared context and leaves earlier tabs running. Inspect those tabs and
-the request files before retrying. Running the command again creates a new
-group; it does not retry members within the existing group.
+If the Zellij tab request fails, prepared context remains available. The same
+retry command can run the prepared group without opening another tab.
 
 ### `fx agent group compare <group_name> [--name <name>] [--agent <agent>] [-r l|m|h] [--new-tab]`
 
-Run this after every group member has finished its intended responses. The
-command starts a single interactive comparison agent. It supplies the group's
-original assignment, when present, and the captured responses from every
-member. The default agent is Codex with medium reasoning. It runs in the
-current terminal unless `--new-tab` is supplied.
+Use this to start a fresh synthesis of a completed group, including recovery
+after synthesis fails. The command starts a single interactive comparison agent.
+It supplies the original assignment and an exact list of saved member responses.
+The agent must read every listed response and its source metadata in full.
+The default agent is Codex with medium reasoning. It runs in the current
+terminal unless `--new-tab` is supplied.
 
 ```bash
 fx agent group compare review --name summary
@@ -569,27 +593,29 @@ Later sessions can discover captured comparison reports in the task's result
 index or receive one explicitly with `--from` and its comparison session path.
 Repeated comparisons preserve earlier comparison sessions.
 
-The command requires at least one captured response from every member and
-rejects recorded capture errors or tab requests that were not accepted.
-These checks establish that results are available. They do not establish that
-an interactive agent has stopped working or will produce no more responses.
-The command does not wait for completion; run it after checking the member
-sessions. Input is fixed at comparison launch. The same 48 KB handoff limit
-applies. If the combined input is larger, use a normal agent launch with
-`--from` selecting the relevant individual turns.
+The command requires successful recorded completion and captured results from
+every active member of a managed group. It rejects capture errors. Legacy groups
+retain their captured-response and tab-request checks; their interactive process
+completion still requires manual verification.
+
+Input paths are fixed at comparison launch. Reports remain in their captured
+files instead of being copied into the initial prompt. The 48 KB context limit
+applies to the assignment, response list, and prior review record. It does not
+limit the combined report text. No report is silently truncated.
 
 
 ### Response origin and compact handoffs
 
-The commands and flags are unchanged. Codex answers are captured through the
-main-conversation `Stop` hook. Notifications are diagnostic events and never
+Interactive Codex answers are captured through the main-conversation `Stop` hook.
+Unattended Codex runs capture the final agent message from a completed exec turn.
+Unattended Claude runs validate the successful print result before completion. Notifications are diagnostic events and never
 publish answers. Claude capture excludes subagent stop events. Captured response
 metadata identifies the provider, conversation, turn, assistant role, capture
 source, and source-content identity at capture. Main-conversation origin does
 not establish correctness or user approval.
 
 Codex lifecycle hooks must be enabled and trusted in Codex. Fx does not bypass
-hook trust. If the main stop hook does not run, no answer is captured. Legacy
+hook trust. If the main stop hook does not run in an interactive session, no answer is captured. Legacy
 responses without origin metadata remain on disk but are excluded from normal
 indexes. Explicit handoff of such responses fails with a request to recapture
 a main-conversation turn. Sentry separates verified main responses from raw
@@ -607,8 +633,7 @@ source identities. The default context supplies an index plus the current task
 review record, rather than all session summaries. The task review record has a
 24,000-byte limit; link detailed evidence instead of copying it. The combined
 handoff retains the 48 KB limit and fails instead of silently truncating.
-Summaries are agent-maintained evidence. They cannot grant approval. No check
-runner, build control, or retry policy is added.
+Summaries are agent-maintained evidence. They cannot grant approval.
 
 Normal source searches belong in `repo/`. Exclude `events/`, `.fx-sentry/`, and
 `context/analyses/` from normal task searches. Diagnostic events remain outside

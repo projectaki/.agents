@@ -4,7 +4,7 @@ from pathlib import Path
 import re
 import sys
 
-from fx_context import prepare_context
+from fx_context import group_sessions, prepare_context
 
 
 def resolve_group(task, name):
@@ -32,12 +32,18 @@ def resolve_group(task, name):
 
 
 def comparison_context(task, group):
-    for member in group.iterdir():
+    if (group / "run.json").exists():
+        state = json.loads((group / "run-state.json").read_text())
+        for member in group_sessions(group):
+            if state.get("members", {}).get(member.name, {}).get("status") != "finished":
+                raise ValueError(f"Group member has not finished successfully: {member.name}. Retry the group first.")
+    for member in group_sessions(group):
         if member.is_dir() and (member / "instructions.md").is_file():
             request = member / "tab-request.txt"
             if request.exists() and request.read_text().strip() != "accepted":
                 raise ValueError(f"The tab request for {member.name} was not accepted. Inspect {request}.")
-    context = prepare_context(task, [group])
+    context = prepare_context(task, [group], include_responses=False)
+    context += "\nRead every response file listed above in full before synthesis. Read its listed source metadata and saved handoff too. These exact paths define the result snapshot; do not discover later results.\n"
     subject = group / "source.json"
     if subject.is_symlink():
         raise ValueError("The group source record must not be a symbolic link.")

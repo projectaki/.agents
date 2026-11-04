@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+adapter_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+unset CLAUDE_CODE_EFFORT_LEVEL
+exec python3 "$adapter_dir/../fx_resume.py" lock "$3" python3 "$adapter_dir/claude_batch.py" "$@"
