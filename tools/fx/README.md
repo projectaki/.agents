@@ -121,90 +121,58 @@ It does not fetch, pull, reset, or clean an existing clone.
 
 ### `fx task <task_name> [--base <branch>] [--no-attach]`
 
-Run inside the project or one of its tasks. New tasks create a worktree on
-`feature/<task_name>`. Before creating that branch, the command fetches the base
-remote and starts from the updated upstream commit. The default base is recorded
-by `origin/HEAD`, usually `origin/main`. The branch currently checked out in the
-main clone does not affect this default.
+Run inside the project or one of its tasks. A worktree is a separate Git
+checkout that shares repository history.
 
-Use `--base` to select a different starting branch:
+Use `--base` to check out a specific branch in the task worktree:
 
 ```bash
-fx task fix-login --base develop
-fx task fix-login --base origin/release --no-attach
+fx task export-review --base feature/export
+fx task export-review --base origin/feature/export --no-attach
 ```
 
-New task branches track the selected base as their upstream. An upstream is
-the branch Git uses by default for pull and for ahead/behind comparisons.
-For a remote base such as `origin/develop`, the task tracks that remote branch.
-An explicit name resolves to a local branch first, then a remote-tracking branch.
-For a local base, the task starts from and tracks its configured upstream if
-present, otherwise `origin/<base-name>` if available. Thus `--base main` starts
-from the fetched `origin/main` when local `main` tracks it. Unpushed commits on
-local `main` are not included. The main clone's branch and files are preserved.
-If neither upstream exists, the task starts from and tracks the local base.
-The command reports this local-only base because it has no remote updates.
-If a requested local base does not exist after fetching, the command creates it
-from the fetched default branch recorded by `origin/HEAD`. For example,
-`fx task fix-login --base release/new` creates local `release/new` and then
-`feature/fix-login`. The task branch tracks `release/new`. The new base has no
-upstream and is not pushed to a remote. A missing remote-prefixed base such as
-`origin/release/new` produces an error. Tags and commit identifiers are not
-accepted as base branches.
+The task checks out `feature/export` itself. It does not create
+`feature/export-review` or substitute the selected branch's upstream commits.
+An upstream is the branch Git uses by default for pull and for ahead/behind
+comparisons.
 
-The command fetches the configured upstream remote, or `origin` when none is
-configured. An explicit remote prefix such as `upstream/develop` selects that
-remote. Fetching updates its configured remote-tracking references and prunes
-references to deleted remote branches. A failed fetch stops creation without
-creating a task branch or worktree. It does not use cached commits as a fallback.
-An upstream deleted from the remote produces an error. A base that tracks a
-local branch uses that branch without a network fetch.
+An existing local branch keeps its commits and upstream configuration.
+Selecting it by its local name works without fetching. If no local branch
+matches, fx fetches `origin` and looks for the remote branch. An explicit remote
+prefix such as `upstream/feature/export` selects that remote instead.
+A remote-only branch gets a local branch with the same name, which tracks the
+selected remote branch. For example, `origin/feature/export` creates local
+`feature/export`. If that local branch already exists, fx uses its current
+commits and preserves its upstream. It does not pull, merge, rebase, or reset it.
 
-Multiple tasks can use the same base branch, even while that branch is checked
-out in the main clone. Each task checks out its own `feature/<task_name>` branch.
-For example, tasks `first` and `second` with `--base main` use `feature/first`
-and `feature/second`. Each starts at the latest fetched base commit when it is
-created. Their later commits are independent.
-Reopening the same task reuses its worktree. The tool does not force one task
-branch into multiple worktrees.
+If a requested local name does not exist after fetching, fx creates that branch
+from the fetched default recorded by `origin/HEAD`. The new branch has no
+upstream and is not pushed. A missing remote-prefixed name produces an error.
+Tags and commit identifiers are not accepted. A failed fetch stops the command.
 
-If the recorded default reference is missing, the command attempts to discover it
-from `origin`. If discovery fails, supply `--base`. The directory named
-`repo/main` can use any default branch name.
+An explicit `--base` takes priority over an existing task branch. Reopening a
+task with a different branch switches its worktree to that branch. The old
+branch and its commits remain available. Switching requires no uncommitted or
+untracked files. Git also rejects a switch that would overwrite ignored files.
+Save local changes before switching. Reopening on the same branch preserves
+local files.
 
-An existing task branch can be attached if it is not checked out elsewhere.
-A conflicting checkout or worktree produces an error. Existing task files and
-customized instructions are preserved. A switched task branch is not reset.
-Reopening an existing task or attaching an existing task branch does not fetch
-when the selected base already exists. A missing local `--base` branch requires
-a fetch of the default branch before creation. For existing tasks, `--base`
-updates only the upstream.
-It does not reset commits, merge, rebase, or replace uncommitted files.
-Omitting `--base` preserves the existing upstream. An invalid base produces an error.
+Git permits a branch in only one worktree at a time. If the selected branch is
+checked out in the main clone or another task, fx reports an error. It does not
+force a second checkout or move the other worktree. Use a separate local branch
+if you need an independent checkout of the same commits.
 
-Run these commands inside the task's `repo/` directory to retrieve base updates
-and then merge them into the task branch:
+Without `--base`, an existing task keeps its current branch and files without
+fetching. For a task without a worktree, fx looks for existing branches named
+`feature/<task_name>`, `<task_name>`, and `codex/<task_name>`, in that order.
+If none exists, it creates `feature/<task_name>` from the fetched default branch
+and tracks that remote branch. The branch currently checked out in the main
+clone does not affect this default. If `origin/HEAD` is missing, fx attempts to
+discover the default from `origin`. The directory named `repo/main` can use any
+default branch name.
 
-```bash
-git fetch
-git merge '@{upstream}'
-```
-
-`git fetch` updates the remote references without changing the task's files.
-Use `git rebase '@{upstream}'` instead of the merge command if you want to
-replay task commits on the updated base.
-
-To publish the task branch while retaining the base as its upstream, use
-`git push origin HEAD`. Using `git push -u` would instead set the published
-task branch as the upstream.
-
-Existing tasks on `<task_name>` or `codex/<task_name>` remain supported and keep
-their names. When attaching an existing branch, the command checks
-`feature/<task_name>` first, then `<task_name>`, then `codex/<task_name>`.
-To configure their upstream, run `fx task <task_name> --base origin/main --no-attach`.
-To use the feature prefix for an existing branch, run `git branch -m feature/<task_name>`
-inside its `repo/` directory. Git rejects the rename if that branch name
-already exists. All supported names remain compatible with `fx agent`.
+All checked-out branch names work with `fx agent`. Existing task files and
+customized instructions are preserved.
 
 Task creation copies Git-ignored `appsettings.json` and `appsettings.*.json`
 files from the project's `repo/main` clone into the task worktree. It preserves

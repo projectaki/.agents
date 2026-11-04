@@ -71,20 +71,28 @@ Each task contains `repo/`, `AGENTS.md`, and `context/`. Agents start in the
 task directory. Source commands run in its `repo/` directory. Read task and
 repository instructions before edits.
 
-New tasks use `feature/<task-name>` and the fetched default base from
-`origin/HEAD`. Use `--base develop` or `--base origin/release` when required.
-A local base with an upstream uses the fetched upstream, not its unpushed
-local commits. A missing local base is created from the fetched default branch.
-It has no upstream and is not pushed. The task tracks that new local base.
-Missing remote-prefixed bases still fail. Tags and commit identifiers are not
-accepted. If task naming conflicts with project rules, resolve that before
-creation; there is no branch-prefix flag.
+Without `--base`, new tasks use `feature/<task-name>` and the fetched default
+from `origin/HEAD`. Existing task worktrees keep their current branch and files.
+When no worktree exists, fx reuses an existing `feature/<task-name>`, `<task-name>`,
+or `codex/<task-name>` branch before creating one. Reopening without `--base`
+does not fetch or reset.
 
-Existing tasks preserve files and branches. Reopening does not reset. It fetches
-only when an explicit local base is missing and must be created.
-For existing tasks, `--base` changes the upstream only. It does not move commits.
-New branches track the base. When publication is requested, `git push origin HEAD`
-retains that relationship; adding `-u` changes it to the published branch.
+Use `--base feature/export` to check out that branch itself in the task worktree.
+An existing local branch keeps its commits and upstream, without fetching.
+If no local branch matches, fx fetches `origin` and looks for the remote branch.
+Use `--base upstream/feature/export` to select another remote explicitly.
+A remote-only branch creates local `feature/export` tracking that remote branch.
+An existing local counterpart keeps its current commits and upstream.
+A missing local name creates that branch from the fetched default, without an
+upstream or a push. Missing remote-prefixed names fail. Tags and commit identifiers
+are not accepted.
+
+An explicit `--base` takes priority over old task branches. Reopening with a
+different branch switches the worktree, preserving the old branch and commits.
+Switching requires no uncommitted or untracked files. Git rejects switches that
+would overwrite ignored files. Reopening on the same branch preserves local work.
+If the selected branch is already checked out in another worktree, fx fails.
+Do not force duplicate branch checkouts. All branch names work with `fx agent`.
 
 Only ignored `appsettings.json` and `appsettings.*.json` files are copied from
 the main clone. Existing task files are preserved. Files such as `.env` are

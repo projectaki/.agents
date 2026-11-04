@@ -108,12 +108,10 @@ validate_worktree_repository() {
 }
 
 validate_worktree() {
-  local project="$1" task="$2" branch name
+  local project="$1" task="$2"
   validate_worktree_repository "$project" "$task"
-  name="$(basename -- "$task")"
-  branch="$(git -C "$task/repo" symbolic-ref --quiet --short HEAD)"
-  [[ "$branch" == "feature/$name" || "$branch" == "$name" || "$branch" == "codex/$name" ]] ||
-    fail 'The task worktree is not on its expected branch. No files were reset.'
+  git -C "$task/repo" symbolic-ref --quiet HEAD >/dev/null ||
+    fail 'The task worktree has no checked-out branch. Switch to a branch before reopening it.'
 }
 
 setup_project() {
@@ -159,100 +157,59 @@ EOF
   printf '%s\n' "$project"
 }
 
-resolve_or_create_base_branch() {
-  local clone="$1" requested="$2" refresh_default="${3:-true}" reference remote default_base
-  if [[ -z "$requested" ]]; then
-    reference="$(git -C "$clone" symbolic-ref --quiet refs/remotes/origin/HEAD)" ||
-      fail 'The repository default branch is unknown. Supply --base <branch>.'
-    git -C "$clone" rev-parse --verify "$reference^{commit}" >/dev/null ||
-      fail 'The repository default branch is unavailable. Fetch origin or supply --base <branch>.'
-    printf '%s\n' "$reference"
-    return
-  fi
-  [[ "$requested" != -* ]] && git check-ref-format "refs/heads/$requested" >/dev/null ||
-    fail "Invalid base branch: $requested"
-  for reference in "refs/heads/$requested" "refs/remotes/$requested" "refs/remotes/origin/$requested"; do
-    if git -C "$clone" show-ref --verify --quiet "$reference"; then
-      printf '%s\n' "$reference"
-      return
-    fi
-  done
-  while IFS= read -r remote; do
-    [[ "$requested" != "$remote/"* ]] || fail "Remote base branch not found: $requested"
-  done < <(git -C "$clone" remote)
-  [[ "$requested" != refs/* ]] || fail "Invalid base branch: $requested"
-  if git -C "$clone" rev-parse --verify "$requested^{commit}" >/dev/null 2>&1; then
-    fail "The base must be a branch, not a tag or commit: $requested"
-  fi
-  if [[ "$refresh_default" == true ]]; then
-    default_base="$(fetch_base_branch "$clone" '')" || return
-  else
-    if ! git -C "$clone" symbolic-ref --quiet refs/remotes/origin/HEAD >/dev/null; then
-      git -C "$clone" remote set-head origin --auto >&2 ||
-        fail 'The repository default branch is unknown. Cannot create the missing base branch.'
-    fi
-    default_base="$(resolve_or_create_base_branch "$clone" '')" || return
-  fi
-  printf 'fx: Creating local base branch %s from %s\n' "$requested" "$default_base" >&2
-  git -C "$clone" branch --no-track -- "$requested" "$default_base" >&2 ||
-    fail "Could not create base branch: $requested"
-  printf 'refs/heads/%s\n' "$requested"
+fetch_task_remote() {
+  local clone="$1" remote="$2"
+  printf 'fx: Fetching base updates from %s\n' "$remote" >&2
+  git -C "$clone" fetch --no-tags --prune "$remote" >&2 ||
+    fail "Could not fetch $remote. No new task branch or worktree was created."
 }
 
-resolve_base_upstream() {
-  local clone="$1" reference="$2" upstream=''
-  if [[ "$reference" == refs/heads/* ]]; then
-    upstream="$(git -C "$clone" for-each-ref --format='%(upstream)' "$reference")"
-    if [[ -z "$upstream" ]] && git -C "$clone" show-ref --verify --quiet "refs/remotes/origin/${reference#refs/heads/}"; then
-      upstream="refs/remotes/origin/${reference#refs/heads/}"
-    fi
-  fi
-  upstream="${upstream:-$reference}"
-  git -C "$clone" show-ref --verify --quiet "$upstream" ||
-    fail "The base branch's upstream is unavailable: $upstream. Fetch it or choose a different --base."
-  git -C "$clone" symbolic-ref --quiet "$upstream" || printf '%s\n' "$upstream"
-}
-
-fetch_base_branch() {
-  local clone="$1" requested="$2" remote=origin candidate matched='' reference expected_upstream=''
-  if [[ -n "$requested" ]]; then
-    [[ "$requested" != -* ]] && git check-ref-format "refs/heads/$requested" >/dev/null ||
-      fail "Invalid base branch: $requested"
-    if git -C "$clone" show-ref --verify --quiet "refs/heads/$requested"; then
-      remote="$(git -C "$clone" config --get "branch.$requested.remote" || true)"
-      remote="${remote:-origin}"
-      expected_upstream="$(git -C "$clone" for-each-ref --format='%(upstream)' "refs/heads/$requested")"
-      if [[ -z "$expected_upstream" ]] && git -C "$clone" show-ref --verify --quiet "refs/remotes/origin/$requested"; then
-        expected_upstream="refs/remotes/origin/$requested"
-      fi
-    else
-      while IFS= read -r candidate; do
-        if [[ "$requested" == "$candidate/"* && ${#candidate} -gt ${#matched} ]]; then
-          matched="$candidate"
-        fi
-      done < <(git -C "$clone" remote)
-      remote="${matched:-origin}"
-    fi
-  fi
-  if [[ "$remote" != . ]]; then
-    printf 'fx: Fetching base updates from %s\n' "$remote" >&2
-    git -C "$clone" fetch --no-tags --prune "$remote" >&2 ||
-      fail "Could not fetch $remote. No new task branch or worktree was created."
-  fi
-  if [[ -z "$requested" ]] && ! git -C "$clone" symbolic-ref --quiet refs/remotes/origin/HEAD >/dev/null; then
+resolve_default_branch() {
+  local clone="$1" reference
+  if ! git -C "$clone" symbolic-ref --quiet refs/remotes/origin/HEAD >/dev/null; then
     git -C "$clone" remote set-head origin --auto >&2 ||
       fail 'The repository default branch is unknown. Supply --base <branch>.'
   fi
-  if [[ -n "$expected_upstream" ]]; then
-    git -C "$clone" show-ref --verify --quiet "$expected_upstream" ||
-      fail "The base branch's upstream is unavailable after fetching: $expected_upstream"
-  fi
-  reference="$(resolve_or_create_base_branch "$clone" "$requested" false)" || return
-  reference="$(resolve_base_upstream "$clone" "$reference")" || return
-  if [[ "$reference" == refs/heads/* ]]; then
-    printf 'fx: Using local base %s; it has no remote upstream.\n' "${reference#refs/heads/}" >&2
-  fi
+  reference="$(git -C "$clone" symbolic-ref --quiet refs/remotes/origin/HEAD)"
+  git -C "$clone" show-ref --verify --quiet "$reference" ||
+    fail 'The repository default branch is unavailable. Supply --base <branch>.'
   printf '%s\n' "$reference"
+}
+
+resolve_task_branch() {
+  local clone="$1" requested="$2" remote=origin candidate matched='' branch reference
+  [[ "$requested" != -* && "$requested" != refs/* ]] &&
+    git check-ref-format "refs/heads/$requested" >/dev/null ||
+    fail "Invalid base branch: $requested"
+  if git -C "$clone" show-ref --verify --quiet "refs/heads/$requested"; then
+    printf '%s\n' "$requested"
+    return
+  fi
+  while IFS= read -r candidate; do
+    if [[ "$requested" == "$candidate/"* && ${#candidate} -gt ${#matched} ]]; then
+      matched="$candidate"
+    fi
+  done < <(git -C "$clone" remote)
+  remote="${matched:-origin}"
+  fetch_task_remote "$clone" "$remote" || return
+  branch="${requested#"$remote/"}"
+  reference="refs/remotes/$remote/$branch"
+  if git -C "$clone" show-ref --verify --quiet "$reference"; then
+    reference="$(git -C "$clone" symbolic-ref --quiet "$reference" || printf '%s\n' "$reference")"
+    branch="${reference#"refs/remotes/$remote/"}"
+    if ! git -C "$clone" show-ref --verify --quiet "refs/heads/$branch"; then
+      git -C "$clone" branch --track -- "$branch" "$reference" >&2 || return
+    fi
+  else
+    [[ -z "$matched" ]] || fail "Remote base branch not found: $requested"
+    if git -C "$clone" rev-parse --verify "$requested^{commit}" >/dev/null 2>&1; then
+      fail "The base must be a branch, not a tag or commit: $requested"
+    fi
+    reference="$(resolve_default_branch "$clone")" || return
+    printf 'fx: Creating local branch %s from %s\n' "$branch" "$reference" >&2
+    git -C "$clone" branch --no-track -- "$branch" "$reference" >&2 || return
+  fi
+  printf '%s\n' "$branch"
 }
 
 copy_ignored_appsettings() {
@@ -294,7 +251,7 @@ copy_ignored_appsettings() {
 open_task() {
   [[ $# -ge 1 ]] || fail 'Usage: fx task <task_name> [--base <branch>] [--no-attach]'
   validate_name "$1"
-  local name="$1" project task branch candidate session_name base='' base_reference upstream='' attach=true
+  local name="$1" project task branch candidate session_name base='' base_reference attach=true current_branch='' changes
   shift
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -324,7 +281,12 @@ open_task() {
   ensure_directory "$task/context"
   if [[ -e "$task/repo" || -L "$task/repo" ]]; then
     validate_worktree "$project" "$task"
-    branch="$(git -C "$task/repo" symbolic-ref --quiet --short HEAD)"
+    current_branch="$(git -C "$task/repo" symbolic-ref --quiet --short HEAD)"
+  fi
+  if [[ -n "$base" ]]; then
+    branch="$(resolve_task_branch "$project/repo/main" "$base")"
+  elif [[ -n "$current_branch" ]]; then
+    branch="$current_branch"
   else
     for candidate in "feature/$name" "$name" "codex/$name"; do
       if git -C "$project/repo/main" show-ref --verify --quiet "refs/heads/$candidate"; then
@@ -333,25 +295,22 @@ open_task() {
       fi
     done
   fi
-  if git -C "$project/repo/main" show-ref --verify --quiet "refs/heads/$branch"; then
-    if [[ -n "$base" ]]; then
-      base_reference="$(resolve_or_create_base_branch "$project/repo/main" "$base")"
-      upstream="$(resolve_base_upstream "$project/repo/main" "$base_reference")"
-      [[ "$upstream" != "refs/heads/$branch" ]] || fail 'A task branch cannot track itself. Supply a remote base branch.'
+  if [[ -n "$current_branch" ]]; then
+    if [[ "$current_branch" != "$branch" ]]; then
+      changes="$(git -C "$task/repo" status --porcelain --untracked-files=all)" ||
+        fail 'Could not check task changes. The checked-out branch was preserved.'
+      [[ -z "$changes" ]] ||
+        fail 'The task has uncommitted or untracked files. Commit or save them before switching branches.'
+      git -C "$task/repo" switch --no-overwrite-ignore -- "$branch" >&2 ||
+        fail "Could not switch the task to $branch. The previous branch was preserved."
     fi
-    if [[ ! -e "$task/repo" ]]; then
-      git -C "$project/repo/main" worktree add "$task/repo" "$branch" >&2
-    fi
+  elif git -C "$project/repo/main" show-ref --verify --quiet "refs/heads/$branch"; then
+    git -C "$project/repo/main" worktree add "$task/repo" "$branch" >&2
   else
-    [[ "$base" != "$branch" ]] || fail 'A task branch cannot track itself. Supply a different base branch.'
-    base_reference="$(fetch_base_branch "$project/repo/main" "$base")"
-    upstream="$base_reference"
+    fetch_task_remote "$project/repo/main" origin
+    base_reference="$(resolve_default_branch "$project/repo/main")"
     printf 'fx: Creating task branch from %s\n' "$base_reference" >&2
-    git -C "$project/repo/main" worktree add --no-track -b "$branch" "$task/repo" "$base_reference" >&2
-  fi
-  if [[ -n "$upstream" ]]; then
-    [[ "$upstream" != "refs/heads/$branch" ]] || fail 'A task branch cannot track itself. Supply a remote base branch.'
-    git -C "$task/repo" branch --set-upstream-to="$upstream" -- "$branch" >&2
+    git -C "$project/repo/main" worktree add --track -b "$branch" "$task/repo" "$base_reference" >&2
   fi
   copy_ignored_appsettings "$project/repo/main" "$task/repo"
   create_file "$task/AGENTS.md" < "$tool_dir/templates/AGENTS.md"
@@ -933,8 +892,9 @@ Load shell-init in Bash or Zsh to enter projects and tasks automatically.
 Tasks open a Zellij session named <project_name>-<task_name>. Use --no-attach to skip Zellij.
 Delete removes the task directory, Git worktree, and Zellij session. Git branches are kept.
 Use delete --force to discard uncommitted files or a detached worktree. Run outside the target Zellij session.
-New feature/<task_name> branches start from the fetched base upstream.
-Missing local --base branches are created from the fetched default. Existing tasks are not reset.
+Without --base, new feature/<task_name> branches start from the fetched default.
+With --base, tasks check out the named branch. Remote branches get a local tracking branch.
+Missing local branches start from the fetched default. Existing branches are never reset.
 Repository accepts owner/repository, a Git URL, or a local repository path.
 Agent names correspond to executable adapters in agents/.
 Task-specific agent commands register executable handlers in agent-commands/.

@@ -579,88 +579,147 @@ class FxTest(unittest.TestCase):
         self.fx("task", "fix-login", "--no-attach", cwd=project)
         self.assertEqual((task / "repo/appsettings.Local.json").read_text(), "Clone settings\n")
 
-    def test_two_tasks_can_start_from_the_same_checked_out_base_branch(self):
+    def test_explicit_base_checks_out_existing_local_branch_with_its_own_commits(self):
         project = self.project()
         clone = project / "repo/main"
-        base_commit = self.run_command("git", "-C", clone, "rev-parse", "main").stdout.strip()
-        for name in ("first", "second"):
-            result = self.fx("task", name, "--base", "main", "--no-attach", cwd=project)
-            worktree = Path(result.stdout.strip()) / "repo"
-            commit = self.run_command("git", "-C", worktree, "rev-parse", "HEAD").stdout.strip()
-            branch = self.run_command("git", "-C", worktree, "branch", "--show-current").stdout.strip()
-            self.assertEqual(commit, base_commit)
-            self.assertEqual(branch, f"feature/{name}")
-            upstream = self.run_command("git", "-C", worktree, "rev-parse", "--abbrev-ref", "@{upstream}")
-            self.assertEqual(upstream.stdout.strip(), "origin/main")
-        branch = self.run_command("git", "-C", clone, "branch", "--show-current").stdout.strip()
-        self.assertEqual(branch, "main")
+        self.run_command("git", "-C", clone, "switch", "-c", "feature/export")
+        (clone / "source.txt").write_text("Local export changes\n")
+        self.run_command("git", "-C", clone, "commit", "-am", "Export changes")
+        self.run_command("git", "-C", clone, "branch", "--set-upstream-to=origin/main")
+        expected = self.run_command("git", "-C", clone, "rev-parse", "HEAD").stdout
+        self.run_command("git", "-C", clone, "switch", "main")
+        task = Path(self.fx("task", "review", "--base", "feature/export", "--no-attach", cwd=project).stdout.strip())
+        self.assertEqual(self.run_command("git", "-C", task / "repo", "branch", "--show-current").stdout.strip(), "feature/export")
+        self.assertEqual(self.run_command("git", "-C", task / "repo", "rev-parse", "HEAD").stdout, expected)
+        self.assertEqual((task / "repo/source.txt").read_text(), "Local export changes\n")
+        self.assertEqual(self.run_command("git", "-C", task / "repo", "rev-parse", "--abbrev-ref", "@{upstream}").stdout.strip(), "origin/main")
+        self.assertNotEqual(self.run_command("git", "-C", clone, "show-ref", "--verify", "refs/heads/feature/review", check=False).returncode, 0)
+        self.fx("task", "review", "--no-attach", cwd=task)
+        self.fx("agent", "claude", "--name", "review", cwd=task)
+
+    def test_explicit_base_overrides_an_old_task_branch_without_resetting_it(self):
+        project = self.project()
+        task = self.task(project, "review")
+        worktree = task / "repo"
+        (worktree / "source.txt").write_text("Unrelated work\n")
+        self.run_command("git", "-C", worktree, "commit", "-am", "Unrelated work")
+        old_head = self.run_command("git", "-C", worktree, "rev-parse", "HEAD").stdout
+        self.run_command("git", "-C", self.origin, "switch", "-c", "feature/export")
+        (self.origin / "source.txt").write_text("Export changes\n")
+        self.run_command("git", "-C", self.origin, "commit", "-am", "Export changes")
+        expected = self.run_command("git", "-C", self.origin, "rev-parse", "HEAD").stdout
+        self.fx("task", "review", "--base", "origin/feature/export", "--no-attach", cwd=project)
+        self.assertEqual(self.run_command("git", "-C", worktree, "branch", "--show-current").stdout.strip(), "feature/export")
+        self.assertEqual(self.run_command("git", "-C", worktree, "rev-parse", "HEAD").stdout, expected)
+        self.assertEqual(self.run_command("git", "-C", worktree, "rev-parse", "feature/review").stdout, old_head)
+        self.assertEqual(self.run_command("git", "-C", worktree, "rev-parse", "--abbrev-ref", "feature/review@{upstream}").stdout.strip(), "origin/main")
+
+    def test_explicit_base_ignores_an_existing_task_branch_without_a_worktree(self):
+        project = self.project()
+        clone = project / "repo/main"
+        self.run_command("git", "-C", clone, "branch", "feature/review")
+        self.run_command("git", "-C", clone, "branch", "export")
+        task = Path(self.fx("task", "review", "--base", "export", "--no-attach", cwd=project).stdout.strip())
+        self.assertEqual(self.run_command("git", "-C", task / "repo", "branch", "--show-current").stdout.strip(), "export")
+
+    def test_remote_base_creates_a_local_tracking_branch_at_the_fetched_commit(self):
+        project = self.project()
+        for name, prefix in (("local", ""), ("remote", "origin/")):
+            with self.subTest(prefix=prefix):
+                branch = f"feature/export-{name}"
+                self.run_command("git", "-C", self.origin, "switch", "-c", branch, "main")
+                (self.origin / "source.txt").write_text(branch + "\n")
+                self.run_command("git", "-C", self.origin, "commit", "-am", "Export changes")
+                expected = self.run_command("git", "-C", self.origin, "rev-parse", "HEAD").stdout
+                task = Path(self.fx("task", name, "--base", prefix + branch, "--no-attach", cwd=project).stdout.strip())
+                worktree = task / "repo"
+                self.assertEqual(self.run_command("git", "-C", worktree, "branch", "--show-current").stdout.strip(), branch)
+                self.assertEqual(self.run_command("git", "-C", worktree, "rev-parse", "HEAD").stdout, expected)
+                self.assertEqual(self.run_command("git", "-C", worktree, "rev-parse", "--abbrev-ref", "@{upstream}").stdout.strip(), f"origin/{branch}")
+
+    def test_explicit_remote_reuses_local_branch_without_resetting_commits_or_upstream(self):
+        project = self.project()
+        clone = project / "repo/main"
+        self.run_command("git", "-C", clone, "branch", "--track", "export", "origin/main")
+        self.run_command("git", "-C", clone, "switch", "export")
+        (clone / "source.txt").write_text("Unpushed local changes\n")
+        self.run_command("git", "-C", clone, "commit", "-am", "Local export changes")
+        expected = self.run_command("git", "-C", clone, "rev-parse", "HEAD").stdout
+        self.run_command("git", "-C", clone, "switch", "main")
+        self.run_command("git", "-C", self.origin, "branch", "export")
+        task = Path(self.fx("task", "review", "--base", "origin/export", "--no-attach", cwd=project).stdout.strip())
+        self.assertEqual(self.run_command("git", "-C", task / "repo", "branch", "--show-current").stdout.strip(), "export")
+        self.assertEqual(self.run_command("git", "-C", task / "repo", "rev-parse", "--abbrev-ref", "@{upstream}").stdout.strip(), "origin/main")
+        self.assertEqual(self.run_command("git", "-C", task / "repo", "rev-parse", "HEAD").stdout, expected)
+
+    def test_branch_checked_out_elsewhere_is_rejected(self):
+        project = self.project()
+        clone = project / "repo/main"
+        result = self.fx("task", "review", "--base", "main", "--no-attach", cwd=project, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("already", result.stderr)
+        self.assertNotIn("Task ready", result.stderr)
+        self.assertFalse((project / "tasks/review/repo").exists())
+        self.assertEqual(self.run_command("git", "-C", clone, "branch", "--show-current").stdout.strip(), "main")
+
+    def test_reopening_cannot_take_a_branch_from_another_worktree(self):
+        project = self.project()
+        task = self.task(project)
+        worktree = task / "repo"
+        result = self.fx("task", "fix-login", "--base", "main", "--no-attach", cwd=project, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("already", result.stderr)
+        self.assertEqual(self.run_command("git", "-C", worktree, "branch", "--show-current").stdout.strip(), "feature/fix-login")
+
+    def test_switching_task_branch_rejects_uncommitted_and_untracked_files(self):
+        project = self.project()
+        task = self.task(project)
+        worktree = task / "repo"
+        self.run_command("git", "-C", worktree, "branch", "export")
+        for relative in ("source.txt", "new.txt"):
+            with self.subTest(relative=relative):
+                source = worktree / relative
+                source.write_text("Uncommitted work\n")
+                result = self.fx("task", "fix-login", "--base", "export", "--no-attach", cwd=project, check=False)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("uncommitted", result.stderr)
+                self.assertEqual(source.read_text(), "Uncommitted work\n")
+                self.assertEqual(self.run_command("git", "-C", worktree, "branch", "--show-current").stdout.strip(), "feature/fix-login")
+                if relative == "source.txt":
+                    self.run_command("git", "-C", worktree, "restore", "source.txt")
+                else:
+                    source.unlink()
+
+    def test_switching_preserves_ignored_files_that_the_target_branch_tracks(self):
+        project = self.project()
+        task = self.task(project)
+        clone = project / "repo/main"
+        (clone / "settings.json").write_text("Tracked target settings\n")
+        self.run_command("git", "-C", clone, "add", "settings.json")
+        self.run_command("git", "-C", clone, "commit", "-m", "Track settings")
+        self.run_command("git", "-C", clone, "branch", "export")
+        self.run_command("git", "-C", task / "repo", "config", "core.excludesFile", str(self.root / "ignore"))
+        (self.root / "ignore").write_text("settings.json\n")
+        settings = task / "repo/settings.json"
+        settings.write_text("Private settings\n")
+        result = self.fx("task", "fix-login", "--base", "export", "--no-attach", cwd=task, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(settings.read_text(), "Private settings\n")
+
+    def test_reopening_the_same_branch_preserves_dirty_files_and_works_offline(self):
+        project = self.project()
+        task = self.task(project)
+        clone = project / "repo/main"
+        (task / "repo/source.txt").write_text("Preserved local work\n")
+        self.run_command("git", "-C", clone, "remote", "set-url", "origin", self.root / "missing-remote")
+        for options in ((), ("--base", "feature/fix-login")):
+            self.fx("task", "fix-login", *options, "--no-attach", cwd=project)
+            self.assertEqual((task / "repo/source.txt").read_text(), "Preserved local work\n")
 
     def test_task_reattaches_existing_branch(self):
         project = self.project()
         self.run_command("git", "-C", project / "repo/main", "branch", "fix-login")
         self.assertTrue((self.task(project) / "repo/.git").is_file())
-
-    def test_task_can_fetch_and_merge_changes_from_its_remote_base(self):
-        self.run_command("git", "-C", self.origin, "switch", "-c", "develop")
-        project = self.project()
-        task = Path(self.fx("task", "fix-login", "--base", "origin/develop", "--no-attach", cwd=project).stdout.strip())
-        worktree = task / "repo"
-        self.assertEqual(self.run_command("git", "-C", worktree, "branch", "--show-current").stdout.strip(), "feature/fix-login")
-        self.assertEqual(self.run_command("git", "-C", worktree, "rev-parse", "--abbrev-ref", "@{upstream}").stdout.strip(), "origin/develop")
-        (self.origin / "source.txt").write_text("New base changes\n")
-        self.run_command("git", "-C", self.origin, "commit", "-am", "Update development")
-        expected = self.run_command("git", "-C", self.origin, "rev-parse", "HEAD").stdout
-        self.run_command("git", "-C", worktree, "fetch")
-        self.assertEqual(self.run_command("git", "-C", worktree, "rev-parse", "@{upstream}").stdout, expected)
-        self.assertEqual((worktree / "source.txt").read_text(), "original\n")
-        self.run_command("git", "-C", worktree, "merge", "--ff-only", "@{upstream}")
-        self.assertEqual((worktree / "source.txt").read_text(), "New base changes\n")
-
-    def test_base_upstream_resolution(self):
-        project = self.project()
-        clone = project / "repo/main"
-        self.run_command("git", "-C", clone, "branch", "--no-track", "local-only")
-        self.run_command("git", "-C", clone, "branch", "--track", "tracked-base", "origin/main")
-        self.run_command("git", "-C", clone, "branch", "--unset-upstream", "main")
-        for reference, expected in (
-            ("refs/remotes/origin/HEAD", "refs/remotes/origin/main"),
-            ("refs/remotes/origin/main", "refs/remotes/origin/main"),
-            ("refs/heads/main", "refs/remotes/origin/main"),
-            ("refs/heads/tracked-base", "refs/remotes/origin/main"),
-            ("refs/heads/local-only", "refs/heads/local-only"),
-        ):
-            with self.subTest(reference=reference):
-                result = self.run_command("bash", "-c", 'source "$1"; resolve_base_upstream "$2" "$3"',
-                                          "test", TOOL, clone, reference)
-                self.assertEqual(result.stdout.strip(), expected)
-
-    def test_task_inherits_the_local_bases_configured_remote_upstream(self):
-        project = self.project()
-        clone = project / "repo/main"
-        self.run_command("git", "-C", clone, "remote", "add", "upstream", self.origin)
-        self.run_command("git", "-C", clone, "fetch", "upstream")
-        self.run_command("git", "-C", clone, "branch", "--track", "local-base", "upstream/main")
-        task = Path(self.fx("task", "fix-login", "--base", "local-base", "--no-attach", cwd=project).stdout.strip())
-        tracked = self.run_command("git", "-C", task / "repo", "rev-parse", "--abbrev-ref", "@{upstream}")
-        self.assertEqual(tracked.stdout.strip(), "upstream/main")
-
-    def test_legacy_task_can_relink_upstream_without_renaming_or_resetting(self):
-        task = self.task()
-        worktree = task / "repo"
-        self.run_command("git", "-C", worktree, "branch", "-m", "codex/fix-login")
-        self.run_command("git", "-C", worktree, "branch", "--unset-upstream")
-        (worktree / "source.txt").write_text("Task commit\n")
-        self.run_command("git", "-C", worktree, "commit", "-am", "Task work")
-        head = self.run_command("git", "-C", worktree, "rev-parse", "HEAD").stdout
-        (worktree / "source.txt").write_text("Uncommitted task work\n")
-        self.fx("task", "fix-login", "--base", "origin/main", "--no-attach", cwd=task)
-        self.assertEqual(self.run_command("git", "-C", worktree, "branch", "--show-current").stdout.strip(), "codex/fix-login")
-        self.assertEqual(self.run_command("git", "-C", worktree, "rev-parse", "HEAD").stdout, head)
-        self.assertEqual((worktree / "source.txt").read_text(), "Uncommitted task work\n")
-        self.assertEqual(self.run_command("git", "-C", worktree, "rev-parse", "--abbrev-ref", "@{upstream}").stdout.strip(), "origin/main")
-        self.fx("agent", "claude", "--name", "review", cwd=task)
-        self.run_command("git", "-C", worktree, "branch", "-m", "fix-login")
-        self.fx("agent", "claude", "--name", "review", cwd=task)
 
     def test_task_reattaches_legacy_branch_and_keeps_its_upstream(self):
         project = self.project()
@@ -670,68 +729,19 @@ class FxTest(unittest.TestCase):
         self.assertEqual(self.run_command("git", "-C", task / "repo", "branch", "--show-current").stdout.strip(), "codex/fix-login")
         self.assertEqual(self.run_command("git", "-C", task / "repo", "rev-parse", "--abbrev-ref", "@{upstream}").stdout.strip(), "origin/main")
 
-    def test_missing_configured_base_upstream_fails_before_creating_task_branch(self):
+    def test_missing_base_is_checked_out_from_latest_default_without_changing_main(self):
         project = self.project()
         clone = project / "repo/main"
-        self.run_command("git", "-C", clone, "config", "branch.main.merge", "refs/heads/missing")
-        result = self.fx("task", "fix-login", "--base", "main", "--no-attach", cwd=project, check=False)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("upstream is unavailable", result.stderr)
-        self.assertFalse((project / "tasks/fix-login/repo").exists())
-
-    def test_reopening_without_base_preserves_upstream_and_invalid_base_changes_nothing(self):
-        task = self.task()
-        worktree = task / "repo"
-        self.fx("task", "fix-login", "--no-attach", cwd=task)
-        result = self.fx("task", "fix-login", "--base", "origin/missing", "--no-attach", cwd=task, check=False)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(self.run_command("git", "-C", worktree, "rev-parse", "--abbrev-ref", "@{upstream}").stdout.strip(), "origin/main")
-
-    def test_missing_base_is_created_from_latest_default_without_changing_main(self):
-        project = self.project()
-        clone = project / "repo/main"
-        self.run_command("git", "-C", clone, "switch", "-c", "unrelated")
         (clone / "source.txt").write_text("Local work\n")
         (self.origin / "source.txt").write_text("Latest default\n")
         self.run_command("git", "-C", self.origin, "commit", "-am", "Update default")
         expected = self.run_command("git", "-C", self.origin, "rev-parse", "HEAD").stdout
-        for name in ("first", "second"):
-            task = Path(self.fx("task", name, "--base", "release/new", "--no-attach", cwd=project).stdout.strip())
-            worktree = task / "repo"
-            self.assertEqual(self.run_command("git", "-C", worktree, "rev-parse", "HEAD").stdout, expected)
-            self.assertEqual(self.run_command("git", "-C", worktree, "rev-parse", "--symbolic-full-name", "@{upstream}").stdout.strip(), "refs/heads/release/new")
-        self.assertEqual(self.run_command("git", "-C", clone, "rev-parse", "release/new").stdout, expected)
-        self.assertEqual(self.run_command("git", "-C", clone, "branch", "--show-current").stdout.strip(), "unrelated")
+        task = Path(self.fx("task", "review", "--base", "release/new", "--no-attach", cwd=project).stdout.strip())
+        self.assertEqual(self.run_command("git", "-C", task / "repo", "branch", "--show-current").stdout.strip(), "release/new")
+        self.assertEqual(self.run_command("git", "-C", task / "repo", "rev-parse", "HEAD").stdout, expected)
+        self.assertNotEqual(self.run_command("git", "-C", task / "repo", "rev-parse", "@{upstream}", check=False).returncode, 0)
         self.assertEqual((clone / "source.txt").read_text(), "Local work\n")
-        self.assertNotEqual(self.run_command("git", "-C", clone, "rev-parse", "release/new@{upstream}", check=False).returncode, 0)
-        self.assertNotEqual(self.run_command("git", "-C", self.origin, "show-ref", "--verify", "refs/heads/release/new", check=False).returncode, 0)
-
-    def test_reopening_with_missing_base_preserves_commits_and_files(self):
-        project = self.project()
-        task = self.task(project)
-        worktree = task / "repo"
-        (worktree / "source.txt").write_text("Task commit\n")
-        self.run_command("git", "-C", worktree, "commit", "-am", "Task change")
-        head = self.run_command("git", "-C", worktree, "rev-parse", "HEAD").stdout
-        (worktree / "source.txt").write_text("Uncommitted work\n")
-        (self.origin / "source.txt").write_text("Latest default\n")
-        self.run_command("git", "-C", self.origin, "commit", "-am", "Update default")
-        self.fx("task", "fix-login", "--base", "new-base", "--no-attach", cwd=task)
-        self.assertEqual(self.run_command("git", "-C", worktree, "rev-parse", "HEAD").stdout, head)
-        self.assertEqual((worktree / "source.txt").read_text(), "Uncommitted work\n")
-        self.assertEqual(self.run_command("git", "-C", worktree, "rev-parse", "--abbrev-ref", "@{upstream}").stdout.strip(), "new-base")
-        self.assertEqual(self.run_command("git", "-C", worktree, "rev-parse", "new-base").stdout,
-                         self.run_command("git", "-C", self.origin, "rev-parse", "HEAD").stdout)
-
-    def test_missing_base_uses_discovered_non_main_default(self):
-        self.run_command("git", "-C", self.origin, "branch", "-m", "trunk")
-        project = self.project()
-        clone = project / "repo/main"
-        self.run_command("git", "-C", clone, "remote", "set-head", "origin", "--delete")
-        task = Path(self.fx("task", "new-task", "--base", "new-base", "--no-attach", cwd=project).stdout.strip())
-        self.assertEqual(self.run_command("git", "-C", clone, "rev-parse", "new-base").stdout,
-                         self.run_command("git", "-C", clone, "rev-parse", "origin/trunk").stdout)
-        self.assertEqual(self.run_command("git", "-C", task / "repo", "rev-parse", "--abbrev-ref", "@{upstream}").stdout.strip(), "new-base")
+        self.assertEqual(self.run_command("git", "-C", clone, "branch", "--show-current").stdout.strip(), "main")
 
     def test_missing_remote_base_is_not_created_as_local_branch(self):
         project = self.project()
@@ -739,179 +749,88 @@ class FxTest(unittest.TestCase):
         self.run_command("git", "-C", clone, "remote", "add", "team/upstream", self.origin)
         for base in ("origin/missing", "team/upstream/missing"):
             with self.subTest(base=base):
-                result = self.fx("task", "new-task", "--base", base, "--no-attach", cwd=project, check=False)
+                result = self.fx("task", "review", "--base", base, "--no-attach", cwd=project, check=False)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("Remote base branch not found", result.stderr)
                 self.assertNotEqual(self.run_command("git", "-C", clone, "show-ref", "--verify", f"refs/heads/{base}", check=False).returncode, 0)
-        self.assertFalse((project / "tasks/new-task/repo").exists())
+        self.assertFalse((project / "tasks/review/repo").exists())
 
-    def test_missing_base_fetch_failure_creates_no_branches(self):
+    def test_fetch_failure_creates_no_branch_or_worktree(self):
         project = self.project()
         clone = project / "repo/main"
         self.run_command("git", "-C", clone, "remote", "set-url", "origin", self.root / "missing-remote")
-        result = self.fx("task", "fresh-task", "--base", "new-base", "--no-attach", cwd=project, check=False)
-        self.assertNotEqual(result.returncode, 0)
-        for branch in ("new-base", "feature/fresh-task"):
-            self.assertNotEqual(self.run_command("git", "-C", clone, "show-ref", "--verify", f"refs/heads/{branch}", check=False).returncode, 0)
-        self.assertFalse((project / "tasks/fresh-task/repo").exists())
+        for base in ("new-base", "origin/export"):
+            with self.subTest(base=base):
+                result = self.fx("task", "review", "--base", base, "--no-attach", cwd=project, check=False)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Could not fetch origin", result.stderr)
+                self.assertFalse((project / "tasks/review/repo").exists())
+                self.assertNotEqual(self.run_command("git", "-C", clone, "show-ref", "--verify", "refs/heads/new-base", check=False).returncode, 0)
 
-    def test_new_task_uses_recorded_default_instead_of_current_checkout(self):
+    def test_new_task_uses_fetched_default_instead_of_current_checkout(self):
         project = self.project()
         clone = project / "repo/main"
-        expected = self.run_command("git", "-C", clone, "rev-parse", "origin/main").stdout.strip()
         self.run_command("git", "-C", clone, "switch", "-c", "unrelated")
         (clone / "source.txt").write_text("Unrelated branch change\n")
         self.run_command("git", "-C", clone, "commit", "-am", "Unrelated change")
+        (self.origin / "source.txt").write_text("Latest default\n")
+        self.run_command("git", "-C", self.origin, "commit", "-am", "Default change")
         task = self.task(project)
-        actual = self.run_command("git", "-C", task / "repo", "rev-parse", "HEAD").stdout.strip()
-        self.assertEqual(actual, expected)
-        self.assertEqual((task / "repo/source.txt").read_text(), "original\n")
-        upstream = self.run_command("git", "-C", task / "repo", "rev-parse", "@{upstream}", check=False)
-        self.assertEqual(upstream.returncode, 0)
-        self.assertEqual(upstream.stdout.strip(), expected)
+        self.assertEqual((task / "repo/source.txt").read_text(), "Latest default\n")
+        self.assertEqual((clone / "source.txt").read_text(), "Unrelated branch change\n")
+        self.assertEqual(self.run_command("git", "-C", task / "repo", "branch", "--show-current").stdout.strip(), "feature/fix-login")
+        self.assertEqual(self.run_command("git", "-C", task / "repo", "rev-parse", "--abbrev-ref", "@{upstream}").stdout.strip(), "origin/main")
 
-    def test_new_task_supports_a_default_branch_not_named_main(self):
+    def test_default_branch_discovery_supports_non_main_names(self):
         self.run_command("git", "-C", self.origin, "branch", "-m", "trunk")
         project = self.project()
-        result = self.fx("task", "fix-login", "--no-attach", cwd=project)
-        self.assertIn("refs/remotes/origin/trunk", result.stderr)
-        self.assertTrue((Path(result.stdout.strip()) / "repo/.git").is_file())
-
-    def test_explicit_base_uses_remote_upstream_even_when_local_branch_is_older(self):
-        self.run_command("git", "-C", self.origin, "switch", "-c", "develop")
-        (self.origin / "source.txt").write_text("Remote development\n")
-        self.run_command("git", "-C", self.origin, "commit", "-am", "Development change")
-        self.run_command("git", "-C", self.origin, "branch", "release")
-        self.run_command("git", "-C", self.origin, "switch", "main")
-        project = self.project()
-        self.run_command("git", "-C", project / "repo/main", "branch", "develop", "main")
-        for name, base, expected in (
-            ("local", "develop", "Remote development\n"),
-            ("remote", "origin/develop", "Remote development\n"),
-            ("remote-fallback", "release", "Remote development\n"),
-        ):
-            with self.subTest(base=base):
-                result = self.fx("task", name, "--base", base, "--no-attach", cwd=project)
-                task = Path(result.stdout.strip())
-                self.assertEqual((task / "repo/source.txt").read_text(), expected)
-
-    def test_fetch_restores_a_missing_default_branch_reference(self):
-        project = self.project()
         self.run_command("git", "-C", project / "repo/main", "remote", "set-head", "origin", "--delete")
-        result = self.fx("task", "fix-login", "--no-attach", cwd=project)
-        self.assertTrue((Path(result.stdout.strip()) / "repo/.git").is_file())
-
-    def test_new_tasks_fetch_the_latest_default_base(self):
-        project = self.project()
-        (self.origin / "source.txt").write_text("Latest remote changes\n")
-        self.run_command("git", "-C", self.origin, "commit", "-am", "Remote change")
         task = self.task(project)
-        self.assertEqual((task / "repo/source.txt").read_text(), "Latest remote changes\n")
-        self.assertEqual((project / "repo/main/source.txt").read_text(), "original\n")
-
-    def test_new_task_discovers_a_base_created_after_cloning(self):
-        project = self.project()
-        self.run_command("git", "-C", self.origin, "switch", "-c", "release/new")
-        (self.origin / "source.txt").write_text("New remote base\n")
-        self.run_command("git", "-C", self.origin, "commit", "-am", "New release branch")
-        task = Path(self.fx("task", "new-release", "--base", "origin/release/new", "--no-attach", cwd=project).stdout.strip())
-        self.assertEqual((task / "repo/source.txt").read_text(), "New remote base\n")
-        self.assertEqual(self.run_command("git", "-C", task / "repo", "branch", "--show-current").stdout.strip(), "feature/new-release")
-
-    def test_new_task_fetch_failure_does_not_use_a_stale_base(self):
-        project = self.project()
-        clone = project / "repo/main"
-        self.run_command("git", "-C", clone, "remote", "set-url", "origin", self.root / "missing-remote")
-        result = self.fx("task", "fresh-task", "--base", "main", "--no-attach", cwd=project, check=False)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("Could not fetch origin", result.stderr)
-        self.assertNotIn("Task ready", result.stderr)
-        self.assertFalse((project / "tasks/fresh-task/repo").exists())
-        self.assertNotEqual(self.run_command("git", "-C", clone, "show-ref", "--verify", "refs/heads/feature/fresh-task", check=False).returncode, 0)
-
-    def test_existing_task_and_branch_can_be_reopened_offline(self):
-        project = self.project()
-        task = self.task(project)
-        clone = project / "repo/main"
-        head = self.run_command("git", "-C", task / "repo", "rev-parse", "HEAD").stdout
-        (task / "repo/source.txt").write_text("Preserved local work\n")
-        self.run_command("git", "-C", clone, "remote", "set-url", "origin", self.root / "missing-remote")
-        self.fx("task", "fix-login", "--base", "main", "--no-attach", cwd=project)
-        self.assertEqual((task / "repo/source.txt").read_text(), "Preserved local work\n")
-        self.assertEqual(self.run_command("git", "-C", task / "repo", "rev-parse", "HEAD").stdout, head)
-        self.run_command("git", "-C", clone, "branch", "feature/reattach", "main")
-        self.assertTrue((self.task(project, "reattach") / "repo/.git").exists())
-
-    def test_deleted_remote_base_does_not_fall_back_to_local_copy(self):
-        self.run_command("git", "-C", self.origin, "branch", "develop")
-        project = self.project()
-        clone = project / "repo/main"
-        self.run_command("git", "-C", clone, "branch", "--no-track", "develop", "origin/develop")
-        self.run_command("git", "-C", self.origin, "branch", "-D", "develop")
-        result = self.fx("task", "new-task", "--base", "develop", "--no-attach", cwd=project, check=False)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("upstream is unavailable", result.stderr)
-        self.assertFalse((project / "tasks/new-task/repo").exists())
-
-    def test_new_task_can_start_from_a_local_only_base(self):
-        project = self.project()
-        clone = project / "repo/main"
-        self.run_command("git", "-C", clone, "branch", "--no-track", "local-only")
-        result = self.fx("task", "local-work", "--base", "local-only", "--no-attach", cwd=project)
-        self.assertIn("no remote upstream", result.stderr)
-        upstream = self.run_command("git", "-C", Path(result.stdout.strip()) / "repo", "rev-parse", "--symbolic-full-name", "@{upstream}")
-        self.assertEqual(upstream.stdout.strip(), "refs/heads/local-only")
-
-    def test_new_task_fetches_updates_from_the_bases_configured_remote(self):
-        project = self.project()
-        clone = project / "repo/main"
-        self.run_command("git", "-C", clone, "remote", "add", "upstream", self.origin)
-        self.run_command("git", "-C", clone, "fetch", "upstream")
-        self.run_command("git", "-C", clone, "branch", "--track", "local-base", "upstream/main")
-        (self.origin / "source.txt").write_text("Upstream update\n")
-        self.run_command("git", "-C", self.origin, "commit", "-am", "Update upstream")
-        self.run_command("git", "-C", clone, "remote", "set-url", "origin", self.root / "missing-remote")
-        result = self.fx("task", "upstream-work", "--base", "local-base", "--no-attach", cwd=project)
-        task = Path(result.stdout.strip())
-        self.assertEqual((task / "repo/source.txt").read_text(), "Upstream update\n")
-        self.assertIn("Fetching base updates from upstream", result.stderr)
+        self.assertEqual(self.run_command("git", "-C", task / "repo", "rev-parse", "--abbrev-ref", "@{upstream}").stdout.strip(), "origin/trunk")
 
     def test_explicit_remote_base_supports_remote_names_with_slashes(self):
         project = self.project()
         clone = project / "repo/main"
         self.run_command("git", "-C", clone, "remote", "set-url", "origin", self.root / "missing-remote")
         self.run_command("git", "-C", clone, "remote", "add", "team/upstream", self.origin)
+        self.run_command("git", "-C", self.origin, "switch", "-c", "feature/export")
         (self.origin / "source.txt").write_text("Selected remote update\n")
         self.run_command("git", "-C", self.origin, "commit", "-am", "Update selected remote")
-        result = self.fx("task", "remote-work", "--base", "team/upstream/main", "--no-attach", cwd=project)
-        task = Path(result.stdout.strip())
+        task = Path(self.fx("task", "review", "--base", "team/upstream/feature/export", "--no-attach", cwd=project).stdout.strip())
         self.assertEqual((task / "repo/source.txt").read_text(), "Selected remote update\n")
-        self.assertEqual(self.run_command("git", "-C", task / "repo", "rev-parse", "--abbrev-ref", "@{upstream}").stdout.strip(), "team/upstream/main")
-
-    def test_reopening_task_with_base_preserves_existing_changes(self):
-        project = self.project()
-        task = self.task(project)
-        (task / "repo/source.txt").write_text("Preserved changes\n")
-        clone = project / "repo/main"
-        self.run_command("git", "-C", clone, "branch", "different-branch")
-        original_head = self.run_command("git", "-C", task / "repo", "rev-parse", "HEAD").stdout
-        self.fx("task", "fix-login", "--base", "different-branch", "--no-attach", cwd=project)
-        self.assertEqual(self.run_command("git", "-C", task / "repo", "rev-parse", "HEAD").stdout, original_head)
-        upstream = self.run_command("git", "-C", task / "repo", "rev-parse", "--symbolic-full-name", "@{upstream}")
-        self.assertEqual(upstream.stdout.strip(), "refs/heads/different-branch")
-        self.assertEqual((task / "repo/source.txt").read_text(), "Preserved changes\n")
+        self.assertEqual(self.run_command("git", "-C", task / "repo", "branch", "--show-current").stdout.strip(), "feature/export")
+        self.assertEqual(self.run_command("git", "-C", task / "repo", "rev-parse", "--abbrev-ref", "@{upstream}").stdout.strip(), "team/upstream/feature/export")
 
     def test_invalid_base_does_not_create_a_task_branch(self):
         project = self.project()
         clone = project / "repo/main"
         self.run_command("git", "-C", clone, "tag", "release-tag")
         commit = self.run_command("git", "-C", clone, "rev-parse", "HEAD").stdout.strip()
-        for base in ("origin/missing", "bad..name", "release-tag", commit, "feature/invalid-base"):
+        for base in ("origin/missing", "bad..name", "release-tag", commit):
             with self.subTest(base=base):
-                result = self.fx("task", "invalid-base", "--base", base, "--no-attach", cwd=project, check=False)
+                result = self.fx("task", "review", "--base", base, "--no-attach", cwd=project, check=False)
                 self.assertNotEqual(result.returncode, 0)
-                branch = self.run_command("git", "-C", clone, "show-ref", "--verify", "refs/heads/feature/invalid-base", check=False)
-                self.assertNotEqual(branch.returncode, 0)
+                self.assertFalse((project / "tasks/review/repo").exists())
+
+    def test_default_fetch_failure_creates_no_branch_or_worktree(self):
+        project = self.project()
+        clone = project / "repo/main"
+        self.run_command("git", "-C", clone, "remote", "set-url", "origin", self.root / "missing-remote")
+        result = self.fx("task", "review", "--no-attach", cwd=project, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Could not fetch origin", result.stderr)
+        self.assertFalse((project / "tasks/review/repo").exists())
+        self.assertNotEqual(self.run_command("git", "-C", clone, "show-ref", "--verify", "refs/heads/feature/review", check=False).returncode, 0)
+
+    def test_existing_local_branch_works_with_a_missing_upstream(self):
+        project = self.project()
+        clone = project / "repo/main"
+        self.run_command("git", "-C", clone, "branch", "--track", "export", "origin/main")
+        self.run_command("git", "-C", clone, "config", "branch.export.merge", "refs/heads/missing")
+        self.run_command("git", "-C", clone, "remote", "set-url", "origin", self.root / "missing-remote")
+        task = Path(self.fx("task", "review", "--base", "export", "--no-attach", cwd=project).stdout.strip())
+        self.assertEqual(self.run_command("git", "-C", task / "repo", "branch", "--show-current").stdout.strip(), "export")
+        self.assertEqual(self.run_command("git", "-C", clone, "config", "branch.export.merge").stdout.strip(), "refs/heads/missing")
 
     def test_base_option_requires_one_value(self):
         project = self.project()
@@ -922,7 +841,7 @@ class FxTest(unittest.TestCase):
         self.assertFalse((project / "tasks/invalid-base").exists())
 
     def test_shell_integration_supports_base_and_no_attach_in_either_order(self):
-        for options in ("--base main --no-attach", "--no-attach --base main"):
+        for options in ("--base export --no-attach", "--no-attach --base export"):
             with self.subTest(options=options):
                 result = self.run_command("bash", "-c", '''
 eval "$("$1" shell-init)"
@@ -946,9 +865,7 @@ pwd -P
     def test_task_does_not_reset_a_switched_branch(self):
         task = self.task()
         self.run_command("git", "-C", task / "repo", "switch", "-c", "manual-branch")
-        result = self.fx("task", "fix-login", cwd=task, check=False)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("expected branch", result.stderr)
+        self.fx("task", "fix-login", "--no-attach", cwd=task)
         branch = self.run_command("git", "-C", task / "repo", "branch", "--show-current")
         self.assertEqual(branch.stdout.strip(), "manual-branch")
 
