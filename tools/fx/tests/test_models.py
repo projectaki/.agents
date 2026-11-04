@@ -103,6 +103,24 @@ class ModelTest(unittest.TestCase):
             self.assertEqual(environment["FX_SESSION_CONTEXT_DIR"], str(session))
             self.assertTrue((session / "events/codex-session.jsonl").exists())
 
+    def test_batch_saves_selected_model_catalog_prices_before_launch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            session = Path(directory)
+            (session / 'model.txt').write_text('example/model')
+            pricing = {'prompt': '0.000001', 'completion': '0.000002', 'input_cache_read': '0.0000001'}
+            argv = ['codex_launch.py', 'default', 'openrouter', 'batch',
+                    directory, directory, directory, 'high', 'Review']
+            with patch.object(sys, 'argv', argv), \
+                 patch.object(codex_launch.shutil, 'which', return_value='codex'), \
+                 patch.object(codex_launch, 'api_key', return_value='test-key'), \
+                 patch.object(codex_launch, 'verify_model', return_value={'pricing': pricing}), \
+                 patch.object(codex_batch, 'run_batch', return_value=0):
+                self.assertEqual(codex_launch.main(), 0)
+            snapshot = json.loads((session / 'pricing.json').read_text())
+            self.assertEqual(snapshot['model'], 'example/model')
+            self.assertEqual(snapshot['pricing'], pricing)
+            self.assertIn('captured_at', snapshot)
+
     def test_batch_retains_model_provider_reasoning_and_response_identity(self):
         with tempfile.TemporaryDirectory() as directory:
             session = Path(directory)

@@ -129,6 +129,9 @@ It covers memory failures, crashes, retries, recovery, and instruction conflicts
 Recommendations must identify a concrete project or Factory change and how to
 validate it. The assignment permits writing only its own report and notes.
 Normal provider permissions still apply; this is not a filesystem sandbox.
+Analysis includes group usage summaries, per-attempt measurements, and saved
+price snapshots. Compare measured cost and runtime with verified useful findings.
+Include failed attempts and retries. Keep estimated costs separate from billing.
 
 The inventory excludes prior analyses, symbolic links, and the source worktree.
 The analyst reads relevant source and instructions separately. Files can change
@@ -243,8 +246,12 @@ fx agent group --name review --agent claude:h --agent codex:h \
   --prompt 'Review the current changes independently. Do not edit source or shared context. Record supported findings in your own session directory.'
 ```
 
+The default group runs Claude, Codex, DeepSeek, GLM, MiniMax, and Gemini.
+Codex, DeepSeek, and GLM explicitly use high reasoning. Claude, MiniMax, and
+Gemini use `-r`, which defaults to medium. The four OpenRouter agents require
+`OPENROUTER_API_KEY`. This default supports evaluation and difficult investigations.
 Repeated `--agent` flags replace `default-group`. Members without an explicit
-level use `-r`, which defaults to medium. No `--new-tab` flag is needed.
+level use `-r`. No `--new-tab` flag is needed.
 Members must not read current peers' findings or later results. They may read
 earlier responses listed in their starting context snapshot.
 
@@ -258,6 +265,15 @@ discussion there. Supply `--synthesis-agent <agent>` on the group launch to choo
 any installed interactive adapter, such as `codex`, `claude`, `glm`, or `gemini`.
 This selection is saved for retries. Repeated `--agent` flags select group members
 separately.
+
+After members stop, fx prints per-attempt runtime, token usage, and cost before
+synthesis. The group saves `usage-summary.md` and `usage-summary.json`; members
+save `usage.json`. OpenRouter members also save `pricing.json` for base-rate cost
+estimates. Failures and retries remain in the summary. Missing values are
+unavailable, not zero. Claude's CLI cost and catalog-based costs are estimates,
+not invoices. Subscription charges are not inferred. Group time excludes retry
+waits and interactive synthesis. Usage readers register as `agents/<agent>.usage`
+and keep provider parsing outside the group runner.
 
 Failures stop automatic synthesis. Other members can finish. Ctrl+C stops active
 member process groups. Inspect `run-state.json` and each member's `runner.log`.

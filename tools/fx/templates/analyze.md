@@ -58,6 +58,14 @@ as agent inefficiency. Do not add overlapping spans. Report unknown duration,
 tokens, memory usage, or cost when measurements are absent. Describe memory
 exhaustion as observed only when explicit error or resource evidence supports it.
 
+For model comparisons, read each group's usage-summary.json and usage-summary.md,
+each attempt's usage.json, run-state.json, and any pricing.json snapshot.
+Compare cost, token usage, runtime, reasoning level, and verified useful findings.
+Include failed attempts and retries. Do not add overlapping agent runtimes as group
+wall time. These summaries exclude interactive synthesis. Distinguish reported
+costs, estimates, and unavailable values. Estimates are not billed charges.
+Check usage coverage and source records before drawing efficiency conclusions.
+
 Return a self-contained report with:
 - The recorded outcome, analyzed task path, scope, source revisions, and status.
 - Evidence coverage, integrity limits, and exact unread or changing ranges.

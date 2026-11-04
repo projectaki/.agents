@@ -39,6 +39,7 @@ class FxTest(unittest.TestCase):
             GIT_COMMITTER_NAME="Test",
             GIT_COMMITTER_EMAIL="test@example.invalid",
             CLAUDE_CODE_EFFORT_LEVEL="max",
+            OPENROUTER_API_KEY="test-key",
         )
         self.origin = self.root / "origin"
         self.run_command("git", "init", "-b", "main", self.origin)
@@ -108,7 +109,8 @@ class FxTest(unittest.TestCase):
 
     def completed_group(self, task, name="review"):
         self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
-        self.fx("agent", "group", "--name", name, "--prompt", "Review the login changes.", cwd=task)
+        self.fx("agent", "group", "--name", name, "--agent", "claude", "--agent", "codex",
+                "--prompt", "Review the login changes.", cwd=task)
         group = sorted((task / "context/groups").iterdir())[-1]
         manifest = json.loads((group / "run.json").read_text())
         state = {"status": "finished", "members": {}}
@@ -1277,7 +1279,11 @@ pwd -P
         self.assertEqual(call["arguments"][11:], ["python3", str(TOOL.parent / "fx_group_run.py"), "run",
                          str(task.parent.parent), str(task), group.name])
         manifest = json.loads((group / "run.json").read_text())
-        self.assertEqual([member["agent"] for member in manifest["members"]], ["claude", "codex"])
+        self.assertEqual([member["agent"] for member in manifest["members"]],
+                         ["claude", "codex", "deepseek", "glm", "minimax", "gemini"])
+        self.assertEqual([member["reasoning"] for member in manifest["members"]],
+                         ["medium", "high", "high", "high", "medium", "medium"])
+        self.assertEqual(manifest["synthesis_agent"], "claude")
         for member in manifest["members"]:
             session = group / member["session"]
             self.assertEqual((session / "initial_prompt.md").read_text(), prompt)
@@ -1304,12 +1310,12 @@ pwd -P
     def test_group_default_reasoning_and_single_member(self):
         task = self.task()
         self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
-        for options, count, reasoning in ((["-r", "l"], 2, "low"), (["--agent", "codex"], 1, "medium")):
+        for options, levels in ((["-r", "l"], ["low", "high", "high", "high", "low", "low"]),
+                                (["--agent", "codex"], ["medium"])):
             result = self.fx("agent", "group", "--name", "review", *options, "--prompt", "--help", cwd=task)
             group = task / "context/groups" / json.loads(result.stdout)["arguments"][-1]
             members = json.loads((group / "run.json").read_text())["members"]
-            self.assertEqual(len(members), count)
-            self.assertTrue(all(member["reasoning"] == reasoning for member in members))
+            self.assertEqual([member["reasoning"] for member in members], levels)
             self.assertEqual((group / "initial_prompt.md").read_text(), "--help")
 
     def test_repeated_concurrent_groups_get_unique_directories_and_tabs(self):
@@ -1657,16 +1663,20 @@ response = 'Review result from ' + session.name
 if 'exec' in args:
     for event in ({'type':'thread.started','thread_id':session.name},
                   {'type':'item.completed','item':{'type':'agent_message','text':response}},
-                  {'type':'turn.completed','usage':{}}):
+                  {'type':'turn.completed','usage':{'input_tokens':100, 'cached_input_tokens':60,
+                                                   'output_tokens':20, 'reasoning_output_tokens':10}}):
         print(json.dumps(event))
 else:
     print(json.dumps({'type':'result','subtype':'success','is_error':False,
-                      'session_id':session.name,'result':response}))
+                      'session_id':session.name,'result':response, 'total_cost_usd':0.125,
+                      'usage':{'input_tokens':10,'cache_read_input_tokens':20,
+                               'cache_creation_input_tokens':30,'output_tokens':40}}))
 ''')
 
     def launch_batch_group(self, task, *options):
         self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
-        launched = self.fx("agent", "group", "--name", "review", "--prompt", "Review changes", *options, cwd=task)
+        launched = self.fx("agent", "group", "--name", "review", "--agent", "claude", "--agent", "codex",
+                           "--prompt", "Review changes", *options, cwd=task)
         args = json.loads(launched.stdout)["arguments"]
         group = task / "context/groups" / args[-1]
         return group, args[args.index('--') + 1:]
@@ -1715,6 +1725,14 @@ session = Path(os.environ['FX_SESSION_CONTEXT_DIR'])""")
         self.assertEqual(final['cwd'], str(task))
         self.assertNotIn('new-tab', final['arguments'])
         self.assertIn('All members finished', result.stdout)
+        self.assertIn('Cost USD', result.stdout)
+        self.assertIn('$0.125000 (estimated)', result.stdout)
+        summary = json.loads((group / 'usage-summary.json').read_text())
+        self.assertEqual(len(summary['attempts']), 2)
+        self.assertEqual(summary['attempts'][0]['usage']['input_tokens'], 60)
+        self.assertEqual(summary['attempts'][1]['usage']['input_tokens'], 100)
+        self.assertIsNone(summary['attempts'][1]['usage']['cost_usd'])
+        self.assertTrue(all(attempt['runtime_seconds'] > 0 for attempt in summary['attempts']))
         state = json.loads((group / 'run-state.json').read_text())
         self.assertEqual(state['status'], 'finished')
         for member in state['members']:
@@ -1755,6 +1773,11 @@ session = Path(os.environ['FX_SESSION_CONTEXT_DIR'])""")
         snapshot = (comparison / 'input-context.md').read_text()
         self.assertIn('1-claude-claude-opus-5-5-retry-2/results', snapshot)
         self.assertIn('agent=codex', (comparison / 'launch.txt').read_text())
+        summary = json.loads((group / 'usage-summary.json').read_text())
+        self.assertEqual(len(summary['attempts']), 3)
+        self.assertEqual(sum(attempt['active'] for attempt in summary['attempts']), 2)
+        self.assertEqual(summary['attempts'][0]['status'], 'failed')
+        self.assertEqual(summary['attempts'][-1]['status'], 'finished')
 
     def test_group_rejects_empty_successful_provider_output(self):
         task = self.task()

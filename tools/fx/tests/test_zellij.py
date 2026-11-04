@@ -52,7 +52,8 @@ session = Path(os.environ['FX_SESSION_CONTEXT_DIR'])''')
         self.addCleanup(close_session)
         fixture.env.update(ZELLIJ='0', ZELLIJ_SESSION_NAME=name)
         before = fixture.run_command(ZELLIJ, '--session', name, 'action', 'query-tab-names').stdout.splitlines()
-        fixture.fx('agent', 'group', '--name', 'review', '--prompt', 'Review source', cwd=task)
+        fixture.fx('agent', 'group', '--name', 'review', '--agent', 'claude', '--agent', 'codex',
+                   '--prompt', 'Review source', cwd=task)
         deadline = time.monotonic() + 10
         while not marker.exists() and time.monotonic() < deadline:
             time.sleep(0.05)

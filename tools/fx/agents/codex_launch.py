@@ -4,10 +4,12 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+from datetime import datetime, timezone
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from fx_events import prepare_events
 from fx_models import session_model, validate_model
+from fx_usage import write_json
 from openrouter_api import api_key, verify_model
 
 
@@ -74,7 +76,13 @@ def main():
         project, task, session, reasoning, *prompt = arguments
         model = session_model(session, default)
         if provider:
-            verify_model(model, parameters=("tools", "reasoning"))
+            record = verify_model(model, parameters=("tools", "reasoning"))
+            if action == "batch":
+                write_json(Path(session) / "pricing.json", {
+                    "model": model, "pricing": record.get("pricing", {}),
+                    "captured_at": datetime.now(timezone.utc).isoformat(),
+                    "source": "https://openrouter.ai/api/v1/models",
+                })
         if action == "batch":
             from codex_batch import run_batch
             if not prompt:

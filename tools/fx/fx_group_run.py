@@ -8,18 +8,14 @@ import signal
 import subprocess
 import sys
 import time
+from datetime import datetime, timezone
 
 from fx_context import captured_results, group_sessions
 from fx_group import comparison_context, resolve_group
+from fx_usage import collect_usage, save_group_usage, write_json
 
 
 TOOL_DIR = Path(__file__).resolve().parent
-
-
-def write_json(path, value):
-    temporary = path.with_suffix(".tmp")
-    temporary.write_text(json.dumps(value, indent=2) + "\n")
-    temporary.replace(path)
 
 
 def prepare_run(group, synthesis_agent):
@@ -95,6 +91,8 @@ def stop_members(processes):
 
 def run_members(project, task, group, manifest, state):
     processes = {}
+    started = {}
+    run_started = time.monotonic()
     state["status"] = "running"
     try:
         for member in manifest["members"]:
@@ -109,16 +107,21 @@ def run_members(project, task, group, manifest, state):
                        str(task), str(session), member["reasoning"],
                        (session / "initial_prompt.md").read_text()]
             log = (session / "runner.log").open("x")
+            started[name] = time.monotonic()
+            state["members"][name] = {"status": "running",
+                                      "started_at": datetime.now(timezone.utc).isoformat()}
             try:
                 process = subprocess.Popen(command, cwd=task, stdin=subprocess.DEVNULL,
                                            stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
             except OSError as error:
                 log.close()
-                state["members"][name] = {"status": "failed", "error": str(error)}
+                state["members"][name].update(status="failed", error=str(error),
+                                              finished_at=datetime.now(timezone.utc).isoformat(),
+                                              runtime_seconds=round(time.monotonic() - started[name], 6))
                 print(f"fx: {name}: failed: {error}", flush=True)
                 continue
             processes[name] = (process, log)
-            state["members"][name] = {"status": "running", "pid": process.pid}
+            state["members"][name]["pid"] = process.pid
             print(f"fx: {name}: running", flush=True)
         write_json(group / "run-state.json", state)
         while processes:
@@ -128,7 +131,9 @@ def run_members(project, task, group, manifest, state):
                     continue
                 log.close()
                 del processes[name]
-                outcome = {"status": "finished" if code == 0 else "failed", "exit_code": code}
+                outcome = {**state["members"][name], "status": "finished" if code == 0 else "failed",
+                           "exit_code": code, "finished_at": datetime.now(timezone.utc).isoformat(),
+                           "runtime_seconds": round(time.monotonic() - started[name], 6)}
                 if code == 0:
                     try:
                         if not captured_results(group / name):
@@ -144,11 +149,27 @@ def run_members(project, task, group, manifest, state):
         stop_members(processes)
         for name, (_, log) in processes.items():
             log.close()
-            state["members"][name] = {"status": "cancelled"}
+            state["members"][name].update(status="cancelled")
+        for name, begin in started.items():
+            outcome = state["members"][name]
+            if "runtime_seconds" not in outcome:
+                outcome.update(runtime_seconds=round(time.monotonic() - begin, 6),
+                               finished_at=datetime.now(timezone.utc).isoformat())
+        state["wall_seconds"] = round(state.get("wall_seconds", 0) + time.monotonic() - run_started, 6)
         state["status"] = "finished" if all(
             state["members"][member["session"]]["status"] == "finished"
             for member in manifest["members"]) else "failed"
         write_json(group / "run-state.json", state)
+        for member in manifest["members"]:
+            name = member["session"]
+            if name in started:
+                session = group / name
+                usage = collect_usage(TOOL_DIR, session, member["agent"])
+                if state["members"][name]["status"] != "finished" and usage["coverage"] == "complete":
+                    usage["coverage"] = "partial"
+                    usage["notes"].append("This attempt did not finish successfully; unreported work may have consumed more tokens.")
+                write_json(session / "usage.json", usage)
+        save_group_usage(group, manifest, state)
 
 
 def run_group(project, task, group, retry=False):

@@ -92,6 +92,20 @@ class GroupNameTest(unittest.TestCase):
         self.assertIn(str(result.relative_to(self.task) / "response.md"), context)
         self.assertEqual((result / "response.md").read_text(), response)
 
+    def test_comparison_snapshots_usage_and_tolerates_unavailable_summary(self):
+        group = self.group('000001-review')
+        member = group / '1-agent'
+        member.mkdir()
+        (member / 'instructions.md').write_text('Guidance')
+        save_response(member, 'agent', 'conversation', 'turn', 'Report')
+        summary = group / 'usage-summary.md'
+        summary.write_text('Estimated cost: $0.25. Runtime: 5s.')
+        context = comparison_context(self.task, group)
+        self.assertIn('Estimated cost: $0.25', context)
+        summary.write_text('x' * 24_001)
+        self.assertIn('could not be included', comparison_context(self.task, group))
+        self.assertIn('Estimated cost: $0.25', context)
+
     def test_comparison_rejects_a_missing_response_body(self):
         group = self.group("000001-review")
         member = group / "1-agent"

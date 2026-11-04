@@ -1,2 +1,6 @@
 claude
-codex
+codex:h
+deepseek:h
+glm:h
+minimax
+gemini

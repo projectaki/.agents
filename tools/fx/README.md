@@ -431,7 +431,20 @@ This applies to groups, individual launches, comparisons, resumes, and task anal
 After every member exits successfully with a saved final response, the runner
 starts one interactive synthesis session in that same tab. You can discuss the
 merged report in that session. No `--new-tab` flag is needed. By default, the
-group contains one Claude session and one Codex session, both with medium reasoning:
+group contains six independent sessions:
+
+| Agent | Reasoning |
+| --- | --- |
+| Claude | Medium |
+| Codex | High |
+| DeepSeek | High |
+| GLM | High |
+| MiniMax | Medium |
+| Gemini | Medium |
+
+This default supports model evaluation and difficult investigations.
+DeepSeek, GLM, MiniMax, and Gemini require `OPENROUTER_API_KEY`.
+Synthesis uses interactive Claude by default.
 
 ```bash
 fx agent group --name review --prompt 'Review the current changes and record findings.'
@@ -441,6 +454,9 @@ Repeat `--agent` to choose the members. These flags replace the default list.
 The same agent can appear more than once. Append `:l`, `:m`, or `:h` to select
 its reasoning level. Members without a level use `-r`, which defaults to medium.
 The order of the options does not affect this rule.
+The default Codex, DeepSeek, and GLM entries explicitly select high reasoning.
+With the default list, `-r` changes only Claude, MiniMax, and Gemini.
+Use explicit `--agent` entries to change all member levels or select fewer members.
 
 ```bash
 fx agent group --name plan \
@@ -485,6 +501,53 @@ the numbered group name, such as `000001-review`. `run.json` records the active
 member directories and synthesis provider. `run-state.json` records member
 status, process identifiers, exit codes, and failures. Each member keeps its own
 `runner.log`, provider events, and captured responses.
+
+After members stop, fx prints a usage table before interactive synthesis starts.
+It saves the table as `usage-summary.md` and the structured data as
+`usage-summary.json` in the group directory. Each attempted member also gets
+`usage.json`. The records include agent, model, reasoning, outcome, elapsed
+runtime, input tokens, cached input, cache writes, output tokens, reasoning
+output when available, and cost in US dollars.
+
+Input totals include cached input and cache writes. Output totals include
+reasoning when the provider reports it. Subset columns must not be added to
+those totals. Missing measurements are `unavailable`, not zero. Partial records
+cover only reported work and can undercount failed or interrupted requests.
+Claude uses `modelUsage` totals when available to include subagents; otherwise
+its token counts cover only the main agent and are marked partial.
+
+Costs are labeled `reported`, `estimated`, or `unavailable`. Claude's
+`total_cost_usd` is a client estimate of API usage, not an invoice or a
+subscription charge. Codex turn summaries usually provide tokens without a
+dollar cost. OpenRouter agents save the selected model's catalog prices in
+`pricing.json` during their existing launch check. If the CLI provides no cost,
+fx estimates base token cost from that snapshot. Estimates account for reported
+cache reads but exclude time discounts, tier changes, cache-write surcharges,
+tool fees, and account adjustments. Missing rates or required counts leave
+cost unavailable. Fx does not infer a dollar charge from subscription usage.
+See [Claude cost accounting](https://code.claude.com/docs/en/agent-sdk/cost-tracking),
+[Codex JSON events](https://developers.openai.com/codex/noninteractive), and
+[OpenRouter usage accounting](https://openrouter.ai/docs/cookbook/administration/usage-accounting).
+
+The summary includes failed and cancelled attempts. Retries retain previous
+attempts and their measurements. Per-attempt runtime measures elapsed process
+time, including launch preparation and tools. Group execution time measures
+parallel execution across recorded runs; it is not the sum of member runtimes.
+It excludes waits between retries, usage collection, and interactive synthesis.
+Comparison sessions receive a snapshot of the saved table when it fits the
+24 KB summary limit. Task analysis inventories these files and compares measured
+cost and runtime with verified findings. A usage-reader failure marks measurements
+unavailable without changing the member's investigation outcome.
+
+Usage readers register as executable `agents/<agent>.usage` handlers. Each
+receives the session directory and prints one JSON object with nullable
+`input_tokens`, `cached_input_tokens`, `cache_write_input_tokens`, `output_tokens`,
+`reasoning_output_tokens`, and `cost_usd`; a `cost_kind` of `reported`, `estimated`,
+or `unavailable`; `coverage` of `complete`, `partial`, or `unavailable`; and a
+`notes` list. Readers own provider parsing. The group runner measures runtime
+and reads this shared format without provider-specific branches. Readers run
+after the member process stops, with a ten-second timeout. They do not call a
+model or fetch billing data.
 
 Provider adapters expose an executable `agents/<agent>.batch` handler. It accepts
 project, task, session, reasoning, and assignment arguments. It must run without

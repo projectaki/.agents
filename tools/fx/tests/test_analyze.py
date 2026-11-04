@@ -46,6 +46,18 @@ class AnalyzeInventoryTest(unittest.TestCase):
         self.assertTrue(all(record["excluded"] == "Symbolic link." for record in result["files"]))
         self.assertIn("context/analyses/", result["excluded"])
 
+    def test_inventory_includes_group_usage_and_price_snapshots_for_later_analysis(self):
+        group = self.task / 'context/groups/000001-review'
+        member = group / '1-agent-model'
+        member.mkdir(parents=True)
+        paths = [group / 'usage-summary.json', group / 'usage-summary.md',
+                 member / 'usage.json', member / 'pricing.json']
+        for path in paths:
+            path.write_text('{}')
+        records = inventory_task(self.task, self.session)['files']
+        self.assertEqual({record['path'] for record in records},
+                         {str(path.relative_to(self.task)) for path in paths})
+
     def test_records_read_errors_and_nonregular_files_without_blocking(self):
         unreadable = self.task / "unreadable.log"
         unreadable.write_text("event")

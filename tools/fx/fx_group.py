@@ -4,7 +4,7 @@ from pathlib import Path
 import re
 import sys
 
-from fx_context import group_sessions, prepare_context
+from fx_context import group_sessions, prepare_context, read_summary
 
 
 def resolve_group(task, name):
@@ -53,6 +53,12 @@ def comparison_context(task, group):
         context += "Compare this identity with the current source before using review conclusions. A hash records content; it does not preserve a source copy.\n"
     else:
         context += "\nThe legacy group has no recorded source identity. Its reviewed source is unverified.\n"
+    summary = group / "usage-summary.md"
+    if summary.exists() or summary.is_symlink():
+        try:
+            context += "\n## Recorded group usage\n\n" + read_summary(summary, limit=24_000)
+        except (OSError, ValueError):
+            context += "\nThe recorded usage summary could not be included. Do not infer missing costs or tokens.\n"
     return context
 
 
