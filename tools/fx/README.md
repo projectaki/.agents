@@ -174,26 +174,31 @@ default branch name.
 All checked-out branch names work with `fx agent`. Existing task files and
 customized instructions are preserved.
 
-Task creation copies Git-ignored `appsettings.json` and `appsettings.*.json`
-files from the project's `repo/main` clone into the task worktree. It preserves
-their relative paths and file permissions, including files in nested directories.
-Put the local development settings in that clone before creating a task.
-Git cloning does not retrieve ignored settings from another checkout.
+Task creation copies existing Git-ignored files from the project's `repo/main`
+clone into the task worktree. It also copies existing untracked files selected
+by `.worktreeinclude` in the root of that clone. This file uses Git ignore
+pattern syntax: one pattern per line, with `#` comments and `!` exclusions.
+Its patterns select additional files; they do not exclude Git-ignored files.
+Tracked files use the task branch's committed versions.
 
-Reopening a task copies missing settings as well. It never overwrites an
-existing task file or link. To fill missing settings without attaching to Zellij:
+Copies preserve relative paths and file permissions, including nested files.
+All ignored files are eligible, including local configuration, dependencies,
+and build output. Put needed local files in the main clone before creating a
+task. Git cloning does not retrieve these local files from another checkout.
+
+Reopening a task copies missing files as well. It never overwrites an existing
+task file or link. To fill missing files without attaching to Zellij:
 
 ```bash
 fx task fix-login --no-attach
 ```
 
-A file must be ignored in both the main clone and the task worktree.
-Tracked files, including tracked files deleted in the task, are not copied.
-Other ignored files, such as `.env`, are not copied. Source symbolic links
-are skipped. A symbolic link in a missing file's destination directory path
-causes an error. Copy failures preserve the worktree and existing settings;
-rerun the task command after correcting the problem. Settings are independent
-copies, so later changes in the main clone do not update existing task files.
+Files tracked in the task are never copied, even when deleted locally.
+Source symbolic links are skipped. `.worktreeinclude` must be a regular file.
+A symbolic link in a missing file's destination directory path causes an error.
+Copy failures preserve the worktree and existing files. Rerun the task command
+after correcting the problem. Files are independent copies, so later changes
+in the main clone do not update existing task files.
 
 After preparing the worktree, the command creates or attaches to a Zellij
 session named `<project_name>-<task_name>`. From inside Zellij, it switches sessions

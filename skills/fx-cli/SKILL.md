@@ -99,9 +99,13 @@ would overwrite ignored files. Reopening on the same branch preserves local work
 If the selected branch is already checked out in another worktree, fx fails.
 Do not force duplicate branch checkouts. All branch names work with `fx agent`.
 
-Only ignored `appsettings.json` and `appsettings.*.json` files are copied from
-the main clone. Existing task files are preserved. Files such as `.env` are
-not copied. Reopening fills missing eligible settings.
+Existing Git-ignored files are copied from the main clone. Existing untracked
+files selected by the root `.worktreeinclude` file are copied too. This file
+uses Git ignore pattern syntax to select additional files. All ignored files
+are eligible, including dependencies and build output. Existing task files and
+files tracked in the task are preserved. Source symbolic links are skipped.
+Reopening fills missing eligible files. Copies preserve relative paths and
+permissions. Put needed local files in the main clone before creating a task.
 
 ## Analyze a task's recorded history
 

@@ -465,7 +465,7 @@ class FxTest(unittest.TestCase):
                 self.assertTrue(task.exists())
                 self.assertFalse(log.exists())
 
-    def test_task_copies_ignored_appsettings_with_paths_and_permissions(self):
+    def test_task_copies_ignored_files_with_paths_and_permissions(self):
         (self.origin / ".gitignore").write_text("appsettings*.json\n.env\nignored-dir/\n")
         self.run_command("git", "-C", self.origin, "add", ".gitignore")
         self.run_command("git", "-C", self.origin, "commit", "-m", "Ignore local settings")
@@ -478,16 +478,16 @@ class FxTest(unittest.TestCase):
             source.parent.mkdir(parents=True, exist_ok=True)
             source.write_text('{"LocalSetting": "test-only"}\n')
             source.chmod(0o600)
-        (clone / ".env").write_text("DO_NOT_COPY=1\n")
-        (clone / "ignored-dir/unrelated.txt").write_text("Do not copy\n")
+        (clone / ".env").write_text("LOCAL_VALUE=1\n")
+        (clone / "ignored-dir/unrelated.txt").write_text("Nested local file\n")
         task = self.task(project)
         for relative in paths:
             target = task / "repo" / relative
             self.assertTrue(target.is_file(), relative)
             self.assertEqual(target.read_bytes(), (clone / relative).read_bytes())
             self.assertEqual(target.stat().st_mode & 0o777, 0o600)
-        self.assertFalse((task / "repo/.env").exists())
-        self.assertFalse((task / "repo/ignored-dir/unrelated.txt").exists())
+        self.assertEqual((task / "repo/.env").read_text(), "LOCAL_VALUE=1\n")
+        self.assertEqual((task / "repo/ignored-dir/unrelated.txt").read_text(), "Nested local file\n")
         self.assertEqual(self.run_command("git", "-C", task / "repo", "status", "--porcelain").stdout, "")
 
     def test_task_fills_missing_settings_without_overwriting_existing_settings(self):
@@ -505,7 +505,7 @@ class FxTest(unittest.TestCase):
         self.assertEqual((task / "repo/appsettings.Local.json").read_text(), "task local settings\n")
         self.assertEqual((task / "repo/appsettings.Development.json").read_text(), "new development settings\n")
 
-    def test_settings_copy_skips_files_not_ignored_in_both_worktrees(self):
+    def test_copy_uses_main_clone_ignore_rules_and_skips_unselected_files(self):
         project = self.project()
         clone = project / "repo/main"
         (clone / ".gitignore").write_text("appsettings.Local.json\n")
@@ -513,9 +513,65 @@ class FxTest(unittest.TestCase):
         (clone / "appsettings.Development.json").write_text("Not ignored anywhere\n")
         result = self.fx("task", "fix-login", "--no-attach", cwd=project)
         task = Path(result.stdout.strip())
-        self.assertFalse((task / "repo/appsettings.Local.json").exists())
+        self.assertEqual((task / "repo/appsettings.Local.json").read_text(), "Ignored only in the main clone\n")
         self.assertFalse((task / "repo/appsettings.Development.json").exists())
-        self.assertIn("not ignored in the task", result.stderr)
+
+    def test_worktreeinclude_selects_untracked_files_with_git_patterns(self):
+        project = self.project()
+        clone = project / "repo/main"
+        (clone / ".git/info/exclude").write_text("cache/\n")
+        (clone / ".worktreeinclude").write_text(
+            "# Local files\n/config/**\n!config/excluded.txt\n/cache/\n!cache/\n/source.txt\n"
+        )
+        (clone / "config").mkdir()
+        for name in ("local.env", "file with spaces.txt", "line\nbreak.txt", "literal[1].txt", "excluded.txt"):
+            (clone / "config" / name).write_text(name)
+        (clone / "cache").mkdir()
+        (clone / "cache/ignored.txt").write_text("Ignored independently\n")
+        (clone / "unselected.txt").write_text("Not selected\n")
+        (clone / "source.txt").write_text("Uncommitted tracked content\n")
+        task = self.task(project)
+        for name in ("local.env", "file with spaces.txt", "line\nbreak.txt", "literal[1].txt"):
+            self.assertEqual((task / "repo/config" / name).read_text(), name)
+        self.assertFalse((task / "repo/config/excluded.txt").exists())
+        self.assertFalse((task / "repo/unselected.txt").exists())
+        self.assertEqual((task / "repo/cache/ignored.txt").read_text(), "Ignored independently\n")
+        self.assertEqual((task / "repo/source.txt").read_text(), "original\n")
+        (task / "repo/config/local.env").write_text("Task value\n")
+        (clone / "config/new.env").write_text("New local value\n")
+        self.fx("task", "fix-login", "--no-attach", cwd=task)
+        self.assertEqual((task / "repo/config/local.env").read_text(), "Task value\n")
+        self.assertEqual((task / "repo/config/new.env").read_text(), "New local value\n")
+
+    def test_worktreeinclude_preserves_deleted_tracked_task_file(self):
+        project = self.project()
+        clone = project / "repo/main"
+        task = self.task(project)
+        (clone / ".worktreeinclude").write_text("local.env\n")
+        (clone / "local.env").write_text("Clone value\n")
+        target = task / "repo/local.env"
+        target.write_text("Tracked task value\n")
+        self.run_command("git", "-C", task / "repo", "add", "local.env")
+        target.unlink()
+        result = self.fx("task", "fix-login", "--no-attach", cwd=task)
+        self.assertFalse(target.exists())
+        self.assertIn("tracked in the task", result.stderr)
+
+    def test_worktreeinclude_rejects_symlink_or_directory(self):
+        project = self.project()
+        clone = project / "repo/main"
+        outside = self.root / "include-patterns"
+        outside.write_text("*.env\n")
+        include = clone / ".worktreeinclude"
+        include.symlink_to(outside)
+        result = self.fx("task", "fix-login", "--no-attach", cwd=project, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("must be a regular file", result.stderr)
+        include.unlink()
+        include.mkdir()
+        result = self.fx("task", "fix-login", "--no-attach", cwd=project, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("must be a regular file", result.stderr)
 
     def test_settings_copy_does_not_restore_deleted_tracked_files(self):
         project = self.project()
@@ -529,7 +585,7 @@ class FxTest(unittest.TestCase):
         (clone / "appsettings.Local.json").write_text("Ignored clone settings\n")
         result = self.fx("task", "fix-login", "--no-attach", cwd=task)
         self.assertFalse(target.exists())
-        self.assertIn("tracked or not ignored", result.stderr)
+        self.assertIn("tracked in the task", result.stderr)
 
     def test_settings_copy_preserves_destination_links_and_skips_source_links(self):
         project = self.project()
@@ -572,11 +628,11 @@ class FxTest(unittest.TestCase):
         fake_copy.chmod(0o755)
         result = self.fx("task", "fix-login", "--no-attach", cwd=project, check=False)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("Could not copy settings", result.stderr)
+        self.assertIn("Could not copy local file", result.stderr)
         self.assertNotIn("Task ready", result.stderr)
         task = project / "tasks/fix-login"
         self.assertFalse((task / "repo/appsettings.Local.json").exists())
-        self.assertEqual(list((task / "repo").glob(".fx-appsettings-*")), [])
+        self.assertEqual(list((task / "repo").glob(".fx-copy-*")), [])
         fake_copy.unlink()
         self.fx("task", "fix-login", "--no-attach", cwd=project)
         self.assertEqual((task / "repo/appsettings.Local.json").read_text(), "Clone settings\n")

@@ -213,15 +213,21 @@ resolve_task_branch() {
   printf '%s\n' "$branch"
 }
 
-copy_ignored_appsettings() {
+copy_worktree_files() {
   local clone="$1" worktree="$2" relative source target directory remaining temporary status
-  git -C "$clone" ls-files --others --ignored --exclude-standard -z -- \
-    ':(glob)**/appsettings.json' ':(glob)**/appsettings.*.json' |
+  {
+    git -C "$clone" ls-files --others --ignored --exclude-standard -z
+    if [[ -e "$clone/.worktreeinclude" || -L "$clone/.worktreeinclude" ]]; then
+      [[ -f "$clone/.worktreeinclude" && ! -L "$clone/.worktreeinclude" ]] ||
+        fail 'The .worktreeinclude file must be a regular file.'
+      git -C "$clone" ls-files --others --ignored --exclude-from=.worktreeinclude -z
+    fi
+  } |
     while IFS= read -r -d '' relative; do
       source="$clone/$relative"
       target="$worktree/$relative"
       if [[ -L "$source" || ! -f "$source" ]]; then
-        printf 'fx: Skipping settings that are not a regular file: %s\n' "$relative" >&2
+        printf 'fx: Skipping local file that is not a regular file: %s\n' "$relative" >&2
         continue
       fi
       [[ ! -e "$target" && ! -L "$target" ]] || continue
@@ -229,23 +235,23 @@ copy_ignored_appsettings() {
       remaining="$relative"
       while [[ "$remaining" == */* ]]; do
         directory="$directory/${remaining%%/*}"
-        [[ ! -L "$directory" ]] || fail "Settings destination contains a symbolic link: $directory"
+        [[ ! -L "$directory" ]] || fail "Local file destination contains a symbolic link: $directory"
         remaining="${remaining#*/}"
       done
-      if git -C "$worktree" check-ignore -q -- "$relative"; then
-        ensure_directory "$directory"
+      if git --literal-pathspecs -C "$worktree" ls-files --error-unmatch -- "$relative" >/dev/null 2>&1; then
+        printf 'fx: Skipping local file tracked in the task: %s\n' "$relative" >&2
+        continue
       else
         status=$?
-        [[ "$status" == 1 ]] || fail "Could not check whether task settings are ignored: $relative"
-        printf 'fx: Skipping settings that are tracked or not ignored in the task: %s\n' "$relative" >&2
-        continue
+        [[ "$status" == 1 ]] || fail "Could not check whether a task file is tracked: $relative"
       fi
-      temporary="$(mktemp "$directory/.fx-appsettings-XXXXXXXX")"
+      ensure_directory "$directory"
+      temporary="$(mktemp "$directory/.fx-copy-XXXXXXXX")"
       if ! cp -p -- "$source" "$temporary" || ! mv -- "$temporary" "$target"; then
         rm -f -- "$temporary"
-        fail "Could not copy settings into the task: $relative"
+        fail "Could not copy local file into the task: $relative"
       fi
-      printf 'fx: Copied local settings: %s\n' "$relative" >&2
+      printf 'fx: Copied local file: %s\n' "$relative" >&2
     done
 }
 
@@ -313,7 +319,7 @@ open_task() {
     printf 'fx: Creating task branch from %s\n' "$base_reference" >&2
     git -C "$project/repo/main" worktree add --track -b "$branch" "$task/repo" "$base_reference" >&2
   fi
-  copy_ignored_appsettings "$project/repo/main" "$task/repo"
+  copy_worktree_files "$project/repo/main" "$task/repo"
   create_file "$task/AGENTS.md" < "$tool_dir/templates/AGENTS.md"
   printf 'fx: Task ready: %s\n' "$task" >&2
   if [[ "$attach" == false ]]; then
