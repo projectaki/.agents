@@ -21,15 +21,15 @@ class GroupTabTest(unittest.TestCase):
         fixture.batch_provider_stubs()
         marker = fixture.root / 'interactive-synthesis.json'
         template_marker = fixture.root / 'template-command.txt'
-        codex = fixture.bin / 'codex'
-        source = codex.read_text().replace(
+        claude = fixture.bin / 'claude'
+        source = claude.read_text().replace(
             "session = Path(os.environ['FX_SESSION_CONTEXT_DIR'])",
-            f'''if 'exec' not in args:
+            f'''if '--print' not in args:
     Path({str(marker)!r}).write_text(json.dumps({{'stdin_tty':sys.stdin.isatty(), 'cwd':os.getcwd()}}))
     time.sleep(60)
     sys.exit(0)
 session = Path(os.environ['FX_SESSION_CONTEXT_DIR'])''')
-        codex.write_text(source)
+        claude.write_text(source)
         (fixture.bin / 'zellij').unlink()
         (fixture.bin / 'zellij').symlink_to(ZELLIJ)
         fixture.env['SHELL'] = '/bin/bash'
@@ -78,7 +78,7 @@ session = Path(os.environ['FX_SESSION_CONTEXT_DIR'])''')
         else:
             arguments = ('agent', 'codex', '--name', 'review', '--prompt', 'Review source', '--new-tab')
         marker = fixture.root / 'interactive.json'
-        (fixture.bin / 'codex').write_text(f'#!{test_fx.sys.executable}\n' + f'''import json, os, sys, time
+        (fixture.bin / ('claude' if mode == 'compare' else 'codex')).write_text(f'#!{test_fx.sys.executable}\n' + f'''import json, os, sys, time
 from pathlib import Path
 if '--version' in sys.argv:
     print('test version')

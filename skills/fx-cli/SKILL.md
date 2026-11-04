@@ -253,7 +253,11 @@ A group opens one Zellij tab. Its members run without interactive input. Supply
 shows member status. Each member saves its own response and diagnostic logs.
 After every member exits successfully with a saved response, the same tab starts
 an interactive synthesis session named `synthesis`. It uses
-`default-compare-agent` with medium reasoning. Continue the discussion there.
+`default-compare-agent` (Claude by default) with medium reasoning. Continue the
+discussion there. Supply `--synthesis-agent <agent>` on the group launch to choose
+any installed interactive adapter, such as `codex`, `claude`, `glm`, or `gemini`.
+This selection is saved for retries. Repeated `--agent` flags select group members
+separately.
 
 Failures stop automatic synthesis. Other members can finish. Ctrl+C stops active
 member process groups. Inspect `run-state.json` and each member's `runner.log`.

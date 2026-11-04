@@ -624,7 +624,7 @@ run_agent_session() {
 }
 
 launch_agent_group() {
-  local name='' prompt='' default_reasoning=m project task group spec agent level session status index captured_context synthesis_agent
+  local name='' prompt='' default_reasoning=m project task group spec agent level session status index captured_context synthesis_agent=''
   local prompt_supplied=false reasoning_supplied=false
   local -a specs=() agents=() levels=() models=()
   local -a context_args=()
@@ -655,12 +655,18 @@ launch_agent_group() {
         specs+=("$2")
         shift 2
         ;;
+      --synthesis-agent)
+        [[ $# -ge 2 && -z "$synthesis_agent" && -n "$2" && "$2" != -* ]] || fail 'Supply one synthesis agent after --synthesis-agent.'
+        validate_name "$2"
+        synthesis_agent="$2"
+        shift 2
+        ;;
       --from)
         [[ $# -ge 2 && -n "$2" && "$2" != -* ]] || fail 'Supply a session, group, or captured turn directory after --from.'
         context_args+=(--from "$2")
         shift 2
         ;;
-      *) fail 'Usage: fx agent group [--name <name>] [--agent <agent[:l|m|h]> ...] [-r l|m|h] [--prompt <text>] [--from <context-directory>]' ;;
+      *) fail 'Usage: fx agent group [--name <name>] [--agent <agent[:l|m|h]> ...] [--synthesis-agent <agent>] [-r l|m|h] [--prompt <text>] [--from <context-directory>]' ;;
     esac
   done
   if [[ ${#specs[@]} == 0 ]]; then
@@ -688,7 +694,7 @@ launch_agent_group() {
   project="$(find_project)"
   task="$(find_task "$project")"
   command -v python3 >/dev/null || fail 'Install Python 3 to capture and load agent results.'
-  synthesis_agent="$(cat "$tool_dir/default-compare-agent")"
+  [[ -n "$synthesis_agent" ]] || synthesis_agent="$(cat "$tool_dir/default-compare-agent")"
   validate_name "$synthesis_agent"
   [[ -x "$tool_dir/agents/$synthesis_agent" ]] || fail "No synthesis adapter is installed for: $synthesis_agent"
   "$tool_dir/agents/$synthesis_agent" check || fail "The $synthesis_agent CLI is not available for synthesis."
@@ -904,7 +910,7 @@ Usage:
   fx agent <agent> [--name <name>] [--model <model>] [-r l|m|h] [--prompt <text>] [--from <context-directory>] [--new-tab]
   fx agent <agent> --resume <session-directory> [--new-tab]
   fx agent <command> [command-options]
-  fx agent group [--name <name>] [--agent <agent[:l|m|h]> ...] [-r l|m|h] [--prompt <text>] [--from <context-directory>]
+  fx agent group [--name <name>] [--agent <agent[:l|m|h]> ...] [--synthesis-agent <agent>] [-r l|m|h] [--prompt <text>] [--from <context-directory>]
   fx agent group compare <group_name> [--name <name>] [--agent <agent>] [-r l|m|h] [--new-tab]
   fx agent group retry <group_name>
   fx image <backend> --prompt <text> --output <path> [--input <path>] [--model <model>]
@@ -932,11 +938,12 @@ Without terminal input, --name is required. Names appear in context directories 
 Groups run independent unattended agents in one Zellij tab, then start interactive synthesis in that tab.
 Groups require an assignment through --prompt or terminal input. Provider adapters need agents/<agent>.batch.
 Group defaults come from default-group. Repeated --agent flags replace those defaults.
+Use --synthesis-agent to select the interactive synthesis adapter for a group.
 Each group agent uses -r (medium by default), unless its agent:reasoning value overrides it.
 Final responses are captured under each session's results/ directory. Python 3.9+ is required.
 Use --from to supply saved responses from a session, group, or results/turn-* directory in this task.
 Group compare starts a fresh synthesis of a completed group. Group retry reruns only incomplete members in this terminal.
-Comparisons use default-compare-agent, medium reasoning, and the current terminal unless --new-tab is supplied.
+Synthesis defaults to default-compare-agent (Claude). Comparisons use medium reasoning, and the current terminal unless --new-tab is supplied.
 EOF
       printf '\nAvailable task actions:\n'
       for command_adapter in "$tool_dir/task-commands/"*; do

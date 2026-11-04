@@ -1183,7 +1183,7 @@ pwd -P
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Comparison session name: ", result.stderr)
         comparison, = (group / "comparisons").iterdir()
-        self.assertEqual(comparison.name, "000002-login-summary-gpt-6.1-sol")
+        self.assertEqual(comparison.name, "000002-login-summary-claude-opus-5-5")
         args = json.loads(result.stdout)["arguments"]
         self.assertEqual(args[5], comparison.name)
         self.assertEqual(args[15], str(comparison))
@@ -1664,24 +1664,51 @@ else:
                       'session_id':session.name,'result':response}))
 ''')
 
-    def launch_batch_group(self, task):
+    def launch_batch_group(self, task, *options):
         self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
-        launched = self.fx("agent", "group", "--name", "review", "--prompt", "Review changes", cwd=task)
+        launched = self.fx("agent", "group", "--name", "review", "--prompt", "Review changes", *options, cwd=task)
         args = json.loads(launched.stdout)["arguments"]
         group = task / "context/groups" / args[-1]
         return group, args[args.index('--') + 1:]
+
+    def test_group_selects_any_installed_synthesis_adapter(self):
+        task = self.task()
+        self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login",
+                        OPENROUTER_API_KEY="test-key")
+        for agent in (None, "claude", "codex", "glm", "gemini", "deepseek", "minimax"):
+            with self.subTest(agent=agent):
+                options = [] if agent is None else ["--synthesis-agent", agent]
+                result = self.fx("agent", "group", "--name", "review", "--agent", "codex",
+                                 "--prompt", "Review changes", *options, cwd=task)
+                group = task / "context/groups" / json.loads(result.stdout)["arguments"][-1]
+                manifest = json.loads((group / "run.json").read_text())
+                self.assertEqual(manifest["synthesis_agent"], agent or "claude")
+                self.assertEqual([member["agent"] for member in manifest["members"]], ["codex"])
+
+    def test_group_rejects_invalid_synthesis_selection_before_creating_context(self):
+        task = self.task()
+        self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
+        for options in (("--synthesis-agent",), ("--synthesis-agent", ""),
+                        ("--synthesis-agent", "../claude"),
+                        ("--synthesis-agent", "missing"),
+                        ("--synthesis-agent", "claude", "--synthesis-agent", "codex")):
+            with self.subTest(options=options):
+                result = self.fx("agent", "group", "--name", "review", "--prompt", "Review",
+                                 *options, cwd=task, check=False)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(list((task / "context").iterdir()), [])
 
     def test_group_runs_members_in_parallel_and_starts_one_interactive_synthesis(self):
         task = self.task()
         group, command = self.launch_batch_group(task)
         self.batch_provider_stubs()
-        codex = self.bin / "codex"
-        batch = codex.read_text()
-        batch = batch.replace("session = Path(os.environ['FX_SESSION_CONTEXT_DIR'])", """if 'exec' not in args:
+        claude = self.bin / "claude"
+        batch = claude.read_text()
+        batch = batch.replace("session = Path(os.environ['FX_SESSION_CONTEXT_DIR'])", """if '--print' not in args:
     print(json.dumps({'interactive': True, 'arguments': args, 'cwd': os.getcwd()}))
     sys.exit(0)
 session = Path(os.environ['FX_SESSION_CONTEXT_DIR'])""")
-        codex.write_text(batch)
+        claude.write_text(batch)
         result = self.run_command(*command, cwd=task)
         final = json.loads(result.stdout.splitlines()[-1])
         self.assertTrue(final['interactive'])
@@ -1695,12 +1722,14 @@ session = Path(os.environ['FX_SESSION_CONTEXT_DIR'])""")
             self.assertIn('Review result', (group / member / 'last_turn_results.md').read_text())
         comparison, = (group / 'comparisons').iterdir()
         self.assertIn('synthesis', comparison.name)
+        self.assertIn('agent=claude\nreasoning=medium', (comparison / 'launch.txt').read_text())
+        self.assertNotIn('--print', final['arguments'])
         self.assertIn('1-claude', (comparison / 'input-context.md').read_text())
         self.assertIn('2-codex', (comparison / 'input-context.md').read_text())
 
     def test_group_failure_preserves_success_and_retry_runs_only_failed_member(self):
         task = self.task()
-        group, command = self.launch_batch_group(task)
+        group, command = self.launch_batch_group(task, "--synthesis-agent", "codex")
         self.batch_provider_stubs()
         self.env['FX_TEST_FAIL_MEMBER'] = '1-claude'
         result = self.run_command(*command, cwd=task, check=False)
@@ -1725,6 +1754,7 @@ session = Path(os.environ['FX_SESSION_CONTEXT_DIR'])""")
         comparison, = (group / 'comparisons').iterdir()
         snapshot = (comparison / 'input-context.md').read_text()
         self.assertIn('1-claude-claude-opus-5-5-retry-2/results', snapshot)
+        self.assertIn('agent=codex', (comparison / 'launch.txt').read_text())
 
     def test_group_rejects_empty_successful_provider_output(self):
         task = self.task()
@@ -1794,8 +1824,8 @@ time.sleep(60)
         group = self.completed_group(task)
         result = self.fx("agent", "group", "compare", "review", "--name", "summary", cwd=task / "repo")
         args = json.loads(result.stdout)["arguments"]
-        self.assertIn('model_reasoning_effort="medium"', args)
-        self.assertIn("gpt-6.1-sol", args)
+        self.assertEqual(args[args.index("--effort") + 1], "medium")
+        self.assertIn("claude-opus-5-5", args)
         comparison, = (group / "comparisons").iterdir()
         self.assertEqual((comparison / "source-group.txt").read_text().strip(), str(group))
         instructions = (comparison / "instructions.md").read_text()
@@ -1803,7 +1833,7 @@ time.sleep(60)
         self.assertIn("2-codex-gpt-6.1-sol/results/turn-000001/response.md", instructions)
         self.assertIn("Review the login changes.", instructions)
         self.assertNotIn("This is an independent group investigation", instructions)
-        self.assertEqual(json.loads(args[7].split("=", 1)[1]), instructions.rstrip("\n"))
+        self.assertEqual(Path(args[args.index("--append-system-prompt-file") + 1]).read_text(), instructions)
         self.assertEqual((comparison / "initial_prompt.md").read_text(), args[-1])
         self.assertIn("Compare and merge", args[-1])
         self.assertIn("Do not edit repository files", args[-1])

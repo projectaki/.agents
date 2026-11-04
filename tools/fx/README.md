@@ -422,7 +422,7 @@ Codex runs with `--no-daemon` so diagnostic hooks inherit the current session's
 output directory. Its hook commands retain the normal trust checks. Use
 `/hooks` to review and trust them before relying on lifecycle event coverage.
 
-### `fx agent group [--name <name>] [--agent <agent[:l|m|h]> ...] [-r l|m|h] [--prompt <text>] [--from <context-directory>]`
+### `fx agent group [--name <name>] [--agent <agent[:l|m|h]> ...] [--synthesis-agent <agent>] [-r l|m|h] [--prompt <text>] [--from <context-directory>]`
 
 Run inside a task in a Zellij session. The command opens one tab for the group.
 Members run concurrently without interactive input. The tab shows their status.
@@ -532,8 +532,16 @@ not read later updates or current peers' private records.
 
 The launcher returns after requesting the single group tab. Tab acceptance does
 not establish successful execution. The runner waits for process exit and checks
-saved responses before synthesis. It uses `default-compare-agent` with medium
-reasoning and the automatic session name `synthesis`.
+saved responses before synthesis. It uses `default-compare-agent` (Claude by
+default) with medium reasoning and the automatic session name `synthesis`.
+Use `--synthesis-agent <agent>` when launching the group to select any installed
+interactive adapter, including `claude`, `codex`, `glm`, and `gemini`. This selection
+is saved in `run.json` and also applies after a retry. It does not change the
+group members selected with `--agent`.
+
+```bash
+fx agent group --name review --synthesis-agent gemini --prompt 'Review the current changes.'
+```
 
 A failed member prevents automatic synthesis. Other members finish, and their
 results remain available. Ctrl+C or termination stops active member process
@@ -564,7 +572,7 @@ Use this to start a fresh synthesis of a completed group, including recovery
 after synthesis fails. The command starts a single interactive comparison agent.
 It supplies the original assignment and an exact list of saved member responses.
 The agent must read every listed response and its source metadata in full.
-The default agent is Codex with medium reasoning. It runs in the current
+The default agent is Claude with medium reasoning. It runs in the current
 terminal unless `--new-tab` is supplied.
 
 ```bash
