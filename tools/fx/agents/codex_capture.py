@@ -7,6 +7,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from fx_context import report_capture_error, save_response
 from fx_events import capture_event
+from fx_models import session_agent
 
 
 HOOK_EVENTS = (
@@ -19,7 +20,7 @@ def main():
     if sys.argv[1] == "hook":
         session = Path(os.environ["FX_SESSION_CONTEXT_DIR"])
         raw_payload = sys.stdin.read()
-        capture_event(session, "codex", "hook", raw_payload)
+        capture_event(session, session_agent(session), "hook", raw_payload)
         try:
             event = json.loads(raw_payload)
         except ValueError:
@@ -27,7 +28,7 @@ def main():
             return 0
         try:
             if isinstance(event, dict) and event.get("hook_event_name") == "Stop" and not event.get("agent_id"):
-                save_response(session, "codex", event.get("session_id"),
+                save_response(session, session_agent(session), event.get("session_id"),
                               event.get("turn_id"), event.get("last_assistant_message"))
         except (OSError, ValueError, KeyError) as error:
             report_capture_error(session, error)
@@ -47,7 +48,7 @@ def main():
             sys.executable, str(Path(__file__).resolve()), "capture", str(session),
         ], ensure_ascii=False))
         return 0
-    capture_event(session, "codex", "notify", sys.argv[3])
+    capture_event(session, session_agent(session), "notify", sys.argv[3])
     return 0
 
 

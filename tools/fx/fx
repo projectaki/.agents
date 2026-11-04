@@ -15,8 +15,9 @@ validate_name() {
 
 agent_model() {
   local model
-  model="$("$tool_dir/agents/$1" model)" || fail "Could not read the model from the $1 adapter."
-  [[ "$model" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]*$ ]] || fail "The $1 adapter returned an invalid model name."
+  model="$("$tool_dir/agents/$1" model "${@:2}")" || fail "Could not read the model from the $1 adapter."
+  [[ "$model" =~ ^~?[a-zA-Z0-9][a-zA-Z0-9_./:-]*$ ]] || fail "The $1 adapter returned an invalid model name."
+  [[ $# == 1 || "$model" == "$2" ]] || fail "The $1 adapter does not support selecting that model."
   printf '%s\n' "$model"
 }
 
@@ -251,7 +252,7 @@ copy_ignored_appsettings() {
 open_task() {
   [[ $# -ge 1 ]] || fail 'Usage: fx task <task_name> [--base <branch>] [--no-attach]'
   validate_name "$1"
-  local name="$1" project task branch candidate session_name base='' base_reference attach=true current_branch='' changes
+  local name="$1" project task branch candidate session_name base='' base_reference attach=true current_branch='' changes layout
   shift
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -320,14 +321,15 @@ open_task() {
     return
   fi
   cd -- "$task"
+  layout="$(python3 "$tool_dir/fx_task.py" layout "$task")"
   if [[ -n "${ZELLIJ-}" ]]; then
     if [[ "${ZELLIJ_SESSION_NAME-}" == "$session_name" ]]; then
       printf 'fx: Already in Zellij session: %s\n' "$session_name" >&2
       return
     fi
-    exec zellij action switch-session "$session_name" --cwd "$task"
+    exec zellij action switch-session "$session_name" --cwd "$task" --layout-string "$layout"
   fi
-  exec zellij attach --create "$session_name" options --default-cwd "$task"
+  exec zellij --layout-string "$layout" attach --create "$session_name" options --default-cwd "$task"
 }
 
 delete_task() {
@@ -511,9 +513,9 @@ EOF
 }
 
 launch_agent() {
-  [[ $# -ge 1 ]] || fail 'Usage: fx agent <agent> [--name <name>] [-r l|m|h] [--prompt <text>] [--from <context-directory>] [--new-tab]'
+  [[ $# -ge 1 ]] || fail 'Usage: fx agent <agent> [--name <name>] [--model <model>] [-r l|m|h] [--prompt <text>] [--from <context-directory>] [--new-tab]'
   local agent="$1" reasoning=medium adapter project task session prompt='' name='' captured_context model
-  local prompt_supplied=false reasoning_supplied=false new_tab=false resume_source='' resume_adapter
+  local prompt_supplied=false reasoning_supplied=false new_tab=false resume_source='' resume_adapter selected_model='' model_name
   local -a context_args=()
   validate_name "$agent"
   shift
@@ -526,6 +528,11 @@ launch_agent() {
   fi
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      --model|-m)
+        [[ $# -ge 2 && -z "$selected_model" && -n "$2" && "$2" != -* ]] || fail 'Supply one model name after --model.'
+        selected_model="$(python3 "$tool_dir/fx_models.py" validate "$2")"
+        shift 2
+        ;;
       --resume)
         [[ $# -ge 2 && -z "$resume_source" && -n "$2" && "$2" != -* ]] || fail 'Supply one session directory after --resume.'
         resume_source="$2"
@@ -556,7 +563,7 @@ launch_agent() {
         name="$2"
         shift 2
         ;;
-      *) fail 'Usage: fx agent <agent> [--name <name>] [-r l|m|h] [--prompt <text>] [--from <context-directory>] [--new-tab]' ;;
+      *) fail 'Usage: fx agent <agent> [--name <name>] [--model <model>] [-r l|m|h] [--prompt <text>] [--from <context-directory>] [--new-tab]' ;;
     esac
   done
   if [[ "$new_tab" == true ]]; then
@@ -571,8 +578,8 @@ launch_agent() {
   task="$(find_task "$project")"
   command -v python3 >/dev/null || fail 'Install Python 3 to capture and load agent results.'
   if [[ -n "$resume_source" ]]; then
-    [[ -z "$name" && "$prompt_supplied" == false && "$reasoning_supplied" == false && ${#context_args[@]} == 0 ]] ||
-      fail 'Resume preserves the original session. Do not combine --resume with --name, --prompt, -r, or --from.'
+    [[ -z "$name" && -z "$selected_model" && "$prompt_supplied" == false && "$reasoning_supplied" == false && ${#context_args[@]} == 0 ]] ||
+      fail 'Resume preserves the original session. Do not combine --resume with --name, --model, --prompt, -r, or --from.'
     resume_adapter="$tool_dir/agents/$agent.resume"
     [[ -x "$resume_adapter" ]] || fail "The $agent adapter does not support resume."
     session="$(python3 "$tool_dir/fx_resume.py" resolve "$task" "$agent" "$resume_source")"
@@ -581,15 +588,22 @@ launch_agent() {
     cd -- "$task"
     if [[ "$new_tab" == true ]]; then
       exec zellij --session "$ZELLIJ_SESSION_NAME" action new-tab \
-        --name "$(basename -- "$session")" --cwd "$task" -- "$resume_adapter" "$project" "$task" "$session" "$reasoning"
+        --name "$(basename -- "$session")" --cwd "$task" --layout "$tool_dir/templates/agent-tab.kdl" \
+        -- "$resume_adapter" "$project" "$task" "$session" "$reasoning"
     fi
     exec "$resume_adapter" "$project" "$task" "$session" "$reasoning"
   fi
-  model="$(agent_model "$agent")"
+  if [[ -n "$selected_model" ]]; then
+    model="$(agent_model "$agent" "$selected_model")"
+  else
+    model="$(agent_model "$agent")"
+  fi
+  model_name="$(python3 "$tool_dir/fx_models.py" slug "$model")"
   captured_context="$(python3 "$tool_dir/fx_context.py" "$task" "${context_args[@]}")"
   name="$(require_name Session "$name")"
   ensure_directory "$task/context"
-  session="$(python3 "$tool_dir/fx_session.py" "$task" "$task/context" "$name-$model")"
+  session="$(python3 "$tool_dir/fx_session.py" "$task" "$task/context" "$name-$model_name")"
+  printf '%s\n' "$model" > "$session/model.txt"
   set -- "$agent" "$project" "$task" "$session" "$reasoning" "$captured_context" "$(basename -- "$session")" "$new_tab"
   [[ "$prompt_supplied" == false ]] || set -- "$@" "$prompt"
   run_agent_session "$@"
@@ -603,7 +617,8 @@ run_agent_session() {
   set -- launch "$project" "$task" "$session" "$reasoning" "$@"
   if [[ "$new_tab" == true ]]; then
     exec zellij --session "$ZELLIJ_SESSION_NAME" action new-tab \
-      --name "$tab_name" --cwd "$task" -- "$tool_dir/agents/$agent" "$@"
+      --name "$tab_name" --cwd "$task" --layout "$tool_dir/templates/agent-tab.kdl" \
+      -- "$tool_dir/agents/$agent" "$@"
   fi
   exec "$tool_dir/agents/$agent" "$@"
 }
@@ -711,18 +726,20 @@ EOF
   python3 "$tool_dir/fx_source.py" "$task" > "$group/source.json"
   for index in "${!agents[@]}"; do
     agent="${agents[$index]}"
-    session="$group/$((index + 1))-$agent-${models[$index]}"
+    session="$group/$((index + 1))-$agent-$(python3 "$tool_dir/fx_models.py" slug "${models[$index]}")"
     ensure_directory "$session"
     set -- "$project" "$task" "$session" "$agent" "${levels[$index]}" "$group" "$captured_context"
     [[ "$prompt_supplied" == false ]] || set -- "$@" "$prompt"
     prepare_agent_session "$@"
+    printf '%s\n' "${models[$index]}" > "$session/model.txt"
     printf '| %s | %s | %s |\n' "$(basename -- "$session")" "$agent" "${levels[$index]}" >> "$group/group.md"
   done
   cd -- "$task"
   python3 "$tool_dir/fx_group_run.py" prepare "$project" "$task" "$name" "$synthesis_agent"
   printf 'requesting\n' > "$group/tab-request.txt"
   if zellij --session "$ZELLIJ_SESSION_NAME" action new-tab \
-    --name "$name" --cwd "$task" -- python3 "$tool_dir/fx_group_run.py" run "$project" "$task" "$name"; then
+    --name "$name" --cwd "$task" --layout "$tool_dir/templates/agent-tab.kdl" \
+    -- python3 "$tool_dir/fx_group_run.py" run "$project" "$task" "$name"; then
     printf 'accepted\n' > "$group/tab-request.txt"
   else
     status=$?
@@ -787,7 +804,8 @@ compare_agent_group() {
   captured_context="$(python3 "$tool_dir/fx_group.py" context "$task" "$(basename -- "$group")")"
   session_name="$(require_name 'Comparison session' "$session_name")"
   ensure_directory "$group/comparisons"
-  session="$(python3 "$tool_dir/fx_session.py" "$task" "$group/comparisons" "$session_name-$model")"
+  session="$(python3 "$tool_dir/fx_session.py" "$task" "$group/comparisons" "$session_name-$(python3 "$tool_dir/fx_models.py" slug "$model")")"
+  printf '%s\n' "$model" > "$session/model.txt"
   printf '%s\n' "$group" > "$session/source-group.txt"
   prompt="Compare and merge the supplied captured results from group $(basename -- "$group").
 Use the original group assignment, when supplied, to assess coverage.
@@ -844,6 +862,10 @@ EOF
 main() {
   local subcommand="${1-help}" command_adapter
   [[ $# == 0 ]] || shift
+  command_adapter="$tool_dir/commands/$subcommand"
+  if [[ "$subcommand" != */* && -f "$command_adapter" && -x "$command_adapter" ]]; then
+    exec "$command_adapter" "$@"
+  fi
   case "$subcommand" in
     setup) setup_project "$@" ;;
     task)
@@ -879,12 +901,13 @@ Usage:
   fx task <task_name> [--base <branch>] [--no-attach]
   fx task <command> [command-options]
   fx delete <task_name> [--force]
-  fx agent <agent> [--name <name>] [-r l|m|h] [--prompt <text>] [--from <context-directory>] [--new-tab]
+  fx agent <agent> [--name <name>] [--model <model>] [-r l|m|h] [--prompt <text>] [--from <context-directory>] [--new-tab]
   fx agent <agent> --resume <session-directory> [--new-tab]
   fx agent <command> [command-options]
   fx agent group [--name <name>] [--agent <agent[:l|m|h]> ...] [-r l|m|h] [--prompt <text>] [--from <context-directory>]
   fx agent group compare <group_name> [--name <name>] [--agent <agent>] [-r l|m|h] [--new-tab]
   fx agent group retry <group_name>
+  fx image <backend> --prompt <text> --output <path> [--input <path>] [--model <model>]
   fx shell-init
 
 Projects live under FX_ROOT (default: ~/work).
@@ -899,6 +922,7 @@ Repository accepts owner/repository, a Git URL, or a local repository path.
 Agent names correspond to executable adapters in agents/.
 Task-specific agent commands register executable handlers in agent-commands/.
 Task actions register executable handlers in task-commands/.
+Use --model (or -m) to override an agent's default model.
 Reasoning: l = low, m = medium (default), h = high.
 Use --prompt to supply an initial assignment. Without it, the agent waits for interactive input.
 Use --new-tab inside Zellij to launch the agent in a new tab in the current session.

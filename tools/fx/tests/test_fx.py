@@ -934,6 +934,7 @@ pwd -P
                             "--add-dir", str(project / "project_context"),
                             "--settings", str(session / "claude-settings.json"),
                             "--debug-file", str(session / "events/claude-debug.log"),
+                            "--permission-mode", "auto",
                         ])
                         self.assertIsNone(captured["effort_environment"])
                     else:
@@ -1002,15 +1003,15 @@ pwd -P
                 result = self.fx("agent", agent, "--name", "review", "--new-tab", "--prompt", prompt, "-r", "h", cwd=task / "repo")
                 captured = json.loads(result.stdout)
                 arguments = captured["arguments"]
-                self.assertEqual(arguments[:9], [
+                self.assertEqual(arguments[:11], [
                     "--session", "example-fix-login", "action", "new-tab",
-                    "--name", Path(arguments[13]).name, "--cwd", str(task), "--",
+                    "--name", Path(arguments[15]).name, "--cwd", str(task), "--layout", str(TOOL.parent / "templates/agent-tab.kdl"), "--",
                 ])
                 self.assertEqual(captured["cwd"], str(task))
-                self.assertEqual(arguments[9], str(TOOL.parent / "agents" / agent))
+                self.assertEqual(arguments[11], str(TOOL.parent / "agents" / agent))
                 session, = set((task / "context").iterdir()) - before
-                self.assertEqual(arguments[10:], ["launch", str(task.parent.parent), str(task), str(session), "high", prompt])
-                launched = json.loads(self.run_command(*arguments[9:], cwd=task).stdout)
+                self.assertEqual(arguments[12:], ["launch", str(task.parent.parent), str(task), str(session), "high", prompt])
+                launched = json.loads(self.run_command(*arguments[11:], cwd=task).stdout)
                 self.assertEqual(launched["arguments"][-2:], ["--", prompt])
                 self.assertEqual(launched["cwd"], str(task))
                 self.assertEqual(len(set((task / "context").iterdir()) - before), 1)
@@ -1024,7 +1025,7 @@ pwd -P
         self.assertEqual(arguments[-1], "low")
         session, = (task / "context").iterdir()
         self.assertFalse((session / "initial_prompt.md").exists())
-        launched = json.loads(self.run_command(*arguments[9:], cwd=task).stdout)
+        launched = json.loads(self.run_command(*arguments[11:], cwd=task).stdout)
         self.assertNotIn("--", launched["arguments"])
 
     def test_new_tab_accepts_custom_name_in_either_flag_order(self):
@@ -1035,10 +1036,22 @@ pwd -P
                 with self.subTest(agent=agent, options=options):
                     captured = json.loads(self.fx("agent", agent, *options, "-r", "h", "--prompt", "Review changes", cwd=task).stdout)
                     arguments = captured["arguments"]
-                    self.assertEqual(arguments[arguments.index("--name") + 1], Path(arguments[13]).name)
-                    self.assertIn("-" + options[options.index("--name") + 1] + "-", Path(arguments[13]).name)
+                    self.assertEqual(arguments[arguments.index("--name") + 1], Path(arguments[15]).name)
+                    self.assertIn("-" + options[options.index("--name") + 1] + "-", Path(arguments[15]).name)
                     self.assertEqual(arguments[-2:], ["high", "Review changes"])
-                    self.assertEqual(arguments[9], str(TOOL.parent / "agents" / agent))
+                    self.assertEqual(arguments[11], str(TOOL.parent / "agents" / agent))
+
+    def test_individual_agents_use_automatic_permissions(self):
+        task = self.task()
+        for agent in ('claude', 'codex'):
+            with self.subTest(agent=agent):
+                result = self.fx('agent', agent, '--name', 'review', cwd=task)
+                arguments = json.loads(result.stdout)['arguments']
+                if agent == 'claude':
+                    self.assertEqual(arguments[arguments.index('--permission-mode') + 1], 'auto')
+                    self.assertNotIn('--allowedTools', arguments)
+                else:
+                    self.assertIn('--dangerously-bypass-approvals-and-sandbox', arguments)
 
     def test_session_name_works_without_new_tab(self):
         task = self.task()
@@ -1146,7 +1159,7 @@ pwd -P
         self.assertEqual(session.name, "000001-login-review-gpt-6.1-sol")
         args = json.loads(result.stdout)["arguments"]
         self.assertEqual(args[5], session.name)
-        self.assertEqual(args[13], str(session))
+        self.assertEqual(args[15], str(session))
 
     def test_group_name_prompt_names_one_group_tab(self):
         task = self.task()
@@ -1173,7 +1186,7 @@ pwd -P
         self.assertEqual(comparison.name, "000002-login-summary-gpt-6.1-sol")
         args = json.loads(result.stdout)["arguments"]
         self.assertEqual(args[5], comparison.name)
-        self.assertEqual(args[13], str(comparison))
+        self.assertEqual(args[15], str(comparison))
 
     def test_name_prompt_end_of_input_cancels_without_creating_context(self):
         task = self.task()
@@ -1259,9 +1272,9 @@ pwd -P
         group, = (task / "context/groups").iterdir()
         self.assertEqual(group.name, "000001-review")
         self.assertEqual((group / "initial_prompt.md").read_text(), prompt)
-        self.assertEqual(call["arguments"][:9], ["--session", "example-fix-login", "action", "new-tab",
-                         "--name", group.name, "--cwd", str(task), "--"])
-        self.assertEqual(call["arguments"][9:], ["python3", str(TOOL.parent / "fx_group_run.py"), "run",
+        self.assertEqual(call["arguments"][:11], ["--session", "example-fix-login", "action", "new-tab",
+                         "--name", group.name, "--cwd", str(task), "--layout", str(TOOL.parent / "templates/agent-tab.kdl"), "--"])
+        self.assertEqual(call["arguments"][11:], ["python3", str(TOOL.parent / "fx_group_run.py"), "run",
                          str(task.parent.parent), str(task), group.name])
         manifest = json.loads((group / "run.json").read_text())
         self.assertEqual([member["agent"] for member in manifest["members"]], ["claude", "codex"])
@@ -1656,7 +1669,7 @@ else:
         launched = self.fx("agent", "group", "--name", "review", "--prompt", "Review changes", cwd=task)
         args = json.loads(launched.stdout)["arguments"]
         group = task / "context/groups" / args[-1]
-        return group, args[9:]
+        return group, args[args.index('--') + 1:]
 
     def test_group_runs_members_in_parallel_and_starts_one_interactive_synthesis(self):
         task = self.task()
@@ -1826,11 +1839,11 @@ time.sleep(60)
         result = self.fx("agent", "group", "compare", group.name, "--name", "summary", "--agent", "claude", "-r", "h", "--new-tab", cwd=task)
         args = json.loads(result.stdout)["arguments"]
         self.assertEqual(args[5], "000002-summary-claude-opus-5-5")
-        self.assertEqual(args[9], str(TOOL.parent / "agents/claude"))
+        self.assertEqual(args[11], str(TOOL.parent / "agents/claude"))
         self.assertEqual(args[-2], "high")
         comparison, = (group / "comparisons").iterdir()
-        self.assertEqual(args[13], str(comparison))
-        launched = json.loads(self.run_command(*args[9:], cwd=task).stdout)["arguments"]
+        self.assertEqual(args[15], str(comparison))
+        launched = json.loads(self.run_command(*args[11:], cwd=task).stdout)["arguments"]
         self.assertEqual(launched[3], "high")
         self.assertEqual(launched[-1], (comparison / "initial_prompt.md").read_text())
 
@@ -1925,7 +1938,7 @@ pwd -P
         for _ in range(2):
             captured = json.loads(self.fx("task", "fix-login", cwd=project).stdout)
             self.assertEqual(captured, {
-                "arguments": ["attach", "--create", "example-fix-login", "options", "--default-cwd", str(task)],
+                "arguments": ["--layout-string", self.run_command(sys.executable, TOOL.parent / "fx_task.py", "layout", task).stdout.rstrip("\n"), "attach", "--create", "example-fix-login", "options", "--default-cwd", str(task)],
                 "cwd": str(task),
             })
             self.assertTrue((task / "repo/.git").is_file())
@@ -1936,9 +1949,37 @@ pwd -P
         task = project / "tasks/next-task"
         captured = json.loads(self.fx("task", "next-task", cwd=project).stdout)
         self.assertEqual(captured, {
-            "arguments": ["action", "switch-session", "example-next-task", "--cwd", str(task)],
+            "arguments": ["action", "switch-session", "example-next-task", "--cwd", str(task), "--layout-string", self.run_command(sys.executable, TOOL.parent / "fx_task.py", "layout", task).stdout.rstrip("\n")],
             "cwd": str(task),
         })
+
+    def test_initial_task_terminal_reports_live_state_before_opening_the_shell(self):
+        project = self.project()
+        task = self.task(project)
+        (task / "repo/source.txt").write_text("Uncommitted change\n")
+        shell = self.bin / "task-shell"
+        shell.write_text(f"#!{sys.executable}\nimport os, sys\nprint('Shell opened:', os.getcwd(), sys.argv[1:])\n")
+        shell.chmod(0o755)
+        self.env.update(SHELL=str(shell), ZELLIJ_SESSION_NAME="example-fix-login")
+        result = self.run_command(sys.executable, TOOL.parent / "fx_task.py", "shell", task)
+        self.assertIn(f"Directory: {task}", result.stdout)
+        self.assertIn(f"Repository: {task / 'repo'}", result.stdout)
+        self.assertIn("Zellij session: example-fix-login", result.stdout)
+        self.assertIn("Initial source", result.stdout)
+        self.assertIn("On branch feature/fix-login", result.stdout)
+        self.assertIn("modified:   source.txt", result.stdout)
+        self.assertTrue(result.stdout.rstrip().endswith(f"Shell opened: {task} ['-i']"))
+        self.assertNotIn("Directory:", self.fx("task", "fix-login", "--no-attach", cwd=project).stdout)
+
+    def test_initial_task_terminal_keeps_the_shell_available_when_git_fails(self):
+        task = self.task()
+        git = self.bin / "git"
+        git.write_text("#!/bin/sh\nexit 23\n")
+        git.chmod(0o755)
+        self.env["SHELL"] = "/bin/true"
+        result = self.run_command(sys.executable, TOOL.parent / "fx_task.py", "shell", task)
+        self.assertIn("Could not read latest commit", result.stderr)
+        self.assertIn("Could not read git status", result.stderr)
 
     def test_task_does_not_attach_to_itself(self):
         project = self.project()
@@ -1961,7 +2002,7 @@ fx setup example "$2" || exit
 fx task fix-login
 ''', "test", TOOL, self.origin)
         captured = json.loads(result.stdout)
-        self.assertEqual(captured["arguments"][:3], ["attach", "--create", "example-fix-login"])
+        self.assertEqual(captured["arguments"][2:5], ["attach", "--create", "example-fix-login"])
 
     def test_old_shell_helper_cannot_capture_zellij_screen(self):
         project = self.project()
@@ -2003,15 +2044,15 @@ fx task fix-login
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         captured = json.loads(os.read(master, 4096).decode())
-        self.assertEqual(captured["arguments"][:3], ["attach", "--create", "example-fix-login"])
+        self.assertEqual(captured["arguments"][2:5], ["attach", "--create", "example-fix-login"])
 
     def test_same_task_name_in_different_projects_uses_distinct_sessions(self):
         first_project = self.project()
         second_project = Path(self.fx("setup", "another-project", self.origin).stdout.strip())
         first = json.loads(self.fx("task", "fix-login", cwd=first_project).stdout)
         second = json.loads(self.fx("task", "fix-login", cwd=second_project).stdout)
-        self.assertEqual(first["arguments"][2], "example-fix-login")
-        self.assertEqual(second["arguments"][2], "another-project-fix-login")
+        self.assertEqual(first["arguments"][4], "example-fix-login")
+        self.assertEqual(second["arguments"][4], "another-project-fix-login")
 
     def test_same_task_name_in_another_project_switches_sessions(self):
         project = self.project()

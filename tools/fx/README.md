@@ -197,9 +197,19 @@ copies, so later changes in the main clone do not update existing task files.
 
 After preparing the worktree, the command creates or attaches to a Zellij
 session named `<project_name>-<task_name>`. From inside Zellij, it switches sessions
-instead of nesting another client. If already in that session, it stays there.
+instead of nesting another client. A new session uses a layout with the tab bar,
+one terminal, and the status bar. The terminal prints its directory, repository
+path, Zellij session name, latest commit, and Git status before opening the
+interactive shell selected by `SHELL` (Bash when unset). Git status includes the
+branch, upstream comparison, and local changes. The summary reads the current
+worktree when the terminal starts. Git errors are reported without preventing
+the shell from opening.
+
+If already in that session, the command stays there.
 Existing sessions retain their panes and working directories. Detaching returns
 to the original terminal and its original directory. The task session stays alive.
+Reattaching does not restart the terminal or print a new startup summary.
+The `--no-attach` option prints only the task path to standard output.
 
 The project prefix lets different projects reuse a task name. Zellij session
 names are shared by the operating-system account, so the combined name must
@@ -263,7 +273,7 @@ reported error and retry. Cleanup can be retried when the worktree has already
 been removed or only the named Zellij session remains.
 Do not start another task session while deletion is in progress.
 
-### `fx agent <agent> [--name <name>] [-r l|m|h] [--prompt <text>] [--from <context-directory>] [--new-tab]`
+### `fx agent <agent> [--name <name>] [--model <model>] [-r l|m|h] [--prompt <text>] [--from <context-directory>] [--new-tab]`
 
 Run inside a task or its worktree. The agent starts in the task directory.
 The supported adapters are:
@@ -272,10 +282,44 @@ The supported adapters are:
 | --- | --- | --- |
 | `codex` | `gpt-6.1-sol` | `model_reasoning_effort` |
 | `claude` | `claude-opus-5-5` | `--effort` |
+| `glm` | `z-ai/glm-5.3` | Codex `model_reasoning_effort` |
+| `deepseek` | `deepseek/deepseek-v4.1-flash` | Codex `model_reasoning_effort` |
+| `gemini` | `google/gemini-3.8-flash` | Codex `model_reasoning_effort` |
+| `minimax` | `minimax/minimax-m3.1-flash` | Codex `model_reasoning_effort` |
 
 `-r l` selects low, `-r m` selects medium, and `-r h` selects high.
 Omitting the flag selects medium. Other values and extra arguments are rejected.
 The launcher does not substitute a different model if access fails.
+Use `--model <model>` or `-m <model>` to select another model for a new session:
+
+```bash
+fx agent glm --name implement --model z-ai/glm-5.3-flash -r h
+fx agent gemini --name review --model google/gemini-3.8-flash -r m
+fx agent claude --name review --model claude-sonnet-5-5 -r h
+```
+
+The four OpenRouter agents use the Codex harness. They require Codex CLI and
+`OPENROUTER_API_KEY` in the launching shell. Load the key from a private local
+secret source. Fx does not save it in launch records or command arguments.
+Provider settings apply only to the child Codex process. Fx does not modify
+Claude or Codex subscription credentials, global configuration, or default providers.
+The `codex` and `claude` adapters keep their existing authentication behavior.
+
+OpenRouter's public model catalog lists these identifiers without date suffixes.
+MiniMax uses the paid model. A `:free` selection is never replaced with a paid
+model automatically. Each OpenRouter launch checks the exact identifier, text
+output, tool support, and reasoning support against the public catalog.
+Catalog failures stop launch. This check does not prove account access or full
+Codex protocol compatibility. Verify a live tool-use conversation with the
+selected model before relying on it for important work.
+The connection uses OpenRouter's Responses API and command-backed authentication
+for Codex model discovery. See the
+[OpenRouter Codex guide](https://openrouter.ai/docs/cookbook/coding-agents/codex-cli).
+
+All four adapters support unattended groups and sentry process detection through
+the shared Codex implementation. Groups use each adapter's default model.
+Session directories replace model slashes and colons with hyphens. The exact
+selected model stays in `model.txt` and `launch.txt`. Group retries retain it.
 
 Without `--prompt`, the agent waits for an interactive assignment. Supply it
 to start work immediately in the interactive session:
@@ -382,6 +426,8 @@ output directory. Its hook commands retain the normal trust checks. Use
 
 Run inside a task in a Zellij session. The command opens one tab for the group.
 Members run concurrently without interactive input. The tab shows their status.
+Agent tabs use an explicit layout so a session template cannot replace the requested command.
+This applies to groups, individual launches, comparisons, resumes, and task analyses.
 After every member exits successfully with a saved final response, the runner
 starts one interactive synthesis session in that same tab. You can discuss the
 merged report in that session. No `--new-tab` flag is needed. By default, the
@@ -444,9 +490,21 @@ Provider adapters expose an executable `agents/<agent>.batch` handler. It accept
 project, task, session, reasoning, and assignment arguments. It must run without
 terminal input, preserve diagnostics, save a verified main-conversation response,
 and return success only after completion. The runner does not contain provider
-branches. Claude uses print mode. Codex uses exec mode. Neither adapter bypasses
-provider permission checks. Operations that require unavailable permission can
-remain blocked or produce an incomplete report; members must report those gaps.
+branches. Claude uses print mode for batch runs. All standard Claude launches,
+including interactive sessions, resumes, group members, and synthesis, select
+`--permission-mode auto`. Claude reviews tool calls automatically. Fx does not
+maintain a tool-specific allowlist. Existing Claude deny and ask rules still apply.
+File tools in batch runs can access the project directory, including project
+memory and Git worktree metadata.
+
+Codex uses exec mode for batch runs. Both interactive and batch Codex launches
+select `--dangerously-bypass-approvals-and-sandbox` for full access without
+approval prompts. Assignment and repository instructions still define the scope
+of work.
+
+A Claude result containing permission denials fails the member run. The raw
+provider response remains in `events/claude-result.json`, and the capture error
+names the denied tools. Automatic synthesis waits for a successful retry.
 
 Group instructions require independent investigation. Members can read the
 task rules, project memory, project context, repository, and earlier captured
@@ -609,6 +667,36 @@ normal response handoffs. Read explicitly selected analysis reports separately
 when assigned. Fx instructions define these search boundaries; they are not
 filesystem restrictions.
 
+
+## Generate and edit images
+
+Use the Nano backend from any directory:
+
+```bash
+fx image nano --prompt 'Create a login page illustration' --output assets/login.png
+fx image nano --input assets/login.png --prompt 'Use a pale blue background' --output assets/login-blue.png
+```
+
+Nano defaults to `google/gemini-nano-banana-2.1`. Use `--model` or `-m` to select
+another OpenRouter image model. Repeat `--input` to supply reference images.
+Inputs must be PNG, JPEG, or WebP files. The command requires
+`OPENROUTER_API_KEY`. It checks the exact model's image output capability before
+sending a generation request to OpenRouter's Chat Completions API with
+`modalities: ["image", "text"]`. No coding harness is involved.
+
+The command creates missing output directories. It saves one generated image
+and prints its absolute path. The output extension must match the returned image
+format; `.png` is the usual choice. Existing outputs are never overwritten.
+The command writes through a temporary file so failures do not leave partial
+output. It reports the selected model, generation identifier, and returned usage
+on standard error. It does not print the key or encoded image data.
+
+Catalog requests have a 30-second timeout. Image generation has a 300-second
+timeout. Failed requests are not retried automatically because a generation
+can incur charges even if its response is lost. See the
+[Nano Banana API example](https://openrouter.ai/google/gemini-nano-banana-2.1/api).
+Image backends register as executables in `image-adapters/`. Top-level extension
+commands register in `commands/`; the core dispatch does not name image backends.
 
 ## Task sentry
 
@@ -930,12 +1018,13 @@ bash -n tools/fx/fx tools/fx/agents/claude tools/fx/agents/codex
 Each executable in `agents/` registers an agent under its filename.
 The main command does not contain agent-specific branches.
 An adapter supports `check` to verify its CLI exists,
-`model` to print the configured model name without starting the CLI, and
+`model [model-override]` to print the selected model name without starting the CLI, and
 `launch <project> <task> <session> <reasoning> [prompt]` to start it.
 The launcher uses the reported model in session and tab names. Model names
-start with a letter or digit and contain only letters, digits, underscores,
-dots, or hyphens. Use one model value for reporting, launch metadata, and
-the CLI argument.
+contain letters, digits, underscores, dots, slashes, colons, or hyphens, with an
+optional leading tilde for OpenRouter aliases. Directory names use a safe model
+name. `model.txt` preserves the exact selected value for the adapter.
+Use one model value for reporting, launch metadata, and the CLI argument.
 The main command sets the working directory to the task before launch.
 Keep model defaults and CLI-specific configuration inside the adapter.
 

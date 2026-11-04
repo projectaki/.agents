@@ -58,6 +58,7 @@ class GroupRunTest(unittest.TestCase):
             group_sessions(self.group)
 
     def test_retry_preserves_original_assignment_and_replaces_private_paths(self):
+        (self.first / 'model.txt').write_text('z-ai/glm-5.3\n')
         retry_members(self.group, self.manifest, self.state)
         retry = group_sessions(self.group)[0]
         self.assertNotEqual(retry, self.first)
@@ -67,6 +68,7 @@ class GroupRunTest(unittest.TestCase):
         self.assertIn(str(retry), (retry / 'handoff.md').read_text())
         self.assertIn(retry.name, (self.group / 'group.md').read_text())
         self.assertTrue(self.first.exists())
+        self.assertEqual((retry / 'model.txt').read_text(), 'z-ai/glm-5.3\n')
 
     def test_retry_rejects_completed_group_but_recovers_missing_result(self):
         result = save_response(self.first, 'agent', 'conversation', 'turn', 'Report')

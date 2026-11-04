@@ -71,6 +71,11 @@ Each task contains `repo/`, `AGENTS.md`, and `context/`. Agents start in the
 task directory. Source commands run in its `repo/` directory. Read task and
 repository instructions before edits.
 
+New Zellij sessions show the directory, repository path, session name, latest
+commit, and Git status in their initial terminal, then open the interactive
+`SHELL` (Bash when unset). Existing sessions retain their terminals without a
+new summary. `--no-attach` keeps standard output limited to the task path.
+
 Without `--base`, new tasks use `feature/<task-name>` and the fetched default
 from `origin/HEAD`. Existing task worktrees keep their current branch and files.
 When no worktree exists, fx reuses an existing `feature/<task-name>`, `<task-name>`,
@@ -278,8 +283,15 @@ handoff limit. Legacy interactive groups still require manual completion checks.
 
 Adapters implement unattended execution in `agents/<agent>.batch`. The group
 runner never branches on provider names. Claude uses print mode; Codex uses
-exec mode. Normal provider permissions still apply. Missing permissions must be
-reported as investigation gaps. A successful exit does not prove full coverage.
+exec mode. Standard Claude launches use `--permission-mode auto`, including
+interactive sessions, resumes, group members, and synthesis. Fx supplies no
+tool-specific allowlist. Claude's existing deny and ask rules still apply.
+Codex interactive and batch launches use full access through
+`--dangerously-bypass-approvals-and-sandbox`. Batch file tools can access the
+project directory. Assignment and repository instructions still define the scope.
+A Claude permission denial fails the member instead of publishing it as complete;
+inspect the preserved provider result and capture error before retrying.
+A successful exit does not prove full coverage.
 
 Each group records one `source.json` identity and supplies it to every member.
 This identifies the commit and tracked plus nonignored untracked source content.

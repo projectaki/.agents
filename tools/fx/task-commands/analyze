@@ -54,7 +54,8 @@ if [[ "$new_tab" == true ]]; then
 fi
 command -v python3 >/dev/null || fail 'Install Python 3 to inventory task evidence.'
 ensure_directory "$task/context/analyses"
-session="$(python3 "$tool_dir/fx_session.py" "$task" "$task/context/analyses" "analyze-$model")"
+session="$(python3 "$tool_dir/fx_session.py" "$task" "$task/context/analyses" "analyze-$(python3 "$tool_dir/fx_models.py" slug "$model")")"
+printf '%s\n' "$model" > "$session/model.txt"
 python3 "$tool_dir/fx_analyze.py" "$task" "$session" > "$session/evidence-inventory.json"
 prompt="$(cat "$tool_dir/templates/analyze.md")
 

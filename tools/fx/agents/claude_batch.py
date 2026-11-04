@@ -13,6 +13,14 @@ def final_response(path):
     result = json.loads(path.read_text())
     if not isinstance(result, dict) or result.get("is_error") or result.get("subtype") != "success":
         raise ValueError("Claude did not complete the investigation successfully.")
+    denials = result.get("permission_denials", [])
+    if not isinstance(denials, list) or any(
+            not isinstance(item, dict) or not isinstance(item.get("tool_name"), str) for item in denials):
+        raise ValueError("Claude returned invalid permission-denial details.")
+    if denials:
+        tools = sorted({item["tool_name"] for item in denials})
+        raise ValueError("Claude encountered permission denials: " + ", ".join(tools)
+                         + ". The provider response is preserved for diagnosis.")
     conversation, response = result.get("session_id"), result.get("result")
     if not isinstance(conversation, str) or not conversation or not isinstance(response, str) or not response.strip():
         raise ValueError("Claude returned no conversation ID or final response.")
@@ -34,10 +42,11 @@ def main():
                            stdout=stream, check=True)
         command = ["claude", "--model", model, "--effort", reasoning,
                    "--append-system-prompt-file", str(session / "instructions.md"),
-                   "--add-dir", str(Path(project) / "project_context"),
+                   "--add-dir", project,
                    "--settings", str(settings),
                    "--debug-file", str(events / "claude-debug.log"),
                    "--print", "--output-format", "json", "--permission-prompts", "none",
+                   "--permission-mode", "auto",
                    "--", prompt]
         with (session / "launch.txt").open("a") as launch:
             launch.write(f"model={model}\n")

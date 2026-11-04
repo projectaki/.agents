@@ -3,7 +3,7 @@ set -euo pipefail
 
 model=claude-opus-5-5
 if [[ "${1-}" == model ]]; then
-  printf '%s\n' "$model"
+  python3 "$(dirname -- "${BASH_SOURCE[0]}")/../fx_models.py" validate "${2:-$model}"
   exit
 fi
 
@@ -34,6 +34,9 @@ events_dir="$(python3 "$adapter_dir/../fx_events.py" "$session" "$native_log")"
 if [[ "$action" == locked-resume ]]; then
   claude --version > "$events_dir/$native_log.version.txt"
 else
+  if [[ -f "$session/model.txt" ]]; then
+    model="$(cat "$session/model.txt")"
+  fi
   claude --version > "$events_dir/harness-version.txt"
   python3 "$adapter_dir/claude_capture.py" settings "$session" > "$session/claude-settings.json"
   printf 'model=%s\n' "$model" >> "$session/launch.txt"
@@ -48,5 +51,6 @@ exec claude \
   --add-dir "$project/project_context" \
   --settings "$session/claude-settings.json" \
   --debug-file "$events_dir/$native_log" \
+  --permission-mode auto \
   "${resume_args[@]}" \
   "$@"
