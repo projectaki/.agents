@@ -251,9 +251,9 @@ fx agent group --name review --agent claude:h --agent codex:h \
   --prompt 'Review the current changes independently. Do not edit source or shared context. Record supported findings in your own session directory.'
 ```
 
-The default group runs Claude, Codex, DeepSeek, GLM, MiniMax, and Gemini.
-Codex, DeepSeek, and GLM explicitly use high reasoning. Claude, MiniMax, and
-Gemini use `-r`, which defaults to medium. The four OpenRouter agents require
+The default group runs Claude, Codex, DeepSeek, GLM, and MiniMax.
+Codex, DeepSeek, and GLM explicitly use high reasoning. Claude and MiniMax
+use `-r`, which defaults to medium. The three OpenRouter agents require
 `OPENROUTER_API_KEY`. This default supports evaluation and difficult investigations.
 Repeated `--agent` flags replace `default-group`. Members without an explicit
 level use `-r`. No `--new-tab` flag is needed.

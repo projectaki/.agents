@@ -1338,9 +1338,9 @@ pwd -P
                          str(task.parent.parent), str(task), group.name])
         manifest = json.loads((group / "run.json").read_text())
         self.assertEqual([member["agent"] for member in manifest["members"]],
-                         ["claude", "codex", "deepseek", "glm", "minimax", "gemini"])
+                         ["claude", "codex", "deepseek", "glm", "minimax"])
         self.assertEqual([member["reasoning"] for member in manifest["members"]],
-                         ["medium", "high", "high", "high", "medium", "medium"])
+                         ["medium", "high", "high", "high", "medium"])
         self.assertEqual(manifest["synthesis_agent"], "claude")
         for member in manifest["members"]:
             session = group / member["session"]
@@ -1384,7 +1384,7 @@ pwd -P
     def test_group_default_reasoning_and_single_member(self):
         task = self.task()
         self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
-        for options, levels in ((["-r", "l"], ["low", "high", "high", "high", "low", "low"]),
+        for options, levels in ((["-r", "l"], ["low", "high", "high", "high", "low"]),
                                 (["--agent", "codex"], ["medium"])):
             result = self.fx("agent", "group", "--name", "review", *options, "--prompt", "--help", cwd=task)
             group = task / "context/groups" / json.loads(result.stdout)["arguments"][-1]

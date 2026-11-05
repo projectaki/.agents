@@ -436,7 +436,7 @@ This applies to groups, individual launches, comparisons, resumes, and task anal
 After every member exits successfully with a saved final response, the runner
 starts one interactive synthesis session in that same tab. You can discuss the
 merged report in that session. No `--new-tab` flag is needed. By default, the
-group contains six independent sessions:
+group contains five independent sessions:
 
 | Agent | Reasoning |
 | --- | --- |
@@ -445,10 +445,9 @@ group contains six independent sessions:
 | DeepSeek | High |
 | GLM | High |
 | MiniMax | Medium |
-| Gemini | Medium |
 
 This default supports model evaluation and difficult investigations.
-DeepSeek, GLM, MiniMax, and Gemini require `OPENROUTER_API_KEY`.
+DeepSeek, GLM, and MiniMax require `OPENROUTER_API_KEY`.
 Synthesis uses interactive Claude by default.
 
 ```bash
@@ -483,7 +482,7 @@ The same agent can appear more than once. Append `:l`, `:m`, or `:h` to select
 its reasoning level. Members without a level use `-r`, which defaults to medium.
 The order of the options does not affect this rule.
 The default Codex, DeepSeek, and GLM entries explicitly select high reasoning.
-With the default list, `-r` changes only Claude, MiniMax, and Gemini.
+With the default list, `-r` changes only Claude and MiniMax.
 Use explicit `--agent` entries to change all member levels or select fewer members.
 
 ```bash
