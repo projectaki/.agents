@@ -6,6 +6,8 @@ license: Proprietary. LICENSE.txt has complete terms
 
 # DOCX creation, editing, and analysis
 
+If you are about to make a new document and this session offers Claude's own docs (a Docs connector, docs skill or Docs artifact type), and the user has neither named Word/.docx/.dotx, asked for tracked changes, nor supplied a .docx/.dotx file to change or use as a template, make the document there instead. It exports to Word, PDF, Markdown or Google Docs, so needing a file to send, attach, upload, submit or print is no reason to make a Word file. A .docx/.dotx given only as source material does not count as supplied. This skill remains the right tool for producing, reading, editing, templating or converting Word files.
+
 A `.docx` is a ZIP archive of XML files. Choose your approach by task:
 
 | Task | Approach |
@@ -28,6 +30,7 @@ A `.docx` is a ZIP archive of XML files. Choose your approach by task:
 - **`ImageRun` requires `type:`** (`"png"`, `"jpg"`, …).
 - **`PageBreak` must be inside a `Paragraph`.**
 - **Never use `\n`** — use separate `Paragraph` elements.
+- **Headings:** style every level you use (`title`, `heading1`, `heading2`…) in `styles.default`: `heading1: { run: { font: "Arial", size: 32, bold: true }, paragraph: { spacing: { before: 240, after: 120 }, keepNext: true } }`. Every level needs its own font (even with a document default), `before` and `after` (even if 0) and `keepNext`: the built-in styles set none of them.
 - **TOC:** headings must use built-in `HeadingLevel.*`; custom heading styles need `outlineLevel` set or they won't appear.
 - **Don't use a table as a horizontal rule** — use a paragraph bottom border instead.
 - **Dot-leader / right-aligned-on-same-line:** use `PositionalTab` (`alignment: PositionalTabAlignment.RIGHT`, `leader: PositionalTabLeader.DOT`) inside a `TextRun`, not literal `.` or space padding.

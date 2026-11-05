@@ -288,6 +288,15 @@ Text addressed to me is not text written on my behalf. Do not
 impersonate me in status updates, questions, reports, or other
 direct communication with me.
 
+## Replies to GitHub Comments
+
+- Keep replies short, direct, and simple.
+- Start with the answer, action, or reason.
+- Do not add praise or routine acknowledgments such as "Good catch,"
+  "Great point," "You're absolutely right," or "Thanks for flagging this."
+- State what I changed, explain my decision, or ask a specific question.
+- Include only the detail needed to address the comment. Stay respectful.
+
 ## Keep Documents as Current-State Snapshots
 
 Treat each document as a description of the current state.

@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+tool_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+backend="${1-}"
+if [[ "$backend" == --help || "$backend" == -h ]]; then
+  printf '%s\n' 'Usage: fx image <backend> --prompt <text> --output <path> [--input <path>] [--model <model>]'
+  exit
+fi
+[[ "$backend" =~ ^[a-zA-Z0-9][a-zA-Z0-9_-]*$ && -x "$tool_dir/image-adapters/$backend" ]] || {
+  printf 'fx: Select an installed image backend. Run fx image --help.\n' >&2
+  exit 1
+}
+shift
+exec "$tool_dir/image-adapters/$backend" "$@"

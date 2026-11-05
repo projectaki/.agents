@@ -11,3 +11,4 @@ Inputs: Identified bug, expected behavior, and relevant code.
 - Make the smallest code fix that addresses the bug.
 - Rerun the same tests without weakening their assertions. Record passing results and any matching visual evidence needed to show the fix.
 - Keep the regression tests. Report the before-and-after evidence. If reproduction or verification is blocked, state what is missing instead of claiming success.
+- When fx supplies a handoff file, keep it current with scope and success criteria, original approval references and limits, exact source identity, required test setup, completed checks, and remaining findings. Include the failing-test and passing-test evidence paths. Distinguish observed results from planned checks. Do not treat an agent summary as approval.

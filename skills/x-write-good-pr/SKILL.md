@@ -1,22 +1,31 @@
 ---
 name: x-write-good-pr
-description: Write pull request titles and descriptions that explain the feature, implementation, and reasons for each design decision with supporting evidence.
+description: Write concise pull request titles and descriptions that help reviewers understand the behavior, key design decisions, and material risks.
 ---
 
 Inputs: Changes, feature requirements, and evidence; optional design notes and description requirements.
 
-- Read the full diff and relevant surrounding code. Identify responsibilities, module boundaries, important concepts, and design decisions directly from the inputs.
+- Read the full diff and relevant surrounding code. Identify the problem, resulting behavior, key design decisions, and material risks directly from the inputs.
 - Write a specific title. Use my voice and describe the current implementation without relying on chat history.
-- Support each factual claim with a reference beside it: relevant code lines, a test, a focused code snippet, or other direct evidence. Use links reviewers can access and the code version that proves the claim. For prior behavior, cite the original code or a regression test shown to fail before the fix.
 - Keep claims within what the evidence proves. Label inferences and uncertainties. Ask for missing decision rationale instead of inventing it. Omit unsupported assertions.
-- Structure the description in the order below. Omit sections that do not apply. Do not include a validation section, local test results, or repeated continuous integration results.
+- Link evidence where it helps reviewers assess a non-obvious claim, security constraint, or important decision. Use focused references to the code version that proves the claim. For prior behavior, use the original code or a regression test shown to fail before the fix. Do not attach a citation to every sentence or repeat the same reference.
+
+## Length and selection
+
+- Aim for 150–300 words for a typical description. Small changes may need only a few sentences. Complex changes may need more space, but each extra detail must help a reviewer assess correctness, design, or deployment safety. Never remove a critical constraint to meet the word target.
+- Lead with the problem and resulting behavior. Include a short example only when it makes the behavior easier to understand.
+- Explain only the implementation choices whose reasons are not clear from the diff. Keep the reason beside the choice. Omit routine wiring, file inventories, pattern names, and step-by-step code narration unless they explain a material constraint.
+- State each fact once. Combine related decisions. Link existing documentation for extended mechanics instead of copying it into the description. Do not move excess text into an optional-reading section.
+- Keep essential security rules, compatibility limits, known coverage gaps, approved exceptions, and required operational actions visible when they apply. Describe concrete risks rather than listing generic possibilities.
+- Do not include a validation section, local test results, or repeated continuous integration results. Mention test coverage only when it explains an important guarantee or gap.
 
 ## Description structure
 
-1. **Overview:** Give a detailed explanation of the feature or changed behavior. Explain who uses it, what they can now do, how it behaves, and the problem it solves. Include a concrete example when useful. Make it understandable without reading the code.
-2. **Key concepts, boundaries, and implementation:** Cover each added or materially changed concept, module boundary, and entry point. Explain what it is, why it exists, how it was implemented, and how it connects to the system. Describe the main execution or data flow. For each concept, explain the design decisions, why the selected approach fits, and how it improves the code. Name patterns and structural choices explicitly, including choices such as Strategy or a static utility function. Explain relevant tradeoffs and alternatives only when supported by evidence. Group repeated decisions without omitting their rationale.
-3. **Review guidance:** Suggest a reading order with focused file references. Identify design decisions that need particular attention.
-4. **Implementation details (optional reading):** Explain lower-level mechanics and their rationale. Keep the main implementation approach and decisions affecting correctness, security, or public behavior in the main explanation.
-5. **Screenshots:** Include for user interface changes. Add placeholders naming each screen, state, and action to capture and upload. Do not imply missing screenshots exist.
-6. **Affected production behavior and potential regressions:** Include only when changing code already deployed to production. Describe the affected behavior, reach of the change, and plausible regressions.
-7. **Compatibility and rollout:** Include only for infrastructure changes. Explain relevant compatibility constraints, migrations, configuration, deployment order, and rollback requirements.
+Use only the sections the change needs. Simple descriptions do not need headings.
+
+1. **Summary:** One short paragraph explaining the problem and resulting behavior. Make it understandable without reading the code.
+2. **Key decisions:** A few short bullets covering the important implementation choices and their reasons. Include a focused file reference or review question only when it helps direct attention to a difficult or risky part.
+3. **Risks and rollout:** Include when there are concrete production risks, compatibility constraints, migrations, configuration changes, deployment steps, or rollback requirements. State defaults and any action required to activate the behavior. This applies to application changes as well as infrastructure changes.
+4. **Screenshots:** Include for user interface changes. Add placeholders naming each screen, state, and action to capture and upload. Do not imply missing screenshots exist.
+
+Before finishing, reread the description as a reviewer. Remove repetition and details the diff already explains. Confirm that the reader can identify what changes, why the key choices matter, and what needs special care.

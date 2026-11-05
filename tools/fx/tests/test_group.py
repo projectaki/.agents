@@ -1,0 +1,155 @@
+import json
+from pathlib import Path
+import sys
+import tempfile
+import unittest
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from fx_context import save_response
+from fx_group import comparison_context, resolve_group
+
+
+class GroupNameTest(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.task = Path(self.temporary.name)
+        self.root = self.task / "context/groups"
+        self.root.mkdir(parents=True)
+
+    def group(self, name):
+        group = self.root / name
+        group.mkdir()
+        (group / "group.md").write_text("Group")
+        return group
+
+    def test_short_and_exact_names_resolve_to_the_same_group(self):
+        group = self.group("review-Ab12Cd34")
+        self.assertEqual(resolve_group(self.task, "review"), group)
+        self.assertEqual(resolve_group(self.task, group.name), group)
+
+    def test_numbered_group_short_and_exact_names_resolve(self):
+        group = self.group("000001-review")
+        self.assertEqual(resolve_group(self.task, "review"), group)
+        self.assertEqual(resolve_group(self.task, group.name), group)
+
+    def test_numbered_and_legacy_groups_with_same_name_are_ambiguous(self):
+        self.group("000001-review")
+        self.group("review-Ab12Cd34")
+        with self.assertRaisesRegex(ValueError, "ambiguous"):
+            resolve_group(self.task, "review")
+
+    def test_similar_names_do_not_match_another_group(self):
+        self.group("review-deep-Ab12Cd34")
+        with self.assertRaisesRegex(ValueError, "not found"):
+            resolve_group(self.task, "review")
+
+    def test_ambiguous_name_lists_all_matches(self):
+        first = self.group("review-Ab12Cd34")
+        second = self.group("review-Ef56Gh78")
+        with self.assertRaisesRegex(ValueError, "ambiguous") as error:
+            resolve_group(self.task, "review")
+        self.assertIn(first.name, str(error.exception))
+        self.assertIn(second.name, str(error.exception))
+        self.assertEqual(resolve_group(self.task, second.name), second)
+
+    def test_invalid_names_are_rejected(self):
+        for name in ("", "../review", "a/b", "--latest", "a*", "with spaces"):
+            with self.subTest(name=name):
+                with self.assertRaisesRegex(ValueError, "name, not a path"):
+                    resolve_group(self.task, name)
+
+    def test_unmarked_directory_and_group_symlink_are_rejected(self):
+        (self.root / "unmarked").mkdir()
+        with self.assertRaisesRegex(ValueError, "Expected a group"):
+            resolve_group(self.task, "unmarked")
+        target = self.group("actual-Ab12Cd34")
+        (self.root / "alias-Ab12Cd34").symlink_to(target)
+        with self.assertRaisesRegex(ValueError, "Expected a group"):
+            resolve_group(self.task, "alias")
+
+    def test_comparison_context_includes_assignment_and_member_response(self):
+        group = self.group("review-Ab12Cd34")
+        (group / "initial_prompt.md").write_text("Review the login flow.")
+        member = group / "1-agent"
+        member.mkdir()
+        (member / "instructions.md").write_text("Workspace guidance")
+        (member / "tab-request.txt").write_text("accepted\n")
+        save_response(member, "test-agent", "conversation", "turn", "Login needs input validation.")
+        context = comparison_context(self.task, group)
+        self.assertIn("Review the login flow.", context)
+        self.assertIn("1-agent/results/turn-000001/response.md", context)
+        self.assertIn("Read every response file", context)
+        self.assertNotIn("Login needs input validation.", context)
+
+    def test_only_interactive_comparison_accepts_running_members_with_responses(self):
+        group = self.group('000001-review')
+        member = group / '1-agent'
+        member.mkdir()
+        (member / 'instructions.md').write_text('Guidance')
+        first = save_response(member, 'agent', 'conversation', 'one', 'First report')
+        for interactive in (False, True):
+            (group / 'run.json').write_text(json.dumps({
+                'interactive': interactive, 'members': [{'session': member.name}]}))
+            for status in ('waiting', 'running', 'finished', 'failed', 'cancelled'):
+                with self.subTest(interactive=interactive, status=status):
+                    (group / 'run-state.json').write_text(json.dumps({
+                        'members': {member.name: {'status': status}}}))
+                    if status == 'finished' or interactive and status == 'running':
+                        context = comparison_context(self.task, group)
+                        self.assertIn(str(first.relative_to(self.task) / 'response.md'), context)
+                    else:
+                        with self.assertRaisesRegex(ValueError, 'not finished successfully'):
+                            comparison_context(self.task, group)
+        later = save_response(member, 'agent', 'conversation', 'two', 'Later report')
+        self.assertNotIn(str(later.relative_to(self.task) / 'response.md'), context)
+
+    def test_comparison_lists_large_reports_without_truncating_them(self):
+        group = self.group("000001-review")
+        member = group / "1-agent"
+        member.mkdir()
+        (member / "instructions.md").write_text("Guidance")
+        response = "Detailed evidence.\n" * 10000
+        result = save_response(member, "agent", "conversation", "turn", response)
+        context = comparison_context(self.task, group)
+        self.assertIn(str(result.relative_to(self.task) / "response.md"), context)
+        self.assertEqual((result / "response.md").read_text(), response)
+
+    def test_comparison_snapshots_usage_and_tolerates_unavailable_summary(self):
+        group = self.group('000001-review')
+        member = group / '1-agent'
+        member.mkdir()
+        (member / 'instructions.md').write_text('Guidance')
+        save_response(member, 'agent', 'conversation', 'turn', 'Report')
+        summary = group / 'usage-summary.md'
+        summary.write_text('Estimated cost: $0.25. Runtime: 5s.')
+        context = comparison_context(self.task, group)
+        self.assertIn('Estimated cost: $0.25', context)
+        summary.write_text('x' * 24_001)
+        self.assertIn('could not be included', comparison_context(self.task, group))
+        self.assertIn('Estimated cost: $0.25', context)
+
+    def test_comparison_rejects_a_missing_response_body(self):
+        group = self.group("000001-review")
+        member = group / "1-agent"
+        member.mkdir()
+        (member / "instructions.md").write_text("Guidance")
+        result = save_response(member, "agent", "conversation", "turn", "Report")
+        (result / "response.md").unlink()
+        with self.assertRaisesRegex(ValueError, "file is missing"):
+            comparison_context(self.task, group)
+
+    def test_comparison_context_rejects_unaccepted_member_tab(self):
+        group = self.group("review-Ab12Cd34")
+        member = group / "1-agent"
+        member.mkdir()
+        (member / "instructions.md").write_text("Workspace guidance")
+        for state in ("pending", "requesting", "failed: 23"):
+            with self.subTest(state=state):
+                (member / "tab-request.txt").write_text(state)
+                with self.assertRaisesRegex(ValueError, "not accepted"):
+                    comparison_context(self.task, group)
+
+
+if __name__ == "__main__":
+    unittest.main()
