@@ -5,6 +5,7 @@ from pathlib import Path
 import re
 import stat
 import sys
+from fx_access import validate_access
 
 
 def session_metadata(session):
@@ -43,7 +44,7 @@ def resolve_session(task, agent, supplied):
     return path
 
 
-def exec_locked(session, command):
+def exec_locked(session, command, access=None):
     descriptor = os.open(Path(session) / ".fx-agent.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
     if not stat.S_ISREG(os.fstat(descriptor).st_mode):
         os.close(descriptor)
@@ -54,6 +55,11 @@ def exec_locked(session, command):
         os.close(descriptor)
         raise ValueError("This session is already running. Exit it before resuming.")
     os.set_inheritable(descriptor, True)
+    if access is not None:
+        path = Path(session) / "access.txt"
+        if path.is_symlink():
+            raise ValueError("Saved access must not be a symbolic link.")
+        path.write_text(validate_access(access) + "\n")
     os.execvp(command[0], command)
 
 
@@ -68,6 +74,7 @@ def main():
     metadata.add_argument("session")
     metadata.add_argument("field", choices=("agent", "reasoning", "model"))
     lock = commands.add_parser("lock")
+    lock.add_argument("--access", choices=("auto", "full"))
     lock.add_argument("session")
     lock.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args()
@@ -79,7 +86,7 @@ def main():
         else:
             if not args.command:
                 raise ValueError("Supply an agent command to lock.")
-            exec_locked(args.session, args.command)
+            exec_locked(args.session, args.command, args.access)
     except (OSError, ValueError) as error:
         print(f"fx: Cannot resume or launch session: {error}", file=sys.stderr)
         return 1

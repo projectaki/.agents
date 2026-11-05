@@ -6,6 +6,8 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from fx_context import captured_results, report_capture_error, response_metadata, save_response
+from fx_access import session_access
+from claude_access import permission_mode
 from fx_events import prepare_events
 
 
@@ -46,7 +48,7 @@ def main():
                    "--settings", str(settings),
                    "--debug-file", str(events / "claude-debug.log"),
                    "--print", "--output-format", "json", "--permission-prompts", "none",
-                   "--permission-mode", "bypassPermissions",
+                   "--permission-mode", permission_mode(session_access(session)),
                    "--", prompt]
         with (session / "launch.txt").open("a") as launch:
             launch.write(f"model={model}\n")

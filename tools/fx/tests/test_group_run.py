@@ -59,9 +59,11 @@ class GroupRunTest(unittest.TestCase):
 
     def test_retry_preserves_original_assignment_and_replaces_private_paths(self):
         (self.first / 'model.txt').write_text('z-ai/glm-5.3\n')
+        (self.first / 'access.txt').write_text('auto\n')
         retry_members(self.group, self.manifest, self.state)
         retry = group_sessions(self.group)[0]
         self.assertNotEqual(retry, self.first)
+        self.assertEqual((retry / 'access.txt').read_text(), 'auto\n')
         self.assertEqual((retry / 'initial_prompt.md').read_text(), (self.first / 'initial_prompt.md').read_text())
         self.assertEqual((retry / 'input-context.md').read_text(), 'Starting context')
         self.assertIn(str(retry / 'findings.md'), (retry / 'instructions.md').read_text())

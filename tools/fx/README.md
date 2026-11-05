@@ -581,21 +581,59 @@ Provider adapters expose an executable `agents/<agent>.batch` handler. It accept
 project, task, session, reasoning, and assignment arguments. It must run without
 terminal input, preserve diagnostics, save a verified main-conversation response,
 and return success only after completion. The runner does not contain provider
-branches. Claude uses print mode for batch runs. All standard Claude launches,
-including interactive sessions, resumes, group members, and synthesis, select
-`--permission-mode bypassPermissions`. Session settings explicitly set
-`sandbox.enabled` to `false`. Resume applies this setting to saved sessions and
-preserves their other settings and hooks. Fx does not maintain a tool-specific
-allowlist. Managed policies and explicit deny or ask rules can still restrict access.
-File tools in batch runs can access the project directory, including project
-memory and Git worktree metadata.
+branches. Claude uses print mode for batch runs. Codex uses exec mode.
 
-Codex uses exec mode for batch runs. Both interactive and batch Codex launches
-select `--dangerously-bypass-approvals-and-sandbox` for full access without
-approval prompts. Assignment and repository instructions still define the scope
-of work. Restart running sessions to apply launcher changes. These settings grant
-the agents the access of the VPS account. They do not grant root privileges or
-start missing services. Sentry retains its read-only diagnostic tools.
+### Agent access
+
+Pass `--access auto` or `--access full` to an agent or group launch.
+New sessions default to `auto`. Set `export FX_ACCESS=full` in the VPS shell
+configuration to make full access the default there. A launch flag overrides
+the environment variable. Fx does not detect the machine type.
+
+```bash
+fx agent claude --name implement --access auto --prompt 'Implement the assigned change.'
+fx agent codex --name implement --access full --prompt 'Implement the assigned change.'
+fx agent group --name review --access auto --agent claude --agent codex \
+  --prompt 'Review the current changes independently.'
+```
+
+| Access | Claude | Codex and adapters that use Codex |
+| --- | --- | --- |
+| `auto` | `--permission-mode auto`: classifier review; user sandbox settings apply | `--approve-for-me`: workspace sandbox with automatic approval review |
+| `full` | `--permission-mode bypassPermissions`; fx sets `sandbox.enabled` to `false` | `--dangerously-bypass-approvals-and-sandbox` |
+
+The selected mode is saved in `access.txt` in each session and group directory.
+Group retries and synthesis keep that selection, even if `FX_ACCESS` changes.
+Claude resumes also preserve it. Pass `--access` to resume or group compare to
+override the saved mode for that session. A resume override becomes its saved
+mode. A comparison override does not change the group's mode. When resuming or
+comparing old sessions without a saved mode, fx uses `FX_ACCESS`, or `auto` when
+it is unset. Adapters run sessions without a saved mode in auto mode.
+
+Auto mode uses the provider's approval review. It does not approve every action.
+Account policies, provider support, and explicit permission rules still apply.
+Claude can fall back to manual permissions when its auto mode is unavailable.
+Unattended runs cannot answer manual prompts. Permission denials fail Claude
+members. Fx never retries a denied launch with full access.
+See [Claude permission modes](https://code.claude.com/docs/en/permission-modes)
+and [Codex automatic review](https://learn.chatgpt.com/docs/sandboxing/auto-review).
+
+In auto mode, fx does not force Claude's Bash sandbox off. When switching a
+saved full-access session to auto, fx removes its `sandbox.enabled: false`
+override and preserves the other saved settings and capture hooks. Configure
+Claude's sandbox in your own settings if you want operating-system isolation
+in addition to classifier review.
+
+Access handlers register as `agents/<agent>.access`. They accept `auto` or
+`full`, validate support, and return a provider-specific option. Adapters without
+an access handler require `--access full` or `FX_ACCESS=full`. Fx checks support
+before creating a session or group. Provider mapping stays in adapter files.
+Sentry retains its read-only diagnostic tools.
+
+Assignment and repository instructions still define the scope of work.
+Full access grants the access of the current account. It does not grant root
+privileges or start missing services. Restart running sessions to apply
+launcher changes.
 
 A Claude result containing permission denials fails the member run. The raw
 provider response remains in `events/claude-result.json`, and the capture error

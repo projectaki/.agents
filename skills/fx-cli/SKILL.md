@@ -166,6 +166,16 @@ Adapters are executable files in `tools/fx/agents/`. Model selection belongs
 to those adapters. Inspect the selected adapter when exact model choice matters;
 do not invent a model flag or substitute a model after an access error.
 Reasoning levels are `l` (low), `m` (medium, the default), and `h` (high).
+Access defaults to `auto`. Pass `--access auto` for provider approval review or
+`--access full` to bypass approvals and sandboxing. Set `export FX_ACCESS=full`
+in the VPS shell configuration to select full access there. An explicit flag
+overrides that default. Fx does not detect the machine type. Native provider
+support and managed policies still apply; auto does not approve every action.
+The selected mode is saved in `access.txt`. New tabs, group retries, synthesis,
+and Claude resumes preserve it. Resume and group compare accept `--access` to
+override the saved selection. Resuming or comparing old sessions without a
+selection uses the machine default. Custom adapters need an
+`agents/<agent>.access` handler for auto mode.
 Keep prompt text in one safely quoted argument. For complex text, read it from
 a file with `--prompt "$(cat /absolute/path/assignment.txt)"`.
 
@@ -189,8 +199,9 @@ directory and must stay inside this task's context. Absolute paths also work.
 can be resumed by their own session directories.
 
 Resume preserves the model, reasoning, original instructions, findings,
-and starting context. It preserves saved settings and hooks, but explicitly disables
-the shell sandbox. It appends callback events and captures new responses in
+and starting context. It preserves saved settings and hooks. Full access disables
+the shell sandbox. Auto restores user sandbox configuration. It appends callback
+events and captures new responses in
 the same session. Each resumed launch gets its own native debug log under
 `events/claude-debug-resume-<unique-id>.log`; original logs remain unchanged.
 It does not resend the initial assignment or allocate a new context directory.
@@ -319,14 +330,12 @@ handoff limit. Legacy interactive groups still require manual completion checks.
 
 Adapters implement unattended execution in `agents/<agent>.batch`. The group
 runner never branches on provider names. Claude uses print mode; Codex uses
-exec mode. Standard Claude launches use `--permission-mode bypassPermissions`, including
-interactive sessions, resumes, group members, and synthesis. Fx supplies no
-tool-specific allowlist. Session settings set `sandbox.enabled` to `false`,
-including resumed sessions. Managed policies and explicit deny or ask rules can
-still restrict access.
-Codex interactive and batch launches use full access through
-`--dangerously-bypass-approvals-and-sandbox`. Batch file tools can access the
-project directory. Assignment and repository instructions still define the scope.
+exec mode. Auto access selects Claude's `--permission-mode auto` or Codex's
+`--approve-for-me`, including batch members and synthesis. Full access selects
+Claude's `bypassPermissions` mode with its shell sandbox disabled, or Codex's
+`--dangerously-bypass-approvals-and-sandbox`. Fx supplies no tool-specific
+allowlist. Managed policies and explicit deny or ask rules can still restrict
+access. Assignment and repository instructions still define the scope.
 A Claude permission denial fails the member instead of publishing it as complete;
 inspect the preserved provider result and capture error before retrying.
 A successful exit does not prove full coverage.

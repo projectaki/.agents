@@ -13,7 +13,10 @@ if [[ "${1-}" == check ]]; then
 fi
 
 adapter_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-if [[ "${1-}" == launch || "${1-}" == resume ]]; then
+if [[ "${1-}" == resume ]]; then
+  exec python3 "$adapter_dir/../fx_resume.py" lock --access "$6" "$4" "$adapter_dir/claude" locked-resume "${@:2:4}"
+fi
+if [[ "${1-}" == launch ]]; then
   exec python3 "$adapter_dir/../fx_resume.py" lock "$4" "$adapter_dir/claude" "locked-$1" "${@:2}"
 fi
 [[ "${1-}" == locked-launch || "${1-}" == locked-resume ]] || { printf 'fx: Unsupported Claude adapter action.\n' >&2; exit 1; }
@@ -28,7 +31,7 @@ if [[ "$action" == locked-resume ]]; then
   model="$(python3 "$adapter_dir/../fx_resume.py" metadata "$session" model)"
   [[ -f "$session/claude-settings.json" && ! -L "$session/claude-settings.json" ]] || { printf 'fx: Original Claude settings are missing or are a symbolic link.\n' >&2; exit 1; }
   native_log="claude-debug-resume-$(python3 -c 'import uuid; print(uuid.uuid4())').log"
-  python3 "$adapter_dir/claude_capture.py" disable-sandbox "$session"
+  python3 "$adapter_dir/claude_capture.py" configure-access "$session"
   resume_args=(--resume "$conversation")
 fi
 events_dir="$(python3 "$adapter_dir/../fx_events.py" "$session" "$native_log")"
@@ -42,6 +45,9 @@ else
   python3 "$adapter_dir/claude_capture.py" settings "$session" > "$session/claude-settings.json"
   printf 'model=%s\n' "$model" >> "$session/launch.txt"
 fi
+access="$(python3 "$adapter_dir/../fx_access.py" read --saved "$session")"
+permission_mode="$("$adapter_dir/claude.access" "$access")"
+printf 'fx: Agent access: %s\n' "$access" >&2
 shift 5
 [[ $# == 0 ]] || set -- -- "$1"
 unset CLAUDE_CODE_EFFORT_LEVEL
@@ -52,6 +58,6 @@ exec claude \
   --add-dir "$project/project_context" \
   --settings "$session/claude-settings.json" \
   --debug-file "$events_dir/$native_log" \
-  --permission-mode bypassPermissions \
+  --permission-mode "$permission_mode" \
   ${resume_args[@]+"${resume_args[@]}"} \
   "$@"

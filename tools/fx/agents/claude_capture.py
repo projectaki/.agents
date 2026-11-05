@@ -7,6 +7,8 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from fx_context import report_capture_error, save_response
 from fx_events import capture_event
+from fx_access import session_access
+from claude_access import configure_settings
 
 
 HOOK_EVENTS = (
@@ -70,29 +72,25 @@ def main():
             print(f"fx: Cannot identify the Claude conversation: {error}", file=sys.stderr)
             return 1
         return 0
-    if sys.argv[1] == "disable-sandbox":
+    if sys.argv[1] == "configure-access":
         path = session / "claude-settings.json"
         try:
             settings = json.loads(path.read_text())
-            if not isinstance(settings, dict):
-                raise ValueError("Expected a Claude settings object.")
-            sandbox = settings.setdefault("sandbox", {})
-            if not isinstance(sandbox, dict):
-                raise ValueError("Expected a sandbox settings object.")
-            if sandbox.get("enabled") is not False:
-                sandbox["enabled"] = False
+            original = json.dumps(settings)
+            configure_settings(settings, session_access(session))
+            if json.dumps(settings) != original:
                 path.write_text(json.dumps(settings) + "\n")
         except (OSError, ValueError) as error:
-            print(f"fx: Cannot disable the Claude sandbox: {error}", file=sys.stderr)
+            print(f"fx: Cannot configure Claude access: {error}", file=sys.stderr)
             return 1
         return 0
     if sys.argv[1] == "settings":
-        print(json.dumps({"sandbox": {"enabled": False}, "hooks": {name: [{"hooks": [{
+        print(json.dumps(configure_settings({"hooks": {name: [{"hooks": [{
             "type": "command",
             "command": shlex.join([sys.executable, str(Path(__file__).resolve()),
                                    "capture" if name == "Stop" else "event", str(session)]),
             "timeout": 30,
-        }]}] for name in HOOK_EVENTS}}))
+        }]}] for name in HOOK_EVENTS}}, session_access(session))))
         return 0
     raw_payload = sys.stdin.read()
     capture_event(session, "claude", "hook", raw_payload)

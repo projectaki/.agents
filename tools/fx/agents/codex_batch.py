@@ -6,6 +6,8 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from fx_context import report_capture_error, save_response
+from fx_access import session_access
+from codex_access import access_arguments
 from fx_events import prepare_events
 from fx_models import session_agent, session_model
 
@@ -45,7 +47,7 @@ def run_batch(project, task, session, reasoning, prompt, model=None, provider_ar
         instructions = (session / "instructions.md").read_text()
         capture_config = subprocess.check_output(
             [sys.executable, str(adapter.with_name("codex_capture.py")), "config", str(session)], text=True).strip()
-        command = ["codex", "exec", "--dangerously-bypass-approvals-and-sandbox", "--cd", task, "--model", model,
+        command = ["codex", "exec", *access_arguments(session_access(session)), "--cd", task, "--model", model,
                    "-c", f"model_reasoning_effort={json.dumps(reasoning)}",
                    "-c", f"developer_instructions={json.dumps(instructions)}",
                    "-c", capture_config,

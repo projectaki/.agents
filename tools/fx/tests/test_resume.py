@@ -40,13 +40,19 @@ class ResumeTest(unittest.TestCase):
         })
         self.assertEqual((self.session / "findings.md").read_text(), "Preserve this file\n")
 
-    def test_generated_claude_settings_disable_sandbox_and_preserve_capture_hooks(self):
-        result = subprocess.run([sys.executable, TOOL_DIRECTORY / "agents/claude_capture.py",
-                                 "settings", self.session], capture_output=True, text=True, check=True)
-        settings = json.loads(result.stdout)
-        self.assertIs(settings["sandbox"]["enabled"], False)
-        self.assertIn("Stop", settings["hooks"])
-        self.assertIn("SessionStart", settings["hooks"])
+    def test_generated_claude_settings_apply_access_and_preserve_capture_hooks(self):
+        for access in ("auto", "full"):
+            with self.subTest(access=access):
+                (self.session / "access.txt").write_text(access)
+                result = subprocess.run([sys.executable, TOOL_DIRECTORY / "agents/claude_capture.py",
+                                         "settings", self.session], capture_output=True, text=True, check=True)
+                settings = json.loads(result.stdout)
+                if access == "full":
+                    self.assertIs(settings["sandbox"]["enabled"], False)
+                else:
+                    self.assertNotIn("sandbox", settings)
+                self.assertIn("Stop", settings["hooks"])
+                self.assertIn("SessionStart", settings["hooks"])
 
     def test_disabling_sandbox_preserves_invalid_settings_and_reports_failure(self):
         path = self.session / "claude-settings.json"
@@ -54,9 +60,9 @@ class ResumeTest(unittest.TestCase):
             with self.subTest(content=content):
                 path.write_text(content)
                 result = subprocess.run([sys.executable, TOOL_DIRECTORY / "agents/claude_capture.py",
-                                         "disable-sandbox", self.session], capture_output=True, text=True)
+                                         "configure-access", self.session], capture_output=True, text=True)
                 self.assertNotEqual(result.returncode, 0)
-                self.assertIn("Cannot disable the Claude sandbox", result.stderr)
+                self.assertIn("Cannot configure Claude access", result.stderr)
                 self.assertEqual(path.read_text(), content)
 
     def test_resolves_group_member_and_analysis_sessions(self):
@@ -128,6 +134,32 @@ class ResumeTest(unittest.TestCase):
         path.symlink_to(self.session / "saved.jsonl")
         with self.assertRaisesRegex(ValueError, "symbolic links"):
             resume_id(self.session)
+
+    def test_access_override_waits_for_the_session_lock(self):
+        access = self.session / "access.txt"
+        access.write_text("auto\n")
+        command = [sys.executable, TOOL_DIRECTORY / "fx_resume.py", "lock", "--access", "full",
+                   self.session, sys.executable, "-c", "pass"]
+        with (self.session / ".fx-agent.lock").open("w") as stream:
+            fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            result = subprocess.run(command, capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("already running", result.stderr)
+            self.assertEqual(access.read_text(), "auto\n")
+        subprocess.run(command, capture_output=True, text=True, check=True)
+        self.assertEqual(access.read_text(), "full\n")
+
+    def test_access_override_rejects_a_symbolic_link(self):
+        target = self.session / "original-access.txt"
+        target.write_text("auto\n")
+        (self.session / "access.txt").symlink_to(target)
+        result = subprocess.run([
+            sys.executable, TOOL_DIRECTORY / "fx_resume.py", "lock", "--access", "full",
+            self.session, sys.executable, "-c", "raise AssertionError('must not start')",
+        ], capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("symbolic link", result.stderr)
+        self.assertEqual(target.read_text(), "auto\n")
 
     def test_lock_blocks_duplicate_launch_and_releases_after_exit(self):
         lock = self.session / ".fx-agent.lock"

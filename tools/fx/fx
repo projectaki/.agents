@@ -39,6 +39,15 @@ require_name() {
   done
 }
 
+check_agent_access() {
+  local agent="$1" access="$2" adapter="$tool_dir/agents/$1.access"
+  if [[ -x "$adapter" ]]; then
+    "$adapter" "$access" >/dev/null || fail "The $agent adapter cannot use access mode: $access"
+    return
+  fi
+  [[ "$access" == full ]] || fail "The $agent adapter does not support --access auto. Use an adapter with an access handler, or select --access full."
+}
+
 reasoning_level() {
   case "$1" in
     l) printf 'low\n' ;;
@@ -519,10 +528,11 @@ EOF
 }
 
 launch_agent() {
-  [[ $# -ge 1 ]] || fail 'Usage: fx agent <agent> [--name <name>] [--model <model>] [-r l|m|h] [--prompt <text>] [--from <context-directory>] [--new-tab]'
+  [[ $# -ge 1 ]] || fail 'Usage: fx agent <agent> [--name <name>] [--model <model>] [--access auto|full] [-r l|m|h] [--prompt <text>] [--from <context-directory>] [--new-tab]'
   local agent="$1" reasoning=medium adapter project task session prompt='' name='' captured_context model
   local prompt_supplied=false reasoning_supplied=false new_tab=false resume_source='' resume_adapter selected_model='' model_name
   local -a context_args=()
+  local access=''
   validate_name "$agent"
   shift
   local command_adapter="$tool_dir/agent-commands/$agent"
@@ -534,6 +544,11 @@ launch_agent() {
   fi
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      --access)
+        [[ $# -ge 2 && -z "$access" && -n "$2" ]] || fail 'Supply one access mode after --access: auto or full.'
+        access="$2"
+        shift 2
+        ;;
       --model|-m)
         [[ $# -ge 2 && -z "$selected_model" && -n "$2" && "$2" != -* ]] || fail 'Supply one model name after --model.'
         selected_model="$(python3 "$tool_dir/fx_models.py" validate "$2")"
@@ -569,7 +584,7 @@ launch_agent() {
         name="$2"
         shift 2
         ;;
-      *) fail 'Usage: fx agent <agent> [--name <name>] [--model <model>] [-r l|m|h] [--prompt <text>] [--from <context-directory>] [--new-tab]' ;;
+      *) fail 'Usage: fx agent <agent> [--name <name>] [--model <model>] [--access auto|full] [-r l|m|h] [--prompt <text>] [--from <context-directory>] [--new-tab]' ;;
     esac
   done
   if [[ "$new_tab" == true ]]; then
@@ -589,16 +604,24 @@ launch_agent() {
     resume_adapter="$tool_dir/agents/$agent.resume"
     [[ -x "$resume_adapter" ]] || fail "The $agent adapter does not support resume."
     session="$(python3 "$tool_dir/fx_resume.py" resolve "$task" "$agent" "$resume_source")"
+    set -- resolve --saved "$session"
+    [[ -z "$access" ]] || set -- "$@" --access "$access"
+    access="$(python3 "$tool_dir/fx_access.py" "$@")"
+    check_agent_access "$agent" "$access"
     reasoning="$(python3 "$tool_dir/fx_resume.py" metadata "$session" reasoning)"
     printf 'fx: Resuming session context: %s\n' "$session" >&2
     cd -- "$task"
     if [[ "$new_tab" == true ]]; then
       exec zellij --session "$ZELLIJ_SESSION_NAME" action new-tab \
         --name "$(basename -- "$session")" --cwd "$task" --layout "$tool_dir/templates/agent-tab.kdl" \
-        -- "$resume_adapter" "$project" "$task" "$session" "$reasoning"
+        -- "$resume_adapter" "$project" "$task" "$session" "$reasoning" "$access"
     fi
-    exec "$resume_adapter" "$project" "$task" "$session" "$reasoning"
+    exec "$resume_adapter" "$project" "$task" "$session" "$reasoning" "$access"
   fi
+  set -- resolve
+  [[ -z "$access" ]] || set -- "$@" --access "$access"
+  access="$(python3 "$tool_dir/fx_access.py" "$@")"
+  check_agent_access "$agent" "$access"
   if [[ -n "$selected_model" ]]; then
     model="$(agent_model "$agent" "$selected_model")"
   else
@@ -609,6 +632,7 @@ launch_agent() {
   name="$(require_name Session "$name")"
   ensure_directory "$task/context"
   session="$(python3 "$tool_dir/fx_session.py" "$task" "$task/context" "$name-$model_name")"
+  printf '%s\n' "$access" > "$session/access.txt"
   printf '%s\n' "$model" > "$session/model.txt"
   set -- "$agent" "$project" "$task" "$session" "$reasoning" "$captured_context" "$(basename -- "$session")" "$new_tab"
   [[ "$prompt_supplied" == false ]] || set -- "$@" "$prompt"
@@ -634,8 +658,14 @@ launch_agent_group() {
   local prompt_supplied=false reasoning_supplied=false interactive=false
   local -a specs=() agents=() levels=() models=()
   local -a context_args=()
+  local access=''
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      --access)
+        [[ $# -ge 2 && -z "$access" && -n "$2" ]] || fail 'Supply one access mode after --access: auto or full.'
+        access="$2"
+        shift 2
+        ;;
       --name)
         [[ $# -ge 2 && -z "$name" ]] || fail 'Supply one group name after --name.'
         validate_name "$2"
@@ -673,9 +703,12 @@ launch_agent_group() {
         context_args+=(--from "$2")
         shift 2
         ;;
-      *) fail 'Usage: fx agent group [--name <name>] [--agent <agent[:l|m|h]> ...] [--synthesis-agent <agent>] [--interactive] [-r l|m|h] [--prompt <text>] [--from <context-directory>]' ;;
+      *) fail 'Usage: fx agent group [--name <name>] [--access auto|full] [--agent <agent[:l|m|h]> ...] [--synthesis-agent <agent>] [--interactive] [-r l|m|h] [--prompt <text>] [--from <context-directory>]' ;;
     esac
   done
+  set -- resolve
+  [[ -z "$access" ]] || set -- "$@" --access "$access"
+  access="$(python3 "$tool_dir/fx_access.py" "$@")"
   if [[ ${#specs[@]} == 0 ]]; then
     while IFS= read -r spec || [[ -n "$spec" ]]; do
       [[ -z "$spec" ]] || specs+=("$spec")
@@ -689,6 +722,7 @@ launch_agent_group() {
     [[ "$spec" != *:* ]] || level="${spec#*:}"
     level="$(reasoning_level "$level")"
     [[ -x "$tool_dir/agents/$agent" ]] || fail "No agent adapter is installed for: $agent"
+    check_agent_access "$agent" "$access"
     [[ "$interactive" == true || -x "$tool_dir/agents/$agent.batch" ]] || fail "The $agent adapter does not support unattended groups. Install agents/$agent.batch."
     "$tool_dir/agents/$agent" check || fail "The $agent CLI is not available. Install and authenticate it first."
     agents+=("$agent")
@@ -704,6 +738,7 @@ launch_agent_group() {
   [[ -n "$synthesis_agent" ]] || synthesis_agent="$(cat "$tool_dir/default-compare-agent")"
   validate_name "$synthesis_agent"
   [[ -x "$tool_dir/agents/$synthesis_agent" ]] || fail "No synthesis adapter is installed for: $synthesis_agent"
+  check_agent_access "$synthesis_agent" "$access"
   "$tool_dir/agents/$synthesis_agent" check || fail "The $synthesis_agent CLI is not available for synthesis."
   agent_model "$synthesis_agent" >/dev/null
   captured_context="$(python3 "$tool_dir/fx_context.py" "$task" ${context_args[@]+"${context_args[@]}"})"
@@ -718,6 +753,7 @@ launch_agent_group() {
   ensure_directory "$task/context"
   ensure_directory "$task/context/groups"
   group="$(python3 "$tool_dir/fx_session.py" "$task" "$task/context/groups" "$name")"
+  printf '%s\n' "$access" > "$group/access.txt"
   name="$(basename -- "$group")"
   printf 'fx: Group context: %s\n' "$group" >&2
   if [[ "$prompt_supplied" == true ]]; then
@@ -744,6 +780,7 @@ EOF
     agent="${agents[$index]}"
     session="$group/$((index + 1))-$agent-$(python3 "$tool_dir/fx_models.py" slug "${models[$index]}")"
     ensure_directory "$session"
+    printf '%s\n' "$access" > "$session/access.txt"
     set -- "$project" "$task" "$session" "$agent" "${levels[$index]}" "$group" "$captured_context"
     [[ "$prompt_supplied" == false ]] || set -- "$@" "$prompt"
     prepare_agent_session "$@"
@@ -777,13 +814,19 @@ retry_agent_group() {
 }
 
 compare_agent_group() {
-  [[ $# -ge 1 ]] || fail 'Usage: fx agent group compare <group_name> [--name <name>] [--agent <agent>] [-r l|m|h] [--new-tab]'
+  [[ $# -ge 1 ]] || fail 'Usage: fx agent group compare <group_name> [--name <name>] [--access auto|full] [--agent <agent>] [-r l|m|h] [--new-tab]'
   local name="$1" agent='' reasoning=medium reasoning_supplied=false new_tab=false
   local project task group session captured_context prompt session_name='' model
+  local access=''
   shift
   validate_name "$name"
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      --access)
+        [[ $# -ge 2 && -z "$access" && -n "$2" ]] || fail 'Supply one access mode after --access: auto or full.'
+        access="$2"
+        shift 2
+        ;;
       --name)
         [[ $# -ge 2 && -z "$session_name" ]] || fail 'Supply one comparison session name after --name.'
         validate_name "$2"
@@ -803,7 +846,7 @@ compare_agent_group() {
         shift 2
         ;;
       --new-tab) new_tab=true; shift ;;
-      *) fail 'Usage: fx agent group compare <group_name> [--name <name>] [--agent <agent>] [-r l|m|h] [--new-tab]' ;;
+      *) fail 'Usage: fx agent group compare <group_name> [--name <name>] [--access auto|full] [--agent <agent>] [-r l|m|h] [--new-tab]' ;;
     esac
   done
   [[ -n "$agent" ]] || agent="$(cat "$tool_dir/default-compare-agent")"
@@ -819,10 +862,15 @@ compare_agent_group() {
   project="$(find_project)"
   task="$(find_task "$project")"
   group="$(python3 "$tool_dir/fx_group.py" resolve "$task" "$name")"
+  set -- resolve --saved "$group"
+  [[ -z "$access" ]] || set -- "$@" --access "$access"
+  access="$(python3 "$tool_dir/fx_access.py" "$@")"
+  check_agent_access "$agent" "$access"
   captured_context="$(python3 "$tool_dir/fx_group.py" context "$task" "$(basename -- "$group")")"
   session_name="$(require_name 'Comparison session' "$session_name")"
   ensure_directory "$group/comparisons"
   session="$(python3 "$tool_dir/fx_session.py" "$task" "$group/comparisons" "$session_name-$(python3 "$tool_dir/fx_models.py" slug "$model")")"
+  printf '%s\n' "$access" > "$session/access.txt"
   printf '%s\n' "$model" > "$session/model.txt"
   printf '%s\n' "$group" > "$session/source-group.txt"
   prompt="Compare and merge the supplied captured results from group $(basename -- "$group").
@@ -919,11 +967,11 @@ Usage:
   fx task <task_name> [--base <branch>] [--no-attach]
   fx task <command> [command-options]
   fx delete <task_name> [--force]
-  fx agent <agent> [--name <name>] [--model <model>] [-r l|m|h] [--prompt <text>] [--from <context-directory>] [--new-tab]
-  fx agent <agent> --resume <session-directory> [--new-tab]
+  fx agent <agent> [--name <name>] [--model <model>] [--access auto|full] [-r l|m|h] [--prompt <text>] [--from <context-directory>] [--new-tab]
+  fx agent <agent> --resume <session-directory> [--access auto|full] [--new-tab]
   fx agent <command> [command-options]
-  fx agent group [--name <name>] [--agent <agent[:l|m|h]> ...] [--synthesis-agent <agent>] [--interactive] [-r l|m|h] [--prompt <text>] [--from <context-directory>]
-  fx agent group compare <group_name> [--name <name>] [--agent <agent>] [-r l|m|h] [--new-tab]
+  fx agent group [--name <name>] [--access auto|full] [--agent <agent[:l|m|h]> ...] [--synthesis-agent <agent>] [--interactive] [-r l|m|h] [--prompt <text>] [--from <context-directory>]
+  fx agent group compare <group_name> [--name <name>] [--access auto|full] [--agent <agent>] [-r l|m|h] [--new-tab]
   fx agent group retry <group_name>
   fx image <backend> --prompt <text> --output <path> [--input <path>] [--model <model>]
   fx shell-init
@@ -940,6 +988,8 @@ Repository accepts owner/repository, a Git URL, or a local repository path.
 Agent names correspond to executable adapters in agents/.
 Task-specific agent commands register executable handlers in agent-commands/.
 Task actions register executable handlers in task-commands/.
+Access defaults to auto. Set FX_ACCESS=full on a VPS, or pass --access auto|full.
+Sessions, group retries, and synthesis preserve saved access. Resume and compare accept an override.
 Use --model (or -m) to override an agent's default model.
 Reasoning: l = low, m = medium (default), h = high.
 Use --prompt to supply an initial assignment. Without it, the agent waits for interactive input.

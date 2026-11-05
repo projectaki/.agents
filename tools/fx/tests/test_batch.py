@@ -69,52 +69,58 @@ class BatchCaptureTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'permission.*mcp__claude_ai_Linear__get_issue'):
             claude_batch.final_response(self.output)
 
-    def test_claude_batch_uses_full_access_without_tool_allowlists(self):
-        session = self.output.parent / 'session'
-        session.mkdir()
-        (session / 'instructions.md').write_text('Investigate without editing source.')
-        commands = []
-        def run(command, **kwargs):
-            commands.append(command)
-            if '--print' in command:
-                kwargs['stdout'].write(json.dumps({
-                    'subtype': 'success', 'session_id': 'conversation', 'result': 'Report',
-                }))
-            return SimpleNamespace(returncode=0)
-        project = self.output.parent
-        with patch.object(sys, 'argv', ['claude_batch.py', str(project), str(project), str(session), 'medium', 'Investigate']), \
-             patch.object(claude_batch.subprocess, 'check_output', return_value='claude-opus-5-5'), \
-             patch.object(claude_batch.subprocess, 'run', side_effect=run):
-            self.assertEqual(claude_batch.main(), 0)
-        command = next(command for command in commands if '--print' in command)
-        self.assertIn('--permission-mode', command)
-        self.assertEqual(command[command.index('--permission-mode') + 1], 'bypassPermissions')
-        self.assertNotIn('--allowedTools', command)
-        self.assertNotIn('--dangerously-skip-permissions', command)
-        self.assertIn(str(project), [command[index + 1] for index, value in enumerate(command) if value == '--add-dir'])
+    def test_claude_batch_selects_access_without_tool_allowlists(self):
+        for mode in ("auto", "full"):
+            session = self.output.parent / mode
+            session.mkdir()
+            (session / 'access.txt').write_text(mode)
+            (session / 'instructions.md').write_text('Investigate without editing source.')
+            commands = []
+            def run(command, **kwargs):
+                commands.append(command)
+                if '--print' in command:
+                    kwargs['stdout'].write(json.dumps({
+                        'subtype': 'success', 'session_id': 'conversation', 'result': 'Report',
+                    }))
+                return SimpleNamespace(returncode=0)
+            project = self.output.parent
+            with patch.object(sys, 'argv', ['claude_batch.py', str(project), str(project), str(session), 'medium', 'Investigate']), \
+                 patch.object(claude_batch.subprocess, 'check_output', return_value='claude-opus-5-5'), \
+                 patch.object(claude_batch.subprocess, 'run', side_effect=run):
+                self.assertEqual(claude_batch.main(), 0)
+            command = next(command for command in commands if '--print' in command)
+            self.assertIn('--permission-mode', command)
+            self.assertEqual(command[command.index('--permission-mode') + 1], 'auto' if mode == 'auto' else 'bypassPermissions')
+            self.assertNotIn('--allowedTools', command)
+            self.assertNotIn('--dangerously-skip-permissions', command)
+            self.assertIn(str(project), [command[index + 1] for index, value in enumerate(command) if value == '--add-dir'])
 
-    def test_codex_batch_uses_full_access(self):
-        session = self.output.parent / 'session'
-        session.mkdir()
-        (session / 'instructions.md').write_text('Investigate.')
-        commands = []
-        def run(command, **kwargs):
-            commands.append(command)
-            if 'exec' in command:
-                for event in (
-                    {'type': 'thread.started', 'thread_id': 'conversation'},
-                    {'type': 'item.completed', 'item': {'type': 'agent_message', 'text': 'Report'}},
-                    {'type': 'turn.completed'},
-                ):
-                    kwargs['stdout'].write(json.dumps(event) + '\n')
-            return SimpleNamespace(returncode=0)
-        project = self.output.parent
-        with patch.object(sys, 'argv', ['codex_batch.py', str(project), str(project), str(session), 'medium', 'Investigate']), \
-             patch.object(codex_batch.subprocess, 'check_output', side_effect=['gpt-6.1-sol', 'notify=[]']), \
-             patch.object(codex_batch.subprocess, 'run', side_effect=run):
-            self.assertEqual(codex_batch.main(), 0)
-        command = next(command for command in commands if 'exec' in command)
-        self.assertIn('--dangerously-bypass-approvals-and-sandbox', command)
+    def test_codex_batch_selects_access(self):
+        for mode in ("auto", "full"):
+            session = self.output.parent / mode
+            session.mkdir()
+            (session / 'access.txt').write_text(mode)
+            (session / 'instructions.md').write_text('Investigate.')
+            commands = []
+            def run(command, **kwargs):
+                commands.append(command)
+                if 'exec' in command:
+                    for event in (
+                        {'type': 'thread.started', 'thread_id': 'conversation'},
+                        {'type': 'item.completed', 'item': {'type': 'agent_message', 'text': 'Report'}},
+                        {'type': 'turn.completed'},
+                    ):
+                        kwargs['stdout'].write(json.dumps(event) + '\n')
+                return SimpleNamespace(returncode=0)
+            project = self.output.parent
+            with patch.object(sys, 'argv', ['codex_batch.py', str(project), str(project), str(session), 'medium', 'Investigate']), \
+                 patch.object(codex_batch.subprocess, 'check_output', side_effect=['gpt-6.1-sol', 'notify=[]']), \
+                 patch.object(codex_batch.subprocess, 'run', side_effect=run):
+                self.assertEqual(codex_batch.main(), 0)
+            command = next(command for command in commands if 'exec' in command)
+            self.assertEqual('--dangerously-bypass-approvals-and-sandbox' in command, mode == 'full')
+            self.assertEqual('--approve-for-me' in command, mode == 'auto')
+
 
 
 if __name__ == "__main__":

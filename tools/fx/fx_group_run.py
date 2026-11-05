@@ -54,7 +54,7 @@ def retry_members(group, manifest, state):
             number += 1
         session = group / f"{base}-retry-{number}"
         session.mkdir(mode=0o700)
-        for name in ("instructions.md", "input-context.md", "initial_prompt.md", "source.json", "launch.txt", "handoff.md", "model.txt"):
+        for name in ("instructions.md", "input-context.md", "initial_prompt.md", "source.json", "launch.txt", "handoff.md", "model.txt", "access.txt"):
             original = group / previous / name
             if original.is_symlink():
                 raise ValueError(f"Retry input must not be a symbolic link: {original}")

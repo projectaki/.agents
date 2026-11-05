@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from fx_events import prepare_events
+from fx_access import session_access
+from codex_access import access_arguments
 from fx_models import session_model, validate_model
 from fx_usage import write_json
 from openrouter_api import api_key, verify_model
@@ -44,7 +46,7 @@ def launch(project, task, session, reasoning, prompt, model, provider):
                "-c", f"developer_instructions={json.dumps(instructions)}",
                "--add-dir", str(Path(project) / "project_context"),
                "-c", capture_config, "--no-daemon",
-               "--dangerously-bypass-approvals-and-sandbox", *provider_arguments(provider)]
+               *access_arguments(session_access(session)), *provider_arguments(provider)]
     for setting in hooks:
         command.extend(["-c", setting])
     if prompt:

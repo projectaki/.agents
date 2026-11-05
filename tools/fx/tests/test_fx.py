@@ -40,6 +40,7 @@ class FxTest(unittest.TestCase):
             GIT_COMMITTER_EMAIL="test@example.invalid",
             CLAUDE_CODE_EFFORT_LEVEL="max",
             OPENROUTER_API_KEY="test-key",
+            FX_ACCESS="auto",
         )
         self.origin = self.root / "origin"
         self.run_command("git", "init", "-b", "main", self.origin)
@@ -992,7 +993,7 @@ pwd -P
                             "--add-dir", str(project / "project_context"),
                             "--settings", str(session / "claude-settings.json"),
                             "--debug-file", str(session / "events/claude-debug.log"),
-                            "--permission-mode", "bypassPermissions",
+                            "--permission-mode", "auto",
                         ])
                         self.assertIsNone(captured["effort_environment"])
                     else:
@@ -1103,7 +1104,7 @@ pwd -P
         task = self.task()
         for agent in ('claude', 'codex'):
             with self.subTest(agent=agent):
-                result = self.fx('agent', agent, '--name', 'review', cwd=task)
+                result = self.fx('agent', agent, '--name', 'review', '--access', 'full', cwd=task)
                 arguments = json.loads(result.stdout)['arguments']
                 if agent == 'claude':
                     self.assertEqual(arguments[arguments.index('--permission-mode') + 1], 'bypassPermissions')
@@ -1112,6 +1113,74 @@ pwd -P
                     self.assertFalse(settings['sandbox']['enabled'])
                 else:
                     self.assertIn('--dangerously-bypass-approvals-and-sandbox', arguments)
+
+    def test_access_defaults_environment_and_flags_reach_agents_in_new_tabs(self):
+        task = self.task()
+        self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
+        for agent in ("claude", "codex"):
+            for environment, flag, expected in (("auto", None, "auto"), ("full", None, "full"),
+                                                 ("full", "auto", "auto"), ("auto", "full", "full")):
+                with self.subTest(agent=agent, environment=environment, flag=flag):
+                    self.env["FX_ACCESS"] = environment
+                    options = [] if flag is None else ["--access", flag]
+                    result = self.fx("agent", agent, "--name", "review", "--new-tab", *options, cwd=task)
+                    request = json.loads(result.stdout)["arguments"]
+                    session = Path(request[15])
+                    self.assertEqual((session / "access.txt").read_text().strip(), expected)
+                    self.env["FX_ACCESS"] = "full" if expected == "auto" else "auto"
+                    launched = json.loads(self.run_command(*request[11:], cwd=task).stdout)["arguments"]
+                    if agent == "claude":
+                        self.assertEqual(launched[launched.index("--permission-mode") + 1],
+                                         "auto" if expected == "auto" else "bypassPermissions")
+                    else:
+                        self.assertEqual("--approve-for-me" in launched, expected == "auto")
+                        self.assertEqual("--dangerously-bypass-approvals-and-sandbox" in launched,
+                                         expected == "full")
+
+    def test_invalid_access_fails_before_creating_agent_or_group_context(self):
+        task = self.task()
+        self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
+        for launch in (("agent", "claude"), ("agent", "group")):
+            for options in (("--access", "invalid"), ("--access",),
+                            ("--access", "auto", "--access", "full")):
+                with self.subTest(launch=launch, options=options):
+                    result = self.fx(*launch, "--name", "review", "--prompt", "Review", *options,
+                                     cwd=task, check=False)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertEqual(list((task / "context").iterdir()), [])
+        self.env["FX_ACCESS"] = "invalid"
+        result = self.fx("agent", "claude", "--name", "review", cwd=task, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(list((task / "context").iterdir()), [])
+
+    def test_group_comparison_inherits_access_and_accepts_an_override(self):
+        task = self.task()
+        self.env["FX_ACCESS"] = "full"
+        group = self.completed_group(task)
+        self.assertEqual((group / "access.txt").read_text().strip(), "full")
+        for member in json.loads((group / "run.json").read_text())["members"]:
+            self.assertEqual((group / member["session"] / "access.txt").read_text().strip(), "full")
+        self.env["FX_ACCESS"] = "auto"
+        for extra, expected in (([], "full"), (["--access", "auto"], "auto")):
+            result = self.fx("agent", "group", "compare", group.name, "--name", "summary", *extra, cwd=task)
+            args = json.loads(result.stdout)["arguments"]
+            self.assertEqual(args[args.index("--permission-mode") + 1],
+                             "auto" if expected == "auto" else "bypassPermissions")
+
+    def test_resume_access_override_restores_sandbox_settings_and_is_saved(self):
+        task = self.task()
+        self.resume_claude_stub()
+        self.fx("agent", "claude", "--name", "review", "--access", "full", cwd=task)
+        session, = (task / "context").iterdir()
+        result = self.fx("agent", "claude", "--resume", session, "--access", "auto", cwd=task)
+        args = json.loads(result.stdout)["arguments"]
+        self.assertEqual(args[args.index("--permission-mode") + 1], "auto")
+        self.assertEqual((session / "access.txt").read_text().strip(), "auto")
+        self.assertNotIn("sandbox", json.loads((session / "claude-settings.json").read_text()))
+        self.env["FX_ACCESS"] = "full"
+        result = self.fx("agent", "claude", "--resume", session, cwd=task)
+        args = json.loads(result.stdout)["arguments"]
+        self.assertEqual(args[args.index("--permission-mode") + 1], "auto")
 
     def test_session_name_works_without_new_tab(self):
         task = self.task()
@@ -1530,8 +1599,8 @@ pwd -P
         old_events = (session / "events/callbacks.jsonl").read_bytes()
         result = self.fx("agent", "claude", "--resume", session, cwd=task / "repo")
         args = json.loads(result.stdout)["arguments"]
-        self.assertEqual(args[args.index('--permission-mode') + 1], "bypassPermissions")
-        self.assertFalse(json.loads((session / "claude-settings.json").read_text())["sandbox"]["enabled"])
+        self.assertEqual(args[args.index('--permission-mode') + 1], "auto")
+        self.assertNotIn("sandbox", json.loads((session / "claude-settings.json").read_text()))
         self.assertEqual(args[args.index('--resume') + 1], "original-conversation")
         self.assertEqual(args[args.index('--model') + 1], "saved-claude-model")
         self.assertEqual(args[args.index('--effort') + 1], "high")
@@ -1573,7 +1642,7 @@ pwd -P
                 else:
                     settings["sandbox"] = sandbox
                 path.write_text(json.dumps(settings))
-                result = self.fx("agent", "claude", "--resume", session, cwd=task)
+                result = self.fx("agent", "claude", "--resume", session, "--access", "full", cwd=task)
                 args = json.loads(result.stdout)["arguments"]
                 self.assertEqual(args[args.index("--permission-mode") + 1], "bypassPermissions")
                 expected = {**settings, "sandbox": {**(sandbox or {}), "enabled": False}}
