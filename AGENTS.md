@@ -262,6 +262,14 @@ If you cannot say something in plain words, you do not
 understand it well enough yet. Say that instead of hiding it
 in jargon.
 
+## No Time or Effort Estimates
+
+- Never provide time or effort estimates for work.
+- This rule applies to triage, plans, reviews, recommendations, and status updates.
+- Do not give estimated hours, engineering days, completion dates, story points,
+  or equivalent effort ratings.
+- Describe the required work, dependencies, risks, and uncertainties instead.
+
 ## Write External Text in My Voice
 
 Write text that I will publish, commit, or send as if I wrote it myself.
