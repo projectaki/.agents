@@ -53,5 +53,5 @@ exec claude \
   --settings "$session/claude-settings.json" \
   --debug-file "$events_dir/$native_log" \
   --permission-mode bypassPermissions \
-  "${resume_args[@]}" \
+  ${resume_args[@]+"${resume_args[@]}"} \
   "$@"

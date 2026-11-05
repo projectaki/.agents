@@ -1648,6 +1648,40 @@ pwd -P
         self.assertEqual(responses[0].read_text(), "Implement the reviewed plan.\n")
         self.assertEqual((session / "last_turn_results.md").read_text(), "Implement the reviewed plan.\n")
 
+    def test_agent_and_group_launch_with_empty_and_populated_context_arrays(self):
+        task = self.task()
+        self.fx("agent", "claude", "--name", "source", cwd=task)
+        source, = (task / "context").iterdir()
+        self.capture_codex(source, {
+            "hook_event_name": "Stop", "session_id": "thread", "turn_id": "turn",
+            "last_assistant_message": "Saved context for the assignment.",
+        })
+        if os.environ.get("FX_TEST_BASH"):
+            (self.bin / "bash").symlink_to(Path(os.environ["FX_TEST_BASH"]).resolve())
+        self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
+        for grouped in (False, True):
+            for source_count in (0, 1, 2):
+                with self.subTest(grouped=grouped, source_count=source_count):
+                    before = set((task / "context").rglob("input-context.md"))
+                    arguments = ["agent", "group" if grouped else "claude"]
+                    if grouped:
+                        arguments += ["--agent", "claude"]
+                    arguments += ["--name", "implement", "--prompt", "Use the saved context."]
+                    for _ in range(source_count):
+                        arguments += ["--from", source]
+                    result = self.fx(*arguments, cwd=task, check=False)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    snapshots = set((task / "context").rglob("input-context.md")) - before
+                    self.assertTrue(snapshots)
+                    for snapshot in snapshots:
+                        self.assertEqual(
+                            "Saved context for the assignment." in snapshot.read_text(),
+                            source_count > 0,
+                        )
+                    if not grouped:
+                        self.assertEqual(json.loads(result.stdout)["arguments"][-1],
+                                         "Use the saved context.")
+
     def test_saved_response_is_supplied_to_new_agent_and_default_index(self):
         task = self.task()
         self.fx("agent", "claude", "--name", "review", cwd=task)

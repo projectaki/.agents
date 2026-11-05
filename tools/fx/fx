@@ -605,7 +605,7 @@ launch_agent() {
     model="$(agent_model "$agent")"
   fi
   model_name="$(python3 "$tool_dir/fx_models.py" slug "$model")"
-  captured_context="$(python3 "$tool_dir/fx_context.py" "$task" "${context_args[@]}")"
+  captured_context="$(python3 "$tool_dir/fx_context.py" "$task" ${context_args[@]+"${context_args[@]}"})"
   name="$(require_name Session "$name")"
   ensure_directory "$task/context"
   session="$(python3 "$tool_dir/fx_session.py" "$task" "$task/context" "$name-$model_name")"
@@ -706,7 +706,7 @@ launch_agent_group() {
   [[ -x "$tool_dir/agents/$synthesis_agent" ]] || fail "No synthesis adapter is installed for: $synthesis_agent"
   "$tool_dir/agents/$synthesis_agent" check || fail "The $synthesis_agent CLI is not available for synthesis."
   agent_model "$synthesis_agent" >/dev/null
-  captured_context="$(python3 "$tool_dir/fx_context.py" "$task" "${context_args[@]}")"
+  captured_context="$(python3 "$tool_dir/fx_context.py" "$task" ${context_args[@]+"${context_args[@]}"})"
   name="$(require_name Group "$name")"
   if [[ "$prompt_supplied" == false ]]; then
     [[ -t 0 ]] || fail 'A group assignment is required. Supply --prompt <text>.'
