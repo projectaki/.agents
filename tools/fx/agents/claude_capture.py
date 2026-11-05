@@ -70,8 +70,24 @@ def main():
             print(f"fx: Cannot identify the Claude conversation: {error}", file=sys.stderr)
             return 1
         return 0
+    if sys.argv[1] == "disable-sandbox":
+        path = session / "claude-settings.json"
+        try:
+            settings = json.loads(path.read_text())
+            if not isinstance(settings, dict):
+                raise ValueError("Expected a Claude settings object.")
+            sandbox = settings.setdefault("sandbox", {})
+            if not isinstance(sandbox, dict):
+                raise ValueError("Expected a sandbox settings object.")
+            if sandbox.get("enabled") is not False:
+                sandbox["enabled"] = False
+                path.write_text(json.dumps(settings) + "\n")
+        except (OSError, ValueError) as error:
+            print(f"fx: Cannot disable the Claude sandbox: {error}", file=sys.stderr)
+            return 1
+        return 0
     if sys.argv[1] == "settings":
-        print(json.dumps({"hooks": {name: [{"hooks": [{
+        print(json.dumps({"sandbox": {"enabled": False}, "hooks": {name: [{"hooks": [{
             "type": "command",
             "command": shlex.join([sys.executable, str(Path(__file__).resolve()),
                                    "capture" if name == "Stop" else "event", str(session)]),

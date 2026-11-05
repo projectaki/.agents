@@ -427,10 +427,10 @@ Codex runs with `--no-daemon` so diagnostic hooks inherit the current session's
 output directory. Its hook commands retain the normal trust checks. Use
 `/hooks` to review and trust them before relying on lifecycle event coverage.
 
-### `fx agent group [--name <name>] [--agent <agent[:l|m|h]> ...] [--synthesis-agent <agent>] [-r l|m|h] [--prompt <text>] [--from <context-directory>]`
+### `fx agent group [--name <name>] [--agent <agent[:l|m|h]> ...] [--synthesis-agent <agent>] [--interactive] [-r l|m|h] [--prompt <text>] [--from <context-directory>]`
 
-Run inside a task in a Zellij session. The command opens one tab for the group.
-Members run concurrently without interactive input. The tab shows their status.
+Run inside a task in a Zellij session. By default, the command opens one tab for
+the group. Members run concurrently without interactive input. The tab shows their status.
 Agent tabs use an explicit layout so a session template cannot replace the requested command.
 This applies to groups, individual launches, comparisons, resumes, and task analyses.
 After every member exits successfully with a saved final response, the runner
@@ -454,6 +454,29 @@ Synthesis uses interactive Claude by default.
 ```bash
 fx agent group --name review --prompt 'Review the current changes and record findings.'
 ```
+
+Use `--interactive` to debug members in separate Zellij tabs. Each member uses
+its normal interactive adapter and accepts terminal input. A group status tab
+monitors their completion. Synthesis starts only when you run the compare command.
+You can compare after every member saves a response, while their sessions stay open.
+The comparison uses a snapshot of the responses saved when you run the command.
+
+```bash
+fx agent group --interactive --name review --agent claude:h --agent codex:h \
+  --prompt 'Review the current changes and record findings.'
+
+# Use the full group name printed at launch.
+fx agent group compare 000001-review --name synthesis --new-tab
+```
+
+Interactive mode is saved in `run.json`. `fx agent group retry <group_name>`
+preserves this mode and requires a Zellij session. Failed tab requests, failed
+member exits, and missing responses prevent comparison. Ctrl+C in the group
+status tab stops its active members. Usage summaries are available after members
+exit. The group prints a compare command that includes the selected synthesis
+agent. Member terminal output stays in its tab; `runner.log` records the tab request. Provider events and captured responses
+remain in each member's session directory. `terminal-state.json` records the
+member terminal process and exit code.
 
 Repeat `--agent` to choose the members. These flags replace the default list.
 The same agent can appear more than once. Append `:l`, `:m`, or `:h` to select
@@ -501,10 +524,11 @@ context/groups/000001-review/
     └── ...
 ```
 
-`group.md` lists the active members and reasoning levels. The single tab uses
-the numbered group name, such as `000001-review`. `run.json` records the active
-member directories and synthesis provider. `run-state.json` records member
-status, process identifiers, exit codes, and failures. Each member keeps its own
+`group.md` lists the active members and reasoning levels. The group status tab
+uses the numbered group name, such as `000001-review`. Interactive member tab
+names include the group name and member directory. `run.json` records the active
+member directories, synthesis provider, and interactive mode. `run-state.json`
+records member status, process identifiers, exit codes, and failures. Each member keeps its own
 `runner.log`, provider events, and captured responses.
 
 After members stop, fx prints a usage table before interactive synthesis starts.
@@ -560,15 +584,19 @@ terminal input, preserve diagnostics, save a verified main-conversation response
 and return success only after completion. The runner does not contain provider
 branches. Claude uses print mode for batch runs. All standard Claude launches,
 including interactive sessions, resumes, group members, and synthesis, select
-`--permission-mode auto`. Claude reviews tool calls automatically. Fx does not
-maintain a tool-specific allowlist. Existing Claude deny and ask rules still apply.
+`--permission-mode bypassPermissions`. Session settings explicitly set
+`sandbox.enabled` to `false`. Resume applies this setting to saved sessions and
+preserves their other settings and hooks. Fx does not maintain a tool-specific
+allowlist. Managed policies and explicit deny or ask rules can still restrict access.
 File tools in batch runs can access the project directory, including project
 memory and Git worktree metadata.
 
 Codex uses exec mode for batch runs. Both interactive and batch Codex launches
 select `--dangerously-bypass-approvals-and-sandbox` for full access without
 approval prompts. Assignment and repository instructions still define the scope
-of work.
+of work. Restart running sessions to apply launcher changes. These settings grant
+the agents the access of the VPS account. They do not grant root privileges or
+start missing services. Sentry retains its read-only diagnostic tools.
 
 A Claude result containing permission denials fails the member run. The raw
 provider response remains in `events/claude-result.json`, and the capture error
@@ -695,8 +723,9 @@ Later sessions can discover captured comparison reports in the task's result
 index or receive one explicitly with `--from` and its comparison session path.
 Repeated comparisons preserve earlier comparison sessions.
 
-The command requires successful recorded completion and captured results from
-every active member of a managed group. It rejects capture errors. Legacy groups
+For unattended groups, the command requires successful recorded completion and
+captured results from every active member. For interactive groups, every member
+needs a captured response, but its session can stay open. It rejects capture errors. Legacy groups
 retain their captured-response and tab-request checks; their interactive process
 completion still requires manual verification.
 

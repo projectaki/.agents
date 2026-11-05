@@ -40,6 +40,25 @@ class ResumeTest(unittest.TestCase):
         })
         self.assertEqual((self.session / "findings.md").read_text(), "Preserve this file\n")
 
+    def test_generated_claude_settings_disable_sandbox_and_preserve_capture_hooks(self):
+        result = subprocess.run([sys.executable, TOOL_DIRECTORY / "agents/claude_capture.py",
+                                 "settings", self.session], capture_output=True, text=True, check=True)
+        settings = json.loads(result.stdout)
+        self.assertIs(settings["sandbox"]["enabled"], False)
+        self.assertIn("Stop", settings["hooks"])
+        self.assertIn("SessionStart", settings["hooks"])
+
+    def test_disabling_sandbox_preserves_invalid_settings_and_reports_failure(self):
+        path = self.session / "claude-settings.json"
+        for content in ('{', '[]', '{"sandbox": null}'):
+            with self.subTest(content=content):
+                path.write_text(content)
+                result = subprocess.run([sys.executable, TOOL_DIRECTORY / "agents/claude_capture.py",
+                                         "disable-sandbox", self.session], capture_output=True, text=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Cannot disable the Claude sandbox", result.stderr)
+                self.assertEqual(path.read_text(), content)
+
     def test_resolves_group_member_and_analysis_sessions(self):
         for directory in ("groups/000001-review/1-claude-model", "analyses/000002-analyze-model"):
             destination = self.task / "context" / directory

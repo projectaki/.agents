@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 import sys
 import tempfile
@@ -80,6 +81,28 @@ class GroupNameTest(unittest.TestCase):
         self.assertIn("1-agent/results/turn-000001/response.md", context)
         self.assertIn("Read every response file", context)
         self.assertNotIn("Login needs input validation.", context)
+
+    def test_only_interactive_comparison_accepts_running_members_with_responses(self):
+        group = self.group('000001-review')
+        member = group / '1-agent'
+        member.mkdir()
+        (member / 'instructions.md').write_text('Guidance')
+        first = save_response(member, 'agent', 'conversation', 'one', 'First report')
+        for interactive in (False, True):
+            (group / 'run.json').write_text(json.dumps({
+                'interactive': interactive, 'members': [{'session': member.name}]}))
+            for status in ('waiting', 'running', 'finished', 'failed', 'cancelled'):
+                with self.subTest(interactive=interactive, status=status):
+                    (group / 'run-state.json').write_text(json.dumps({
+                        'members': {member.name: {'status': status}}}))
+                    if status == 'finished' or interactive and status == 'running':
+                        context = comparison_context(self.task, group)
+                        self.assertIn(str(first.relative_to(self.task) / 'response.md'), context)
+                    else:
+                        with self.assertRaisesRegex(ValueError, 'not finished successfully'):
+                            comparison_context(self.task, group)
+        later = save_response(member, 'agent', 'conversation', 'two', 'Later report')
+        self.assertNotIn(str(later.relative_to(self.task) / 'response.md'), context)
 
     def test_comparison_lists_large_reports_without_truncating_them(self):
         group = self.group("000001-review")

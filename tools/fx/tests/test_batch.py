@@ -69,7 +69,7 @@ class BatchCaptureTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'permission.*mcp__claude_ai_Linear__get_issue'):
             claude_batch.final_response(self.output)
 
-    def test_claude_batch_uses_auto_review_without_tool_allowlists(self):
+    def test_claude_batch_uses_full_access_without_tool_allowlists(self):
         session = self.output.parent / 'session'
         session.mkdir()
         (session / 'instructions.md').write_text('Investigate without editing source.')
@@ -88,7 +88,7 @@ class BatchCaptureTest(unittest.TestCase):
             self.assertEqual(claude_batch.main(), 0)
         command = next(command for command in commands if '--print' in command)
         self.assertIn('--permission-mode', command)
-        self.assertEqual(command[command.index('--permission-mode') + 1], 'auto')
+        self.assertEqual(command[command.index('--permission-mode') + 1], 'bypassPermissions')
         self.assertNotIn('--allowedTools', command)
         self.assertNotIn('--dangerously-skip-permissions', command)
         self.assertIn(str(project), [command[index + 1] for index, value in enumerate(command) if value == '--add-dir'])

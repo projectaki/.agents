@@ -46,7 +46,7 @@ def main():
                    "--settings", str(settings),
                    "--debug-file", str(events / "claude-debug.log"),
                    "--print", "--output-format", "json", "--permission-prompts", "none",
-                   "--permission-mode", "auto",
+                   "--permission-mode", "bypassPermissions",
                    "--", prompt]
         with (session / "launch.txt").open("a") as launch:
             launch.write(f"model={model}\n")

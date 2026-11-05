@@ -188,8 +188,9 @@ directory and must stay inside this task's context. Absolute paths also work.
 `agents/<agent>.resume` handler. Group members and comparison or analysis sessions
 can be resumed by their own session directories.
 
-Resume preserves the model, reasoning, original instructions, settings, findings,
-and starting context. It appends callback events and captures new responses in
+Resume preserves the model, reasoning, original instructions, findings,
+and starting context. It preserves saved settings and hooks, but explicitly disables
+the shell sandbox. It appends callback events and captures new responses in
 the same session. Each resumed launch gets its own native debug log under
 `events/claude-debug-resume-<unique-id>.log`; original logs remain unchanged.
 It does not resend the initial assignment or allocate a new context directory.
@@ -259,7 +260,7 @@ level use `-r`. No `--new-tab` flag is needed.
 Members must not read current peers' findings or later results. They may read
 earlier responses listed in their starting context snapshot.
 
-A group opens one Zellij tab. Its members run without interactive input. Supply
+By default, a group opens one Zellij tab. Its members run without interactive input. Supply
 `--prompt`, or enter the assignment at the terminal before launch. The group tab
 shows member status. Each member saves its own response and diagnostic logs.
 After every member exits successfully with a saved response, the same tab starts
@@ -269,6 +270,16 @@ discussion there. Supply `--synthesis-agent <agent>` on the group launch to choo
 any installed interactive adapter, such as `codex`, `claude`, `glm`, or `gemini`.
 This selection is saved for retries. Repeated `--agent` flags select group members
 separately.
+
+Use `fx agent group --interactive` to debug members in separate Zellij tabs.
+Each member uses its normal interactive adapter. Interactive groups never start
+synthesis automatically. Once every member has a captured response, run
+`fx agent group compare <full-group-name> --name synthesis --new-tab`.
+Member sessions can stay open. Comparison uses the responses saved when launched.
+The group prints this command with its selected synthesis agent. Ctrl+C in the
+status tab stops active members. Retries preserve interactive mode and require
+Zellij. Member output stays in its tab; `runner.log` records its tab request.
+Usage summaries are available after members exit.
 
 After members stop, fx prints per-attempt runtime, token usage, and cost before
 synthesis. The group saves `usage-summary.md` and `usage-summary.json`; members
@@ -298,7 +309,8 @@ For another synthesis, or recovery after synthesis fails:
 fx agent group compare 000001-review --name summary --new-tab
 ```
 
-Comparison requires successful completion of every active member. Short names
+Unattended comparison requires successful completion of every active member.
+Interactive comparison requires a captured response from every member. Short names
 work only when one group matches. `--agent` overrides `default-compare-agent`.
 Comparison reads an exact list of saved response files, checks disagreements,
 and produces one merged report. It does not authorize source edits. The full
@@ -307,9 +319,11 @@ handoff limit. Legacy interactive groups still require manual completion checks.
 
 Adapters implement unattended execution in `agents/<agent>.batch`. The group
 runner never branches on provider names. Claude uses print mode; Codex uses
-exec mode. Standard Claude launches use `--permission-mode auto`, including
+exec mode. Standard Claude launches use `--permission-mode bypassPermissions`, including
 interactive sessions, resumes, group members, and synthesis. Fx supplies no
-tool-specific allowlist. Claude's existing deny and ask rules still apply.
+tool-specific allowlist. Session settings set `sandbox.enabled` to `false`,
+including resumed sessions. Managed policies and explicit deny or ask rules can
+still restrict access.
 Codex interactive and batch launches use full access through
 `--dangerously-bypass-approvals-and-sandbox`. Batch file tools can access the
 project directory. Assignment and repository instructions still define the scope.

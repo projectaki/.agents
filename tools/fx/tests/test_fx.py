@@ -992,7 +992,7 @@ pwd -P
                             "--add-dir", str(project / "project_context"),
                             "--settings", str(session / "claude-settings.json"),
                             "--debug-file", str(session / "events/claude-debug.log"),
-                            "--permission-mode", "auto",
+                            "--permission-mode", "bypassPermissions",
                         ])
                         self.assertIsNone(captured["effort_environment"])
                     else:
@@ -1099,15 +1099,17 @@ pwd -P
                     self.assertEqual(arguments[-2:], ["high", "Review changes"])
                     self.assertEqual(arguments[11], str(TOOL.parent / "agents" / agent))
 
-    def test_individual_agents_use_automatic_permissions(self):
+    def test_individual_agents_use_full_access(self):
         task = self.task()
         for agent in ('claude', 'codex'):
             with self.subTest(agent=agent):
                 result = self.fx('agent', agent, '--name', 'review', cwd=task)
                 arguments = json.loads(result.stdout)['arguments']
                 if agent == 'claude':
-                    self.assertEqual(arguments[arguments.index('--permission-mode') + 1], 'auto')
+                    self.assertEqual(arguments[arguments.index('--permission-mode') + 1], 'bypassPermissions')
                     self.assertNotIn('--allowedTools', arguments)
+                    settings = json.loads(Path(arguments[arguments.index('--settings') + 1]).read_text())
+                    self.assertFalse(settings['sandbox']['enabled'])
                 else:
                     self.assertIn('--dangerously-bypass-approvals-and-sandbox', arguments)
 
@@ -1352,6 +1354,22 @@ pwd -P
         self.assertEqual((group / "tab-request.txt").read_text(), "accepted\n")
         self.assertFalse((task / "should-not-exist").exists())
 
+    def test_group_interactive_flag_persists_mode_without_changing_assignment(self):
+        task = self.task()
+        self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
+        prompt = 'Review "source". Keep $(false) and `pwd` literal.\n'
+        result = self.fx("agent", "group", "--interactive", "--name", "debug",
+                         "--agent", "codex:h", "--synthesis-agent", "codex",
+                         "--prompt", prompt, cwd=task)
+        group, = (task / "context/groups").iterdir()
+        manifest = json.loads((group / "run.json").read_text())
+        self.assertTrue(manifest["interactive"])
+        self.assertEqual(manifest["synthesis_agent"], "codex")
+        member, = manifest["members"]
+        self.assertEqual(member["reasoning"], "high")
+        self.assertEqual((group / member["session"] / "initial_prompt.md").read_text(), prompt)
+        self.assertEqual(json.loads(result.stdout)["arguments"][-1], group.name)
+
     def test_group_custom_members_replace_defaults_and_override_reasoning(self):
         task = self.task()
         self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
@@ -1512,6 +1530,8 @@ pwd -P
         old_events = (session / "events/callbacks.jsonl").read_bytes()
         result = self.fx("agent", "claude", "--resume", session, cwd=task / "repo")
         args = json.loads(result.stdout)["arguments"]
+        self.assertEqual(args[args.index('--permission-mode') + 1], "bypassPermissions")
+        self.assertFalse(json.loads((session / "claude-settings.json").read_text())["sandbox"]["enabled"])
         self.assertEqual(args[args.index('--resume') + 1], "original-conversation")
         self.assertEqual(args[args.index('--model') + 1], "saved-claude-model")
         self.assertEqual(args[args.index('--effort') + 1], "high")
@@ -1537,6 +1557,27 @@ pwd -P
         self.env.pop("FX_TEST_NO_FINAL")
         self.fx("agent", "claude", "--resume", session.relative_to(task), cwd=task)
         self.assertEqual((session / "last_turn_results.md").read_text(), "Resumed response")
+
+    def test_claude_resume_disables_legacy_sandbox_and_preserves_other_settings(self):
+        task = self.task()
+        self.resume_claude_stub()
+        self.fx("agent", "claude", "--name", "review", cwd=task)
+        session, = (task / "context").iterdir()
+        path = session / "claude-settings.json"
+        for sandbox in (None, {"enabled": True, "network": {"allowedDomains": ["example.com"]}}):
+            with self.subTest(sandbox=sandbox):
+                settings = json.loads(path.read_text())
+                settings["theme"] = "dark"
+                if sandbox is None:
+                    settings.pop("sandbox", None)
+                else:
+                    settings["sandbox"] = sandbox
+                path.write_text(json.dumps(settings))
+                result = self.fx("agent", "claude", "--resume", session, cwd=task)
+                args = json.loads(result.stdout)["arguments"]
+                self.assertEqual(args[args.index("--permission-mode") + 1], "bypassPermissions")
+                expected = {**settings, "sandbox": {**(sandbox or {}), "enabled": False}}
+                self.assertEqual(json.loads(path.read_text()), expected)
 
     def test_claude_resume_rejects_missing_identity_and_conflicting_options(self):
         task = self.task()

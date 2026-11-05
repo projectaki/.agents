@@ -33,9 +33,11 @@ def resolve_group(task, name):
 
 def comparison_context(task, group):
     if (group / "run.json").exists():
+        manifest = json.loads((group / "run.json").read_text())
         state = json.loads((group / "run-state.json").read_text())
+        allowed = {"running", "finished"} if manifest.get("interactive", False) else {"finished"}
         for member in group_sessions(group):
-            if state.get("members", {}).get(member.name, {}).get("status") != "finished":
+            if state.get("members", {}).get(member.name, {}).get("status") not in allowed:
                 raise ValueError(f"Group member has not finished successfully: {member.name}. Retry the group first.")
     for member in group_sessions(group):
         if member.is_dir() and (member / "instructions.md").is_file():

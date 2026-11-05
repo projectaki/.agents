@@ -11,6 +11,7 @@ import time
 from datetime import datetime, timezone
 
 from fx_context import captured_results, group_sessions
+from fx_group_tabs import TabProcess
 from fx_group import comparison_context, resolve_group
 from fx_usage import collect_usage, save_group_usage, write_json
 
@@ -18,13 +19,14 @@ from fx_usage import collect_usage, save_group_usage, write_json
 TOOL_DIR = Path(__file__).resolve().parent
 
 
-def prepare_run(group, synthesis_agent):
+def prepare_run(group, synthesis_agent, interactive=False):
     members = []
     for session in group_sessions(group):
         metadata = dict(line.split("=", 1) for line in (session / "launch.txt").read_text().splitlines())
         members.append({"session": session.name, "agent": metadata["agent"],
                         "reasoning": metadata["reasoning"]})
-    write_json(group / "run.json", {"members": members, "synthesis_agent": synthesis_agent})
+    write_json(group / "run.json", {"members": members, "synthesis_agent": synthesis_agent,
+                                    "interactive": interactive})
     write_json(group / "run-state.json", {"status": "waiting", "members": {
         member["session"]: {"status": "waiting"} for member in members}})
 
@@ -94,6 +96,7 @@ def run_members(project, task, group, manifest, state):
     started = {}
     run_started = time.monotonic()
     state["status"] = "running"
+    state["runner_pid"] = os.getpid()
     try:
         for member in manifest["members"]:
             name = member["session"]
@@ -103,16 +106,19 @@ def run_members(project, task, group, manifest, state):
             if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]*", agent):
                 raise ValueError("Invalid group adapter name.")
             session = group / name
-            command = [str(TOOL_DIR / "agents" / f"{agent}.batch"), str(project),
-                       str(task), str(session), member["reasoning"],
-                       (session / "initial_prompt.md").read_text()]
             log = (session / "runner.log").open("x")
             started[name] = time.monotonic()
             state["members"][name] = {"status": "running",
                                       "started_at": datetime.now(timezone.utc).isoformat()}
             try:
-                process = subprocess.Popen(command, cwd=task, stdin=subprocess.DEVNULL,
-                                           stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+                if manifest.get("interactive", False):
+                    process = TabProcess(project, task, group, member, log)
+                else:
+                    command = [str(TOOL_DIR / "agents" / f"{agent}.batch"), str(project),
+                               str(task), str(session), member["reasoning"],
+                               (session / "initial_prompt.md").read_text()]
+                    process = subprocess.Popen(command, cwd=task, stdin=subprocess.DEVNULL,
+                                               stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
             except OSError as error:
                 log.close()
                 state["members"][name].update(status="failed", error=str(error),
@@ -120,6 +126,10 @@ def run_members(project, task, group, manifest, state):
                                               runtime_seconds=round(time.monotonic() - started[name], 6))
                 print(f"fx: {name}: failed: {error}", flush=True)
                 continue
+            except KeyboardInterrupt:
+                log.close()
+                state["members"][name].update(status="cancelled")
+                raise
             processes[name] = (process, log)
             state["members"][name]["pid"] = process.pid
             print(f"fx: {name}: running", flush=True)
@@ -181,18 +191,29 @@ def run_group(project, task, group, retry=False):
         group_sessions(group)
         manifest = json.loads((group / "run.json").read_text())
         state = json.loads((group / "run-state.json").read_text())
+        if manifest.get("interactive", False) and not (
+                os.environ.get("ZELLIJ") and os.environ.get("ZELLIJ_SESSION_NAME")):
+            raise ValueError("Run this interactive group inside a Zellij session.")
         if retry:
             retry_members(group, manifest, state)
         elif state["status"] != "waiting":
             raise ValueError("This group was already started. Use fx agent group retry or compare.")
+        if manifest.get("interactive", False):
+            print("fx: Synthesis is manual. After every member saves a response, run:", flush=True)
+            print(f"fx agent group compare {group.name} --name synthesis "
+                  f"--agent {manifest['synthesis_agent']} --new-tab", flush=True)
         run_members(project, task, group, manifest, state)
         if state["status"] != "finished":
             raise ValueError(f"Group incomplete. Results are preserved in {group}. Retry with: fx agent group retry {group.name}")
+        if manifest.get("interactive", False):
+            print("fx: All members exited. Start synthesis with the compare command when ready.", flush=True)
+            return
         comparison_context(task, group)
         print("fx: All members finished. Starting interactive synthesis in this tab.", flush=True)
         os.chdir(task)
-        os.execv(str(TOOL_DIR / "fx"), [str(TOOL_DIR / "fx"), "agent", "group", "compare",
-                   group.name, "--name", "synthesis", "--agent", manifest["synthesis_agent"]])
+        command = [str(TOOL_DIR / "fx"), "agent", "group", "compare", group.name,
+                   "--name", "synthesis", "--agent", manifest["synthesis_agent"]]
+        os.execv(command[0], command)
 
 
 def main():
@@ -202,17 +223,19 @@ def main():
     parser.add_argument("task", type=Path)
     parser.add_argument("group")
     parser.add_argument("synthesis_agent", nargs="?")
+    parser.add_argument("--interactive", action="store_true")
     args = parser.parse_args()
     try:
         group = resolve_group(args.task, args.group)
         if args.action == "prepare":
             if not args.synthesis_agent:
                 raise ValueError("Supply the synthesis adapter when preparing a group.")
-            prepare_run(group, args.synthesis_agent)
+            prepare_run(group, args.synthesis_agent, args.interactive)
         else:
             def cancel(signum, frame):
                 raise KeyboardInterrupt
             signal.signal(signal.SIGTERM, cancel)
+            signal.signal(signal.SIGHUP, cancel)
             run_group(args.project, args.task, group, args.action == "retry")
     except KeyboardInterrupt:
         print("\nfx: Group cancelled. Completed results and logs are preserved.", file=sys.stderr)
