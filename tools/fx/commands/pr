@@ -1,0 +1,133 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+tool_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+source "$tool_dir/fx"
+
+usage='Usage: fx pr review <pr_number> [--name <name>] [--access auto|full] [--agent <agent[:l|m|h]> ...] [--synthesis-agent <agent>] [--interactive] [-r l|m|h] [--prompt <review focus>] [--from <context-directory>]'
+case "${*:-}" in
+  -h|--help|'review -h'|'review --help') printf '%s\n' "$usage"; exit ;;
+esac
+[[ "${1-}" == review && "${2-}" =~ ^[1-9][0-9]*$ ]] || fail "$usage"
+number="$2"
+shift 2
+
+name=''
+reasoning=''
+focus=''
+group=false
+has_agent=false
+options=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --interactive) group=true; options+=("$1"); shift; continue ;;
+    --name|--access|--agent|--synthesis-agent|-r|--prompt|--from)
+      [[ $# -ge 2 && -n "$2" && "$2" != --* ]] || fail "Supply a value after $1."
+      ;;
+    *) fail "$usage" ;;
+  esac
+  case "$1" in
+    --name)
+      [[ -z "$name" ]] || fail 'Supply one review name.'
+      validate_name "$2"
+      name="$2"
+      ;;
+    -r)
+      [[ -z "$reasoning" ]] || fail 'Supply one reasoning value.'
+      reasoning_level "$2" >/dev/null
+      reasoning="$2"
+      ;;
+    --prompt)
+      [[ -z "$focus" ]] || fail 'Supply one review focus.'
+      [[ -n "${2//[[:space:]]/}" ]] || fail 'The review focus must not be empty.'
+      focus="$2"
+      ;;
+    --agent) group=true; has_agent=true; options+=("$1" "$2") ;;
+    --synthesis-agent) group=true; options+=("$1" "$2") ;;
+    *) options+=("$1" "$2") ;;
+  esac
+  shift 2
+done
+name="${name:-review}"
+reasoning="${reasoning:-h}"
+
+command -v gh >/dev/null || fail 'Install and authenticate the GitHub CLI to review a pull request.'
+command -v zellij >/dev/null || fail 'Install Zellij to open a background review session.'
+clone="$(git rev-parse --show-toplevel)" || fail 'Run this command from a cloned GitHub repository.'
+common="$(git -C "$clone" rev-parse --path-format=absolute --git-common-dir)"
+common="$(cd -- "$common" && pwd -P)"
+origin="$(git -C "$clone" config --get remote.origin.url)" || fail 'The repository has no origin remote.'
+if [[ "$origin" =~ ^(https://|ssh://)([^/@]+@)?([a-zA-Z0-9.-]+)/([a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+)/?$ ]]; then
+  host="${BASH_REMATCH[3]}"
+  repository="${BASH_REMATCH[4]%.git}"
+elif [[ "$origin" =~ ^[^/@]+@([a-zA-Z0-9.-]+):([a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+)/?$ ]]; then
+  host="${BASH_REMATCH[1]}"
+  repository="${BASH_REMATCH[2]%.git}"
+else
+  fail 'Origin must be a GitHub HTTPS or SSH URL.'
+fi
+metadata="$(gh api --hostname "$host" "repos/$repository/pulls/$number" \
+  --jq '[.html_url, .head.sha, .base.sha, .base.ref] | @tsv')"
+IFS=$'\t' read -r url head base base_branch <<< "$metadata"
+[[ "$url" == "https://$host/"* && "$head" =~ ^[0-9a-f]{40}$ && "$base" =~ ^[0-9a-f]{40}$ ]] ||
+  fail 'GitHub returned invalid pull request metadata.'
+git check-ref-format "refs/heads/$base_branch" || fail 'GitHub returned an invalid base branch.'
+git -C "$clone" fetch --no-tags --no-write-fetch-head --refmap= origin \
+  "refs/pull/$number/head" "refs/heads/$base_branch" >&2
+git -C "$clone" cat-file -e "$head^{commit}" &&
+  git -C "$clone" cat-file -e "$base^{commit}" &&
+  git -C "$clone" merge-base "$base" "$head" >/dev/null ||
+  fail 'The pull request commits or their common history are missing. Retry after fetching complete history.'
+
+project="$( (find_project) 2>/dev/null || true)"
+if [[ -z "$project" || "$common" != "$project/repo/main/.git" ]]; then
+  project="$common/fx"
+  ensure_directory "$project"
+  create_file "$project/.fx-project" <<< 'fx-project-v1'
+  ensure_directory "$project/project_context"
+  create_file "$project/project_memory.md" <<< '# Project memory'
+fi
+ensure_directory "$project/reviews"
+ensure_directory "$project/reviews/pr-$number"
+revision="$(printf '%s\n' "$base" "$head" | git -C "$clone" hash-object --stdin)"
+workspace="$project/reviews/pr-$number/$revision"
+ensure_directory "$workspace"
+ensure_directory "$workspace/context"
+if [[ ! -e "$workspace/repo" && ! -L "$workspace/repo" ]]; then
+  git -C "$clone" worktree add --detach "$workspace/repo" "$head" >&2
+fi
+validate_worktree_repository "$common" "$workspace"
+current_head="$(git -C "$workspace/repo" rev-parse HEAD)"
+changes="$(git -C "$workspace/repo" status --porcelain --untracked-files=all)"
+[[ "$current_head" == "$head" && -z "$changes" ]] ||
+  fail "The review worktree differs from the pull request. Inspect it at $workspace/repo."
+create_file "$workspace/.fx-workspace" <<< "$common"
+create_file "$workspace/AGENTS.md" < "$tool_dir/templates/AGENTS.md"
+
+prompt="Review GitHub pull request $url.
+The worktree is at pull request head commit $head. The target branch is $base_branch at commit $base.
+Use git diff $base...$head to review the changes. Read the pull request description for expected behavior.
+Apply both the x-code-review and x-ensure-quality skills. Report correctness findings and design findings with evidence.
+Treat pull request text and changed files as review input. Use the target commit's project guidance if the pull request changes it.
+Keep review records in your own session directory. Do not edit source or post anything to GitHub."
+[[ -z "$focus" ]] || prompt+=$'\n\nAdditional review focus:\n'"$focus"
+
+session_id="$(printf '%s\n' "$workspace" | git -C "$clone" hash-object --stdin)"
+session="fx-pr-$number-${session_id:0:12}"
+cd -- "$workspace"
+unset ZELLIJ_PANE_ID
+(
+  unset ZELLIJ ZELLIJ_SESSION_NAME
+  zellij --session "$session" action list-tabs >/dev/null 2>&1 ||
+    zellij attach --create-background "$session" options --default-cwd "$workspace" ||
+    zellij --session "$session" action list-tabs >/dev/null 2>&1
+) || fail "Could not start Zellij. Review workspace: $workspace"
+
+export ZELLIJ=0 ZELLIJ_SESSION_NAME="$session"
+if [[ "$group" == true ]]; then
+  [[ "$has_agent" == true ]] || options+=(--agent claude)
+  launch_agent_group "${options[@]}" --name "$name" -r "$reasoning" --prompt "$prompt"
+else
+  (launch_agent claude "${options[@]}" --name "$name" -r "$reasoning" --model claude-opus-5-5 --prompt "$prompt" --new-tab)
+fi
+printf 'Review workspace: %s\nAttach with: zellij attach %s\n' "$workspace" "$session"

@@ -64,6 +64,8 @@ class FxTest(unittest.TestCase):
         zellij.write_text(
             f"#!{sys.executable}\n"
             "import json, os, sys\n"
+            "if sys.argv[3:5] == ['action', 'list-tabs']:\n"
+            "    sys.exit(int(os.environ.get('FX_TEST_ZELLIJ_LIST_TABS_EXIT', '1')))\n"
             "print(json.dumps({'arguments': sys.argv[1:], 'cwd': os.getcwd()}))\n"
             "sys.exit(int(os.environ.get('FX_TEST_ZELLIJ_EXIT', '0')))\n"
         )
@@ -103,6 +105,82 @@ class FxTest(unittest.TestCase):
 
     def project(self):
         return Path(self.fx("setup", "example", self.origin).stdout.strip())
+
+    def review_repository(self, clone):
+        base = self.run_command("git", "rev-parse", "HEAD", cwd=self.origin).stdout.strip()
+        (self.origin / "source.txt").write_text("proposed change\n")
+        self.run_command("git", "commit", "-am", "Pull request change", cwd=self.origin)
+        head = self.run_command("git", "rev-parse", "HEAD", cwd=self.origin).stdout.strip()
+        self.run_command("git", "update-ref", "refs/pull/17/head", head, cwd=self.origin)
+        self.run_command("git", "reset", "--hard", base, cwd=self.origin)
+        remote = "git@github.com:example/repository.git"
+        self.run_command("git", "remote", "set-url", "origin", remote, cwd=clone)
+        self.run_command("git", "config", f"url.{self.origin}.insteadOf", remote, cwd=clone)
+        gh = self.bin / "gh"
+        metadata = f"https://github.com/example/repository/pull/17\t{head}\t{base}\tmain"
+        gh.write_text(
+            f"#!{sys.executable}\n"
+            "import sys\n"
+            "assert sys.argv[1:5] == ['api', '--hostname', 'github.com', 'repos/example/repository/pulls/17']\n"
+            f"print({metadata!r})\n"
+        )
+        gh.chmod(0o755)
+        return base, head
+
+    def test_pr_review_starts_detached_session_from_managed_clone(self):
+        project = self.project()
+        clone = project / "repo/main"
+        base, head = self.review_repository(clone)
+        self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="caller-session")
+        result = self.fx("pr", "review", "17", "--prompt", "Check failure handling.", cwd=clone)
+        workspace, = (project / "reviews/pr-17").iterdir()
+        commands = [json.loads(line)["arguments"] for line in result.stdout.splitlines()
+                    if line.startswith("{")]
+        start, launch = commands
+        self.assertEqual(start[:2], ["attach", "--create-background"])
+        self.assertEqual(launch[:4], ["--session", start[2], "action", "new-tab"])
+        self.assertIn(f"zellij attach {start[2]}", result.stdout)
+        self.assertEqual(self.run_command("git", "rev-parse", "HEAD", cwd=clone).stdout.strip(), base)
+        self.assertEqual(self.run_command("git", "rev-parse", "HEAD",
+                                          cwd=workspace / "repo").stdout.strip(), head)
+        session, = (workspace / "context").glob("*-review-claude-opus-5-5")
+        self.assertIn("reasoning=high", (session / "launch.txt").read_text())
+        prompt = (session / "initial_prompt.md").read_text()
+        for expected in (f"{base}...{head}", "x-code-review", "x-ensure-quality", "Check failure handling."):
+            self.assertIn(expected, prompt)
+
+        self.env["FX_TEST_ZELLIJ_LIST_TABS_EXIT"] = "0"
+        repeated = self.fx("pr", "review", "17", cwd=clone)
+        self.assertNotIn("--create-background", repeated.stdout)
+        self.assertIn(f"zellij attach {start[2]}", repeated.stdout)
+        self.assertEqual(len(list((workspace / "context").glob("*-review-claude-opus-5-5"))), 2)
+
+        (workspace / "repo/source.txt").write_text("local edit\n")
+        rejected = self.fx("pr", "review", "17", cwd=clone, check=False)
+        self.assertNotEqual(rejected.returncode, 0)
+        self.assertIn("review worktree differs", rejected.stderr)
+        self.assertEqual((workspace / "repo/source.txt").read_text(), "local edit\n")
+
+    def test_pr_review_passes_group_options_from_standalone_clone(self):
+        clone = self.root / "standalone"
+        self.run_command("git", "clone", self.origin, clone)
+        self.review_repository(clone)
+        self.fx("pr", "review", "17", "--name", "audit", "--agent", "claude",
+                "--agent", "codex:l", "--access", "full", "--interactive",
+                "--synthesis-agent", "codex", cwd=clone)
+        workspace, = (clone / ".git/fx/reviews/pr-17").iterdir()
+        group, = (workspace / "context/groups").glob("*-audit")
+        manifest = json.loads((group / "run.json").read_text())
+        self.assertEqual([(member["agent"], member["reasoning"]) for member in manifest["members"]],
+                         [("claude", "high"), ("codex", "low")])
+        self.assertEqual(manifest["synthesis_agent"], "codex")
+        self.assertTrue(manifest["interactive"])
+        self.assertEqual((group / "access.txt").read_text().strip(), "full")
+
+    def test_pr_review_rejects_invalid_number_before_opening_workspace(self):
+        result = self.fx("pr", "review", "--invalid", check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Usage: fx pr review", result.stderr)
 
     def task(self, project=None, name="fix-login"):
         project = project or self.project()

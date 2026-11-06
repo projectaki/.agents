@@ -48,6 +48,64 @@ Each launch requires a session name and creates a new session directory.
 Omit `--name` to enter the name at an interactive terminal prompt.
 It does not resume a previous conversation. Exit the agent to return to the task shell.
 
+## Record task checks
+
+From a task directory or its worktree, run:
+
+```bash
+fx task check -- ./scripts/test-backend
+fx task check status
+```
+
+The check runs once from the repository root. It writes standard output and
+standard error to a log and prints the log path. It returns the command's exit
+code or termination signal. Use a project script to set up dependencies and
+stop a batch when a check fails. Keep secrets out of command arguments and logs.
+
+Factory sessions get instructions to associate their checks with their session.
+Use `--session DIR` to select a session explicitly. A response capture saves the
+session's completed check records. The next reviewer can open that snapshot
+from the starting context. Manual checks without a session appear in task status.
+
+Use `--heavy` to wait for a lock shared by checks that opt in under the same host
+user account. The record reports lock wait separately from execution.
+Use `--tmp-dir DIR` with a disk-backed directory outside the repository.
+Fx creates a private temporary directory there, sets `TMPDIR` for the command,
+and removes the directory on exit. The command must use `TMPDIR` for this setting
+to affect its build.
+
+Status lists outcomes separately from source freshness. A current result has the
+same Git revision and working file fingerprint before the check, after the check,
+and now. Ignored files and external dependencies need separate setup evidence.
+
+## Review a GitHub pull request
+
+Run from a clone whose `origin` points to the GitHub repository that owns the
+pull request. Authenticate the GitHub CLI first.
+
+```bash
+fx pr review 123
+fx pr review 123 --agent claude:h --agent codex:h
+```
+
+The command opens a review tab in a background Zellij session. It prints the
+workspace path and a `zellij attach` command for when you want to join. The
+default tab starts Claude Opus 5.5 with high reasoning and assigns both
+`x-code-review` and `x-ensure-quality`.
+
+Use `--agent` to select one or more group members. The `--interactive` and
+`--synthesis-agent` options also select group mode, with Claude as the only
+member if you omit `--agent`. Review accepts the other launch options from
+`fx agent group`. Use `--prompt` to add a review focus. Relative `--from`
+paths start in the review workspace.
+
+Fx checks out the pull request head in a separate worktree and gives the
+reviewer the exact target commit to use for comparison. Reviews live in
+`reviews/pr-<number>/<revision>/` under the fx project. For a standalone
+clone, they live under `fx/reviews/` in its Git directory. A change to either
+commit creates a separate workspace. A repeat for the same commits reuses
+the workspace and opens another review tab if the worktree is clean.
+
 ## Analyze a task
 
 Run a retrospective from the project directory:

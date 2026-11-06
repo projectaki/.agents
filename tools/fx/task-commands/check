@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+tool_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+source "$tool_dir/fx"
+
+if [[ "${1-}" == --help || "${1-}" == -h ]]; then
+  exec python3 "$tool_dir/fx_check.py" --help
+fi
+project="$(find_project)"
+task="$(find_task "$project")"
+exec python3 "$tool_dir/fx_check.py" --task "$task" "$@"

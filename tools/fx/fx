@@ -109,17 +109,17 @@ validate_clone() {
 }
 
 validate_worktree_repository() {
-  local project="$1" task="$2" common
+  local expected_common="$1" task="$2" common
   [[ -f "$task/repo/.git" && ! -L "$task/repo" ]] || fail "Expected a task worktree: $task/repo"
   [[ "$(git -C "$task/repo" rev-parse --show-toplevel)" == "$task/repo" ]] ||
     fail "Worktree root does not match: $task/repo"
   common="$(cd -- "$task/repo" && cd -- "$(git rev-parse --git-common-dir)" && pwd -P)"
-  [[ "$common" == "$project/repo/main/.git" ]] || fail 'The task worktree belongs to another repository.'
+  [[ "$common" == "$expected_common" ]] || fail 'The task worktree belongs to another repository.'
 }
 
 validate_worktree() {
   local project="$1" task="$2"
-  validate_worktree_repository "$project" "$task"
+  validate_worktree_repository "$project/repo/main/.git" "$task"
   git -C "$task/repo" symbolic-ref --quiet HEAD >/dev/null ||
     fail 'The task worktree has no checked-out branch. Switch to a branch before reopening it.'
 }
@@ -374,7 +374,7 @@ delete_task() {
     [[ "$entry" != "worktree $task/repo" ]] || registered=true
   done <<< "$worktrees"
   if [[ -e "$task/repo" || -L "$task/repo" ]]; then
-    validate_worktree_repository "$project" "$task"
+    validate_worktree_repository "$project/repo/main/.git" "$task"
     [[ "$registered" == true ]] || fail 'The task worktree is not registered at its expected path.'
     lock="$(git -C "$task/repo" rev-parse --path-format=absolute --git-path locked)"
     [[ ! -e "$lock" ]] || fail 'The task worktree is locked. Unlock it before deleting the task.'
@@ -414,6 +414,11 @@ find_task() {
   local project="$1" task
   task="$(pwd -P)"
   while [[ "$task" != "$project" && "$(dirname -- "$task")" != "$project/tasks" ]]; do
+    if [[ -f "$task/.fx-workspace" && ! -L "$task/.fx-workspace" && -f "$task/repo/.git" ]]; then
+      validate_worktree_repository "$(cat "$task/.fx-workspace")" "$task"
+      printf '%s\n' "$task"
+      return
+    fi
     task="$(dirname -- "$task")"
   done
   [[ "$task" != "$project" ]] || fail 'Run fx agent inside a task created by fx task.'
@@ -472,6 +477,9 @@ Keep handoff.md current before ending each material turn. Keep it under 8,000 by
 Include scope and success criteria, approved exceptions with original decision references and limits,
 the exact source discussed, required test setup, completed checks, and remaining findings.
 Distinguish checks you ran from planned checks. Missing approval evidence means approval is unverified.
+Run verification through fx task check --session $(printf '%q' "$session") -- followed by the project command.
+Read recorded check results linked in the starting context. Keep each rerun separate.
+Before reporting delivery outside an independent investigation, use fx task check status to verify which results match the current source.
 Do not copy diagnostic logs, secrets, or auxiliary suggestions into the handoff.
 Fx saves the handoff with the captured response. Earlier saved handoffs remain unchanged.
 For code reviews, use the supplied review-record path. Only the assigned reviewer or comparison
@@ -500,7 +508,8 @@ Use the initial assignment, task rules, project memory, project context, reposit
 Read earlier captured responses listed in your starting context snapshot, including results from earlier groups.
 Do not inspect other members of this group or read their findings, responses, or comparisons during this investigation.
 Do not discover later results by scanning task context. Use only the earlier responses listed in your snapshot unless I explicitly assign comparison work later.
-Write only within your session directory. Do not edit source, project memory, or shared context during this investigation.
+Write only within your session directory. Fx can save recorded checks for your session in task context.
+Do not edit source, project memory, or shared context during this investigation.
 For code review, use $session/review-record.md as your private review record.
 The private path overrides the task review-record path during this independent investigation.
 All members received the same source.json identity. Verify source before and after review.
@@ -909,6 +918,7 @@ fx() {
     task)
       local fx_argument fx_no_attach=false
       for fx_argument in "$@"; do
+        [ "$fx_argument" != -- ] || break
         [ "$fx_argument" != --no-attach ] || fx_no_attach=true
       done
       if [ "$fx_no_attach" = true ]; then
@@ -966,6 +976,7 @@ Usage:
   fx setup <project_name> [repository]
   fx task <task_name> [--base <branch>] [--no-attach]
   fx task <command> [command-options]
+  fx pr review <pr_number> [agent-group-options]
   fx delete <task_name> [--force]
   fx agent <agent> [--name <name>] [--model <model>] [--access auto|full] [-r l|m|h] [--prompt <text>] [--from <context-directory>] [--new-tab]
   fx agent <agent> --resume <session-directory> [--access auto|full] [--new-tab]

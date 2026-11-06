@@ -9,6 +9,7 @@ import shutil
 import sys
 import tempfile
 
+from fx_check import check_records
 from fx_source import source_identity
 
 MAX_HANDOFF_BYTES = 48_000
@@ -92,6 +93,11 @@ def save_response(session, agent, conversation_id, turn_id, response, capture_so
                 write_file(pending / "handoff.md", read_summary(summary))
             context = next((parent for parent in session.parents if parent.name == "context"), None)
             source = source_identity(context.parent / "repo") if context else None
+            if context:
+                owner = str(session.relative_to(context))
+                checks = [record for record in check_records(context) if record["session"] == owner]
+                if checks:
+                    write_file(pending / "checks.json", json.dumps(checks, indent=2) + "\n")
             write_file(pending / "metadata.json", json.dumps({
                 "schema_version": 2,
                 "origin": "main_conversation",
@@ -226,18 +232,23 @@ def prepare_context(task, sources, *, include_responses=True):
     for captured_at, directory, agent, source in sorted(records):
         response_path = directory / "response.md"
         index += f"- {captured_at} ({agent}): {response_path.relative_to(task)}\n"
-        if sources and not include_responses:
-            index += f"  Source evidence: {(directory / 'metadata.json').relative_to(task)}\n"
-            if (directory / "handoff.md").exists() or (directory / "handoff.md").is_symlink():
-                read_summary(directory / "handoff.md")
-                index += f"  Saved handoff: {(directory / 'handoff.md').relative_to(task)}\n"
+        index += f"  Source evidence: {(directory / 'metadata.json').relative_to(task)}\n"
+        summary = directory / "handoff.md"
+        summary_text = None
+        if summary.exists() or summary.is_symlink():
+            summary_text = read_summary(summary)
+            index += f"  Saved handoff: {summary.relative_to(task)}\n"
+        checks = directory / "checks.json"
+        if checks.is_symlink():
+            raise ValueError(f"Check snapshot must not be a symbolic link: {checks}")
+        if checks.is_file():
+            index += f"  Recorded check results: {checks.relative_to(task)}\n"
         if sources and include_responses:
             handoff += f"\n## Saved response: {response_path.relative_to(task)}\n\n"
             handoff += response_path.read_text(encoding="utf-8") + "\n"
             handoff += "\nRecorded source at response capture: " + json.dumps(source) + "\n"
-            summary = directory / "handoff.md"
-            if summary.exists() or summary.is_symlink():
-                handoff += "\n### Handoff saved with this response\n\n" + read_summary(summary) + "\n"
+            if summary_text is not None:
+                handoff += "\n### Handoff saved with this response\n\n" + summary_text + "\n"
     if not records:
         index += "No prior responses supplied.\n"
     review = context / "review-record.md"
