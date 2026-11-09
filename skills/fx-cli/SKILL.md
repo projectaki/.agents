@@ -72,9 +72,14 @@ task directory. Source commands run in its `repo/` directory. Read task and
 repository instructions before edits.
 
 New Zellij sessions show the directory, repository path, session name, latest
-commit, and Git status in their initial terminal, then open the interactive
-`SHELL` (Bash when unset). Existing sessions retain their terminals without a
-new summary. `--no-attach` keeps standard output limited to the task path.
+commit, and Git status in their initial terminal, then start the task
+orchestrator. Set `FX_ORCHESTRATOR_AGENT` to `claude` or `codex`, or choose at
+the terminal prompt. Exiting opens the interactive `SHELL` (Bash when unset).
+Run `fx orchestrator` from the task or its worktree to start a fresh session in
+the current terminal. It receives paths to the task instructions and CLI
+reference. It launches assigned agents in new Zellij tabs. Fx skips context and
+event capture for the orchestrator. Existing Zellij sessions keep their terminals.
+`--no-attach` keeps standard output limited to the task path.
 
 Without `--base`, new tasks use `feature/<task-name>` and the fetched default
 from `origin/HEAD`. Existing task worktrees keep their current branch and files.

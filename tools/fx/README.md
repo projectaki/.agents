@@ -31,13 +31,16 @@ Connect to the server, or use a local terminal. Then run:
 ```bash
 fx setup my-project owner/repository
 fx task fix-login
-fx agent claude --name investigate-login
 ```
 
-`fx task` creates or attaches to the Zellij session `my-project-fix-login`. A new session
-opens its shell in the task directory. Enter the assignment in the agent's
-interactive prompt. Open another terminal
-or Zellij pane, enter the same task directory, and start another session:
+`fx task` creates or attaches to the Zellij session `my-project-fix-login`.
+In a new session, the first terminal starts the task orchestrator. Choose
+Claude or Codex at the prompt, then give it the assignment. Exit the
+orchestrator to open the task shell. Run `fx orchestrator` there to start
+a fresh orchestrator in the same terminal.
+
+You can also open another terminal or Zellij pane, enter the task directory,
+and start an assigned agent directly:
 
 ```bash
 cd ~/work/my-project/tasks/fix-login
@@ -264,11 +267,12 @@ After preparing the worktree, the command creates or attaches to a Zellij
 session named `<project_name>-<task_name>`. From inside Zellij, it switches sessions
 instead of nesting another client. A new session uses a layout with the tab bar,
 one terminal, and the status bar. The terminal prints its directory, repository
-path, Zellij session name, latest commit, and Git status before opening the
-interactive shell selected by `SHELL` (Bash when unset). Git status includes the
-branch, upstream comparison, and local changes. The summary reads the current
-worktree when the terminal starts. Git errors are reported without preventing
-the shell from opening.
+path, Zellij session name, latest commit, and Git status before starting the
+orchestrator. When the orchestrator exits or fails to start, the terminal opens
+the interactive shell selected by `SHELL` (Bash when unset). Git status includes
+the branch, upstream comparison, and local changes. The summary reads the
+current worktree when the terminal starts. The terminal reports Git errors and
+continues startup.
 
 If already in that session, the command stays there.
 Existing sessions retain their panes and working directories. Detaching returns
@@ -303,6 +307,20 @@ Scripts that capture a task path must use `--no-attach`.
 Project and task names start with a letter or digit. Remaining characters
 can be letters, digits, underscores, or hyphens.
 Run setup and task creation sequentially. Parallel agent launches are supported.
+
+### `fx orchestrator`
+
+Run from the task directory or its source worktree. Fx starts a fresh
+interactive Claude or Codex session in the current terminal, with the task
+directory as its working directory. To choose a provider in advance, export
+`FX_ORCHESTRATOR_AGENT=claude` or `FX_ORCHESTRATOR_AGENT=codex`. If the variable
+is empty or unset, fx prompts for a provider. Each provider uses its normal
+model and permission settings.
+
+The orchestrator receives its role, task paths, and the path to this reference.
+It passes `--new-tab` to `fx agent` to launch assigned agents in separate Zellij
+tabs. Fx skips its session directory, context capture, and event recording for
+the orchestrator. Assigned agents still use the normal `fx agent` workflow.
 
 ### `fx delete <task_name> [--force]`
 

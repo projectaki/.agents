@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+import shlex
 import shutil
 import subprocess
 import time
@@ -10,6 +11,73 @@ import test_fx
 
 
 ZELLIJ = shutil.which('zellij')
+
+
+@unittest.skipUnless(ZELLIJ and shutil.which('script'), 'Zellij and script are required.')
+class TaskOrchestratorTest(unittest.TestCase):
+    def test_task_starts_orchestrator_and_can_restart_it_in_the_same_tab(self):
+        fixture = test_fx.FxTest()
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        name = 'fx-orchestrator-test-' + uuid.uuid4().hex[:12]
+        project = Path(fixture.fx('setup', name, fixture.origin).stdout.strip())
+        task = project / 'tasks/fix-login'
+        session = f'{name}-fix-login'
+        (fixture.bin / 'zellij').unlink()
+        config = fixture.home / '.config/zellij'
+        config.mkdir(parents=True)
+        (config / 'config.kdl').write_text('show_startup_tips false\nshow_release_notes false\n')
+        fixture.env.update(TERM='xterm-256color', SHELL='/bin/bash', FX_ORCHESTRATOR_AGENT='codex',
+                           ZELLIJ_CONFIG_DIR=str(config), PATH=f"{test_fx.TOOL.parent}:{fixture.env['PATH']}")
+        launches = fixture.root / 'orchestrator-launches.txt'
+        shell_ready = fixture.root / 'shell-ready'
+        (fixture.home / '.bashrc').write_text(f'touch -- {shlex.quote(str(shell_ready))}\n')
+        (fixture.bin / 'codex').write_text(f'#!{test_fx.sys.executable}\n' + f'''
+import os, sys
+with open({str(launches)!r}, 'a') as log:
+    print(os.getcwd(), os.environ['ZELLIJ_SESSION_NAME'], sys.stdin.isatty(), file=log)
+try:
+    input()
+except KeyboardInterrupt:
+    sys.exit(130)
+''')
+        self.addCleanup(fixture.run_command, ZELLIJ, 'delete-session', session, '--force', check=False)
+        self.addCleanup(fixture.run_command, ZELLIJ, 'kill-session', session, check=False)
+
+        def wait_for(predicate, message):
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                if predicate():
+                    return
+                time.sleep(0.05)
+            screen = fixture.run_command(ZELLIJ, '--session', session, 'action', 'dump-screen', '--full', check=False)
+            self.fail(f'{message}\n{screen.stdout}')
+
+        command = f'stty rows 40 cols 120; exec {shlex.quote(str(test_fx.TOOL))} task fix-login'
+        with subprocess.Popen(
+            ['script', '-qefc', command, '/dev/null'], cwd=project, env=fixture.env,
+            stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        ) as client:
+            try:
+                wait_for(launches.exists, 'The orchestrator did not start.')
+                tab_names = (ZELLIJ, '--session', session, 'action', 'query-tab-names')
+                initial_tabs = fixture.run_command(*tab_names).stdout.splitlines()
+                self.assertEqual(len(initial_tabs), 1)
+                self.assertEqual(launches.read_text().splitlines(), [f'{task} {session} True'])
+                client.stdin.write(b'\x03')
+                client.stdin.flush()
+                wait_for(shell_ready.exists, 'The task shell did not open after Ctrl+C.')
+                client.stdin.write(b'fx orchestrator\r')
+                client.stdin.flush()
+                wait_for(lambda: len(launches.read_text().splitlines()) == 2,
+                         'The orchestrator did not restart.')
+                self.assertEqual(launches.read_text().splitlines(), [f'{task} {session} True'] * 2)
+                self.assertEqual(fixture.run_command(*tab_names).stdout.splitlines(), initial_tabs)
+                self.assertEqual(list((task / 'context').iterdir()), [])
+            finally:
+                client.terminate()
+                client.wait(timeout=5)
 
 
 @unittest.skipUnless(ZELLIJ and shutil.which('script'), 'Zellij and script are required.')

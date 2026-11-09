@@ -421,7 +421,7 @@ find_task() {
     fi
     task="$(dirname -- "$task")"
   done
-  [[ "$task" != "$project" ]] || fail 'Run fx agent inside a task created by fx task.'
+  [[ "$task" != "$project" ]] || fail 'Run this command inside a task created by fx task.'
   validate_clone "$project/repo/main"
   validate_worktree "$project" "$task"
   printf '%s\n' "$task"
@@ -988,6 +988,7 @@ Usage:
   fx setup <project_name> [repository]
   fx task <task_name> [--base <branch>] [--no-attach]
   fx task <command> [command-options]
+  fx orchestrator
   fx pr review <pr_number> [agent-group-options]
   fx delete <task_name> [--force]
   fx agent <agent> [--name <name>] [--model <model>] [--access auto|full] [-r l|m|h] [--prompt <text>] [--from <context-directory>] [--new-tab]
@@ -1002,6 +1003,7 @@ Usage:
 Projects live under FX_ROOT (default: ~/work).
 Load shell-init in Bash or Zsh to enter projects and tasks automatically.
 Tasks open a Zellij session named <project_name>-<task_name>. Use --no-attach to skip Zellij.
+New task sessions start an orchestrator in the first terminal. Set FX_ORCHESTRATOR_AGENT to claude or codex, or choose at the prompt.
 Delete removes the task directory, Git worktree, and Zellij session. Git branches are kept.
 Use delete --force to discard uncommitted files or a detached worktree. Run outside the target Zellij session.
 Without --base, new feature/<task_name> branches start from the fetched default.

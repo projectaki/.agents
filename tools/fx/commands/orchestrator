@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+tool_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+source "$tool_dir/fx"
+
+usage='Usage: fx orchestrator
+
+Start a fresh orchestrator in the current task terminal.
+Set FX_ORCHESTRATOR_AGENT to claude or codex, or choose at the prompt.'
+if [[ $# == 1 && ( "$1" == --help || "$1" == -h ) ]]; then
+  printf '%s\n' "$usage"
+  exit
+fi
+[[ $# == 0 ]] || fail "$usage"
+
+project="$(find_project)"
+task="$(find_task "$project")"
+agent="${FX_ORCHESTRATOR_AGENT-}"
+if [[ -z "$agent" ]]; then
+  [[ -t 0 ]] || fail 'Set FX_ORCHESTRATOR_AGENT to claude or codex when terminal input is unavailable.'
+  printf 'Orchestrator agent (claude or codex): ' >&2
+  IFS= read -r agent || fail 'No orchestrator agent selected.'
+fi
+adapter="$tool_dir/orchestrator-adapters/$agent"
+[[ "$agent" =~ ^[a-zA-Z0-9][a-zA-Z0-9_-]*$ && -x "$adapter" && -f "$adapter" ]] ||
+  fail 'Select claude or codex as the orchestrator agent.'
+command -v "$agent" >/dev/null || fail "The $agent CLI is not available. Install it and run fx orchestrator again."
+
+instructions="$(cat "$tool_dir/templates/orchestrator.md")
+
+Task directory: $task
+Task instructions: $task/AGENTS.md
+Source worktree: $task/repo
+Task context: $task/context
+Project memory: $project/project_memory.md
+Project context: $project/project_context
+Fx CLI reference: $tool_dir/README.md"
+
+export PATH="$tool_dir:$PATH"
+unset FX_SESSION_CONTEXT_DIR
+cd -- "$task"
+exec "$adapter" "$instructions"

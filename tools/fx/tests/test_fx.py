@@ -26,7 +26,7 @@ class FxTest(unittest.TestCase):
         self.bin.mkdir()
         self.env = dict(os.environ)
         for key in list(self.env):
-            if key.startswith(("GIT_", "ZELLIJ")) or key in ("BASH_ENV", "ENV", "CDPATH"):
+            if key.startswith(("GIT_", "ZELLIJ")) or key in ("BASH_ENV", "ENV", "CDPATH", "FX_ORCHESTRATOR_AGENT"):
                 self.env.pop(key)
         self.env.update(
             HOME=str(self.home),
@@ -2299,6 +2299,55 @@ pwd -P
             "arguments": ["action", "switch-session", "example-next-task", "--cwd", str(task), "--layout-string", self.run_command(sys.executable, TOOL.parent / "fx_task.py", "layout", task).stdout.rstrip("\n")],
             "cwd": str(task),
         })
+
+    def test_orchestrator_uses_native_provider_with_task_instructions(self):
+        task = self.task()
+        self.env["FX_SESSION_CONTEXT_DIR"] = str(task / "context/other-session")
+        for agent in ("claude", "codex"):
+            with self.subTest(agent=agent):
+                self.env["FX_ORCHESTRATOR_AGENT"] = agent
+                if agent == "codex":
+                    self.env.update(CODEX_TUI_RECORD_SESSION="1", CODEX_TUI_SESSION_LOG_PATH="other-session.jsonl")
+                launch = json.loads(self.fx("orchestrator", cwd=task / "repo").stdout)
+                self.assertEqual(launch["cwd"], str(task))
+                arguments = launch["arguments"]
+                if agent == "claude":
+                    self.assertEqual(arguments[:-1], ["--append-system-prompt"])
+                    instructions = arguments[-1]
+                else:
+                    self.assertEqual(arguments[:-1], ["--no-daemon", "-c"])
+                    key, value = arguments[-1].split("=", 1)
+                    self.assertEqual(key, "developer_instructions")
+                    instructions = json.loads(value)
+                    self.assertIsNone(launch["record_session"])
+                    self.assertIsNone(launch["session_log"])
+                self.assertIn("You are the orchestrator", instructions)
+                self.assertIn(str(task / "AGENTS.md"), instructions)
+                self.assertIn(str(TOOL.parent / "README.md"), instructions)
+                self.assertIn("--new-tab", instructions)
+                self.assertIsNone(launch["event_session"])
+        self.assertEqual(list((task / "context").iterdir()), [])
+
+    def test_orchestrator_prompts_when_provider_is_unset(self):
+        task = self.task()
+        result = self.fx_with_terminal_input("orchestrator", cwd=task, input_bytes=b"claude\n")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Orchestrator agent (claude or codex)", result.stderr)
+        self.assertEqual(json.loads(result.stdout)["arguments"][0], "--append-system-prompt")
+
+    def test_orchestrator_rejects_invalid_scope_and_provider(self):
+        project = self.project()
+        task = self.task(project)
+        result = self.fx("orchestrator", cwd=project, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("inside a task", result.stderr)
+        result = self.fx("orchestrator", cwd=task, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("terminal input is unavailable", result.stderr)
+        self.env["FX_ORCHESTRATOR_AGENT"] = "../agents/claude"
+        result = self.fx("orchestrator", cwd=task, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Select claude or codex", result.stderr)
 
     def test_initial_task_terminal_reports_live_state_before_opening_the_shell(self):
         project = self.project()

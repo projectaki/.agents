@@ -1,0 +1,10 @@
+#!/usr/bin/env python3
+import json
+import os
+import sys
+
+
+instructions = json.dumps(sys.argv[1], ensure_ascii=False)
+os.environ.pop("CODEX_TUI_RECORD_SESSION", None)
+os.environ.pop("CODEX_TUI_SESSION_LOG_PATH", None)
+os.execvp("codex", ["codex", "--no-daemon", "-c", f"developer_instructions={instructions}"])
