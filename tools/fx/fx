@@ -186,20 +186,31 @@ resolve_default_branch() {
   printf '%s\n' "$reference"
 }
 
-resolve_task_branch() {
-  local clone="$1" requested="$2" remote=origin candidate matched='' branch reference
-  [[ "$requested" != -* && "$requested" != refs/* ]] &&
-    git check-ref-format "refs/heads/$requested" >/dev/null ||
-    fail "Invalid base branch: $requested"
-  if git -C "$clone" show-ref --verify --quiet "refs/heads/$requested"; then
-    printf '%s\n' "$requested"
-    return
-  fi
+task_branch_remote() {
+  local clone="$1" requested="$2" candidate matched=''
   while IFS= read -r candidate; do
     if [[ "$requested" == "$candidate/"* && ${#candidate} -gt ${#matched} ]]; then
       matched="$candidate"
     fi
   done < <(git -C "$clone" remote)
+  printf '%s\n' "$matched"
+}
+
+validate_task_branch_name() {
+  local branch="$1" option="$2"
+  [[ "$branch" != -* && "$branch" != refs/* ]] &&
+    git check-ref-format "refs/heads/$branch" >/dev/null ||
+    fail "Invalid $option branch: $branch"
+}
+
+resolve_task_branch() {
+  local clone="$1" requested="$2" remote matched branch reference
+  validate_task_branch_name "$requested" base
+  if git -C "$clone" show-ref --verify --quiet "refs/heads/$requested"; then
+    printf '%s\n' "$requested"
+    return
+  fi
+  matched="$(task_branch_remote "$clone" "$requested")"
   remote="${matched:-origin}"
   fetch_task_remote "$clone" "$remote" || return
   branch="${requested#"$remote/"}"
@@ -220,6 +231,34 @@ resolve_task_branch() {
     git -C "$clone" branch --no-track -- "$branch" "$reference" >&2 || return
   fi
   printf '%s\n' "$branch"
+}
+
+create_stacked_task_worktree() {
+  local clone="$1" worktree="$2" branch="$3" onto="$4" remote reference
+  validate_task_branch_name "$branch" base
+  validate_task_branch_name "$onto" onto
+  if git -C "$clone" rev-parse --verify "$branch^{commit}" >/dev/null 2>&1; then
+    fail "Use a new branch name with --onto. A branch, tag, or commit already matches: $branch"
+  fi
+  fetch_task_remote "$clone" origin
+  if git -C "$clone" show-ref --verify --quiet "refs/remotes/origin/$branch"; then
+    fail "Branch already exists on origin: $branch. Choose a new branch name or omit --onto."
+  fi
+
+  remote="$(task_branch_remote "$clone" "$onto")"
+  reference="refs/heads/$onto"
+  if [[ -n "$remote" ]]; then
+    if [[ "$remote" != origin ]]; then
+      fetch_task_remote "$clone" "$remote"
+    fi
+    reference="refs/remotes/$onto"
+  elif ! git -C "$clone" show-ref --verify --quiet "$reference"; then
+    reference="refs/remotes/origin/$onto"
+  fi
+  git -C "$clone" show-ref --verify --quiet "$reference" ||
+    fail "Start branch for --onto not found: $onto"
+  printf 'fx: Creating task branch %s from %s\n' "$branch" "$reference" >&2
+  git -C "$clone" worktree add --no-track -b "$branch" "$worktree" "$reference" >&2
 }
 
 copy_worktree_files() {
@@ -265,9 +304,10 @@ copy_worktree_files() {
 }
 
 open_task() {
-  [[ $# -ge 1 ]] || fail 'Usage: fx task <task_name> [--base <branch>] [--no-attach]'
+  local usage='Usage: fx task <task_name> [--base <branch>] [--onto <branch>] [--no-attach]'
+  [[ $# -ge 1 ]] || fail "$usage"
   validate_name "$1"
-  local name="$1" project task branch candidate session_name base='' base_reference attach=true current_branch='' changes layout
+  local name="$1" project task branch candidate session_name base='' onto='' base_reference attach=true current_branch='' changes layout
   shift
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -277,8 +317,14 @@ open_task() {
         base="$2"
         shift 2
         ;;
+      --onto)
+        [[ $# -ge 2 && -n "$2" && "$2" != -* && -z "$onto" ]] ||
+          fail 'Supply one branch name after --onto.'
+        onto="$2"
+        shift 2
+        ;;
       --no-attach) attach=false; shift ;;
-      *) fail 'Usage: fx task <task_name> [--base <branch>] [--no-attach]' ;;
+      *) fail "$usage" ;;
     esac
   done
   if [[ "$attach" == true ]]; then
@@ -299,7 +345,10 @@ open_task() {
     validate_worktree "$project" "$task"
     current_branch="$(git -C "$task/repo" symbolic-ref --quiet --short HEAD)"
   fi
-  if [[ -n "$base" ]]; then
+  if [[ -n "$onto" ]]; then
+    [[ -z "$current_branch" ]] || fail 'The task worktree already exists. Omit --onto to reopen it.'
+    branch="${base:-$branch}"
+  elif [[ -n "$base" ]]; then
     branch="$(resolve_task_branch "$project/repo/main" "$base")"
   elif [[ -n "$current_branch" ]]; then
     branch="$current_branch"
@@ -311,7 +360,9 @@ open_task() {
       fi
     done
   fi
-  if [[ -n "$current_branch" ]]; then
+  if [[ -n "$onto" ]]; then
+    create_stacked_task_worktree "$project/repo/main" "$task/repo" "$branch" "$onto"
+  elif [[ -n "$current_branch" ]]; then
     if [[ "$current_branch" != "$branch" ]]; then
       changes="$(git -C "$task/repo" status --porcelain --untracked-files=all)" ||
         fail 'Could not check task changes. The checked-out branch was preserved.'
@@ -986,7 +1037,7 @@ main() {
       cat <<'EOF'
 Usage:
   fx setup <project_name> [repository]
-  fx task <task_name> [--base <branch>] [--no-attach]
+  fx task <task_name> [--base <branch>] [--onto <branch>] [--no-attach]
   fx task <command> [command-options]
   fx orchestrator
   fx pr review <pr_number> [agent-group-options]
@@ -1006,9 +1057,11 @@ Tasks open a Zellij session named <project_name>-<task_name>. Use --no-attach to
 New task sessions start an orchestrator in the first terminal. Set FX_ORCHESTRATOR_AGENT to claude or codex, or choose at the prompt.
 Delete removes the task directory, Git worktree, and Zellij session. Git branches are kept.
 Use delete --force to discard uncommitted files or a detached worktree. Run outside the target Zellij session.
-Without --base, new feature/<task_name> branches start from the fetched default.
-With --base, tasks check out the named branch. Remote branches get a local tracking branch.
+Without --base or --onto, new feature/<task_name> branches start from the fetched default.
+Use --base alone to check out the named branch. Remote branches get a local tracking branch.
 Missing local branches start from the fetched default. Existing branches are never reset.
+Use --onto to start a new task branch from an existing branch.
+With --onto, --base names the new branch and defaults to feature/<task_name>.
 Repository accepts owner/repository, a Git URL, or a local repository path.
 Agent names correspond to executable adapters in agents/.
 Task-specific agent commands register executable handlers in agent-commands/.

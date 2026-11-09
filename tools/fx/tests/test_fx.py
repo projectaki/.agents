@@ -896,6 +896,86 @@ class FxTest(unittest.TestCase):
         self.assertEqual((clone / "source.txt").read_text(), "Local work\n")
         self.assertEqual(self.run_command("git", "-C", clone, "branch", "--show-current").stdout.strip(), "main")
 
+    def test_onto_creates_a_named_branch_from_another_task(self):
+        project = self.project()
+        parent = self.task(project, "export") / "repo"
+        (parent / "source.txt").write_text("Local export changes\n")
+        self.run_command("git", "commit", "-am", "Export changes", cwd=parent)
+        parent_head = self.run_command("git", "rev-parse", "HEAD", cwd=parent).stdout
+
+        task = Path(self.fx("task", "validation", "--base", "feature/export-validation",
+                            "--onto", "feature/export", "--no-attach", cwd=project).stdout.strip())
+        worktree = task / "repo"
+        self.assertEqual(self.run_command("git", "branch", "--show-current", cwd=worktree).stdout.strip(),
+                         "feature/export-validation")
+        self.assertEqual(self.run_command("git", "rev-parse", "HEAD", cwd=worktree).stdout, parent_head)
+        self.assertNotEqual(self.run_command("git", "rev-parse", "@{upstream}", cwd=worktree,
+                                             check=False).returncode, 0)
+        self.assertEqual(self.run_command("git", "rev-parse", "HEAD", cwd=parent).stdout, parent_head)
+        self.fx("task", "validation", "--no-attach", cwd=project)
+
+    def test_onto_uses_the_fetched_remote_tip_without_creating_a_local_start_branch(self):
+        project = self.project()
+        clone = project / "repo/main"
+        self.run_command("git", "branch", "export", cwd=clone)
+        self.run_command("git", "switch", "-c", "export", cwd=self.origin)
+        (self.origin / "source.txt").write_text("Pushed export changes\n")
+        self.run_command("git", "commit", "-am", "Export changes", cwd=self.origin)
+        self.run_command("git", "branch", "remote-only", cwd=self.origin)
+        remote_head = self.run_command("git", "rev-parse", "HEAD", cwd=self.origin).stdout
+        self.run_command("git", "remote", "add", "feature", self.origin, cwd=clone)
+        self.run_command("git", "remote", "add", "team/upstream", self.origin, cwd=clone)
+        for name, onto in (("explicit", "origin/export"), ("fallback", "remote-only"),
+                           ("other-remote", "team/upstream/export")):
+            with self.subTest(onto=onto):
+                task = Path(self.fx("task", name, "--onto", onto, "--no-attach", cwd=project).stdout.strip())
+                worktree = task / "repo"
+                self.assertEqual(self.run_command("git", "branch", "--show-current", cwd=worktree).stdout.strip(),
+                                 f"feature/{name}")
+                self.assertEqual(self.run_command("git", "rev-parse", "HEAD", cwd=worktree).stdout, remote_head)
+                self.assertNotEqual(self.run_command("git", "rev-parse", "@{upstream}", cwd=worktree,
+                                                     check=False).returncode, 0)
+        self.assertNotEqual(self.run_command("git", "show-ref", "--verify", "refs/heads/remote-only",
+                                             cwd=clone, check=False).returncode, 0)
+
+    def test_onto_rejects_unavailable_branches_without_creating_a_worktree(self):
+        project = self.project()
+        clone = project / "repo/main"
+        self.run_command("git", "branch", "local-export", cwd=clone)
+        self.run_command("git", "branch", "remote-export", cwd=self.origin)
+        self.run_command("git", "tag", "export-tag", cwd=clone)
+        for destination, onto, error in (
+            ("new..export", "main", "Invalid base branch"),
+            ("new-export", "bad..branch", "Invalid onto branch"),
+            ("local-export", "main", "Use a new branch name"),
+            ("remote-export", "main", "Branch already exists on origin"),
+            ("new-export", "missing", "Start branch for --onto not found"),
+            ("new-export", "export-tag", "Start branch for --onto not found"),
+        ):
+            with self.subTest(destination=destination, onto=onto):
+                result = self.fx("task", "validation", "--base", destination, "--onto", onto,
+                                 "--no-attach", cwd=project, check=False)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(error, result.stderr)
+                self.assertFalse((project / "tasks/validation/repo").exists())
+        for branch in ("remote-export", "new-export"):
+            self.assertNotEqual(self.run_command("git", "show-ref", "--verify", f"refs/heads/{branch}",
+                                                 cwd=clone, check=False).returncode, 0)
+
+    def test_onto_rejects_an_existing_task_without_switching_branches(self):
+        project = self.project()
+        worktree = self.task(project) / "repo"
+        (worktree / "source.txt").write_text("Uncommitted work\n")
+        result = self.fx("task", "fix-login", "--base", "another-branch", "--onto", "main",
+                         "--no-attach", cwd=project, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Omit --onto to reopen it", result.stderr)
+        self.assertEqual(self.run_command("git", "branch", "--show-current", cwd=worktree).stdout.strip(),
+                         "feature/fix-login")
+        self.assertEqual((worktree / "source.txt").read_text(), "Uncommitted work\n")
+        self.assertNotEqual(self.run_command("git", "show-ref", "--verify", "refs/heads/another-branch",
+                                             cwd=worktree, check=False).returncode, 0)
+
     def test_missing_remote_base_is_not_created_as_local_branch(self):
         project = self.project()
         clone = project / "repo/main"

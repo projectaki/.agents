@@ -182,12 +182,12 @@ Repeated setup preserves memory, context, branches, and uncommitted changes.
 It rejects a different repository when a clone already exists.
 It does not fetch, pull, reset, or clean an existing clone.
 
-### `fx task <task_name> [--base <branch>] [--no-attach]`
+### `fx task <task_name> [--base <branch>] [--onto <branch>] [--no-attach]`
 
 Run inside the project or one of its tasks. A worktree is a separate Git
 checkout that shares repository history.
 
-Use `--base` to check out a specific branch in the task worktree:
+Use `--base` without `--onto` to check out a specific branch in the task worktree:
 
 ```bash
 fx task export-review --base feature/export
@@ -220,14 +220,34 @@ untracked files. Git also rejects a switch that would overwrite ignored files.
 Save local changes before switching. Reopening on the same branch preserves
 local files.
 
+Use `--onto` to start a new task branch from an existing branch. For example,
+if `feature/export` has an open pull request, create a branch for work that
+depends on it:
+
+```bash
+fx task export-validation --base feature/export-validation --onto feature/export
+```
+
+With `--onto`, `--base` names the new branch. If you omit `--base`, fx uses
+`feature/<task_name>`. Fx fetches `origin` to check that the new branch name is
+available. A start branch name without a remote prefix selects the local branch
+when it exists and otherwise selects the branch on `origin`. Use a prefix such
+as `origin/feature/export` to select the fetched branch on that remote.
+
+The new branch has no upstream. To stack the pull request, select
+`feature/export` as its base when you open it. To reopen the task, omit
+`--onto`. Fx rejects `--onto` if the task worktree or destination branch already
+exists.
+
 Git permits a branch in only one worktree at a time. If the selected branch is
 checked out in the main clone or another task, fx reports an error. It does not
 force a second checkout or move the other worktree. Use a separate local branch
 if you need an independent checkout of the same commits.
 
-Without `--base`, an existing task keeps its current branch and files without
-fetching. For a task without a worktree, fx looks for existing branches named
-`feature/<task_name>`, `<task_name>`, and `codex/<task_name>`, in that order.
+Without `--base` or `--onto`, an existing task keeps its current branch and
+files without fetching. For a task without a worktree, fx looks for existing
+branches named `feature/<task_name>`, `<task_name>`, and `codex/<task_name>`,
+in that order.
 If none exists, it creates `feature/<task_name>` from the fetched default branch
 and tracks that remote branch. The branch currently checked out in the main
 clone does not affect this default. If `origin/HEAD` is missing, fx attempts to

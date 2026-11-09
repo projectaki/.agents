@@ -81,13 +81,12 @@ reference. It launches assigned agents in new Zellij tabs. Fx skips context and
 event capture for the orchestrator. Existing Zellij sessions keep their terminals.
 `--no-attach` keeps standard output limited to the task path.
 
-Without `--base`, new tasks use `feature/<task-name>` and the fetched default
-from `origin/HEAD`. Existing task worktrees keep their current branch and files.
+Without `--base` or `--onto`, existing task worktrees keep their branch and files.
 When no worktree exists, fx reuses an existing `feature/<task-name>`, `<task-name>`,
-or `codex/<task-name>` branch before creating one. Reopening without `--base`
-does not fetch or reset.
+or `codex/<task-name>` branch. If none exists, fx creates `feature/<task-name>`
+from the fetched default branch. Reopening does not fetch or reset.
 
-Use `--base feature/export` to check out that branch itself in the task worktree.
+Use `--base feature/export` without `--onto` to check out that branch in the task worktree.
 An existing local branch keeps its commits and upstream, without fetching.
 If no local branch matches, fx fetches `origin` and looks for the remote branch.
 Use `--base upstream/feature/export` to select another remote explicitly.
@@ -96,6 +95,16 @@ An existing local counterpart keeps its current commits and upstream.
 A missing local name creates that branch from the fetched default, without an
 upstream or a push. Missing remote-prefixed names fail. Tags and commit identifiers
 are not accepted.
+
+Use `fx task export-validation --base feature/export-validation --onto feature/export`
+to create a new branch at the tip of `feature/export`. Omit `--base` to use
+`feature/<task-name>` for the new branch. Fx fetches `origin` to check that the
+new branch name is available. The start branch uses the local tip when
+available and otherwise uses the fetched branch on `origin`. Use
+`--onto origin/feature/export` to select the fetched tip explicitly. The new
+branch has no upstream. Set the pull request base to `feature/export` when you
+open it. Omit `--onto` to reopen the task. Fx rejects `--onto` for an existing
+worktree or destination branch.
 
 An explicit `--base` takes priority over old task branches. Reopening with a
 different branch switches the worktree, preserving the old branch and commits.
