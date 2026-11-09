@@ -165,7 +165,7 @@ def main():
               "       fx task check status",
         description="Run a check once from the task repository and record its outcome.")
     parser.add_argument("--task", type=Path, required=True, help=argparse.SUPPRESS)
-    parser.add_argument("--session", type=Path, help="Factory session to associate with the check")
+    parser.add_argument("--session", type=Path, help="fx session to associate with the check")
     parser.add_argument("--heavy", action="store_true", help="Use the shared lock for this user on this host")
     parser.add_argument("--tmp-dir", type=Path, help="Parent for a private temporary directory")
     options, command = sys.argv[1:], []
@@ -196,7 +196,7 @@ def main():
         if session_path:
             path = Path(session_path).resolve(strict=True)
             if not path.is_relative_to(context) or not (path / "instructions.md").is_file():
-                raise ValueError(f"Expected a Factory session directory in this task: {path}")
+                raise ValueError(f"Expected an fx session directory in this task: {path}")
             session = str(path.relative_to(context))
         lock = Path.home() / ".cache/fx/heavy-check.lock" if args.heavy else None
         tmp_dir = args.tmp_dir.resolve(strict=True) if args.tmp_dir else None

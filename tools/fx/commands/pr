@@ -53,7 +53,12 @@ reasoning="${reasoning:-h}"
 
 command -v gh >/dev/null || fail 'Install and authenticate the GitHub CLI to review a pull request.'
 command -v zellij >/dev/null || fail 'Install Zellij to open a background review session.'
-clone="$(git rev-parse --show-toplevel)" || fail 'Run this command from a cloned GitHub repository.'
+project="$( (find_project) 2>/dev/null || true)"
+if [[ "$project" == "$(pwd -P)" ]] || ! clone="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+  [[ -n "$project" ]] || fail 'Run this command from an fx project directory or a cloned GitHub repository.'
+  clone="$project/repo/main"
+  validate_clone "$clone"
+fi
 common="$(git -C "$clone" rev-parse --path-format=absolute --git-common-dir)"
 common="$(cd -- "$common" && pwd -P)"
 origin="$(git -C "$clone" config --get remote.origin.url)" || fail 'The repository has no origin remote.'
@@ -79,7 +84,6 @@ git -C "$clone" cat-file -e "$head^{commit}" &&
   git -C "$clone" merge-base "$base" "$head" >/dev/null ||
   fail 'The pull request commits or their common history are missing. Retry after fetching complete history.'
 
-project="$( (find_project) 2>/dev/null || true)"
 if [[ -z "$project" || "$common" != "$project/repo/main/.git" ]]; then
   project="$common/fx"
   ensure_directory "$project"

@@ -130,8 +130,9 @@ the final report. The assignment requires full log coverage in bounded chunks,
 detailed sequences, exact citations, and explicit unread ranges. It traces
 later defects through planning, implementation, reviews, discovery, and proof.
 It covers memory failures, crashes, retries, recovery, and instruction conflicts.
-Recommendations must identify a concrete project or Factory change and how to
-validate it. The assignment permits writing only its own report and notes.
+Recommendations must identify a specific project instruction, skill, or helper
+to change and how to validate the change. The assignment permits writing only
+its own report and notes.
 Normal provider permissions still apply; this is not a filesystem sandbox.
 Analysis includes group usage summaries, per-attempt measurements, and saved
 price snapshots. Compare measured cost and runtime with verified useful findings.

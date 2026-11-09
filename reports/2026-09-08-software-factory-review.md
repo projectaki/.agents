@@ -2,6 +2,9 @@
 
 Date: 8 September 2026.
 
+This report describes the retired Factory workflow as it existed at the time
+of the review.
+
 **Selected design: reusable stages, evidence-based routing, and a small set of
 completion prerequisites.** A brief repository assessment can take a clear task
 directly from intake to implementation. Investigation and plan review apply
@@ -77,8 +80,8 @@ My assessment is that your factory should retain independent review. It should u
 
 ## How the factory operates
 
-The [orchestrator](../skills/factory-orchestrator/SKILL.md) selects the next useful
-stage. It supplies a short reason. The [prerequisite checks](../skills/factory-handoff/scripts/prerequisites.py)
+The [orchestrator](https://github.com/projectaki/.agents/blob/653112b09a94d3994c45f52411784e156aceb006/skills/factory-orchestrator/SKILL.md) selects the next useful
+stage. It supplies a short reason. The [prerequisite checks](https://github.com/projectaki/.agents/blob/653112b09a94d3994c45f52411784e156aceb006/skills/factory-handoff/scripts/prerequisites.py)
 validate consequential actions. There is no universal allowed-transition table.
 
 | Task condition | Example route |
@@ -120,10 +123,10 @@ artifact, repeated setup, or a new worker for each conceptual responsibility.
 | Large work | Implementation can return `in-progress` after a coherent part. The complete contract remains active. | Allows bounded work without restarting intake or claiming premature completion. |
 | Review discipline | Blocking findings require a defect, missing requirement, material risk, or applicable rule. | Avoids correction cycles caused by harmless preferences. |
 
-The implementation is in the [handoff helpers](../skills/factory-handoff/SKILL.md),
-[timed check helper](../skills/factory-telemetry/scripts/run-check.py), and
-[work skills](../skills/factory-implement/SKILL.md). The
-[record contract](../skills/factory-handoff/references/records.md) describes fields
+The implementation is in the [handoff helpers](https://github.com/projectaki/.agents/blob/653112b09a94d3994c45f52411784e156aceb006/skills/factory-handoff/SKILL.md),
+[timed check helper](https://github.com/projectaki/.agents/blob/653112b09a94d3994c45f52411784e156aceb006/skills/factory-telemetry/scripts/run-check.py), and
+[work skills](https://github.com/projectaki/.agents/blob/653112b09a94d3994c45f52411784e156aceb006/skills/factory-implement/SKILL.md). The
+[record contract](https://github.com/projectaki/.agents/blob/653112b09a94d3994c45f52411784e156aceb006/skills/factory-handoff/references/records.md) describes fields
 and compatibility. Existing records are not silently upgraded. Missing current
 proof or reviewer identity must be established before consequential follow-up.
 

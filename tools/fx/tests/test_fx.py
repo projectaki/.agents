@@ -143,12 +143,12 @@ class FxTest(unittest.TestCase):
         gh.chmod(0o755)
         return base, head
 
-    def test_pr_review_starts_detached_session_from_managed_clone(self):
+    def test_pr_review_starts_detached_session_from_project_directory(self):
         project = self.project()
         clone = project / "repo/main"
         base, head = self.review_repository(clone)
         self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="caller-session")
-        result = self.fx("pr", "review", "17", "--prompt", "Check failure handling.", cwd=clone)
+        result = self.fx("pr", "review", "17", "--prompt", "Check failure handling.", cwd=project)
         workspace, = (project / "reviews/pr-17").iterdir()
         commands = [json.loads(line)["arguments"] for line in result.stdout.splitlines()
                     if line.startswith("{")]

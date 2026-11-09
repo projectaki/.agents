@@ -1,6 +1,0 @@
-interface:
-  display_name: "Factory Intake"
-  short_description: "Create a compact software-change contract"
-  default_prompt: "Use $factory-intake to create the compact task contract for this software change."
-policy:
-  allow_implicit_invocation: false

@@ -21,13 +21,13 @@ where practical. Do not silently mix later writes into the original history.
 If context or tool limits prevent full coverage, list the exact unprocessed files
 and ranges. An inventory or search result does not establish complete analysis.
 Exclude prior analysis sessions from original evidence. Do not inspect sibling
-tasks or unrelated chat archives. Inspect explicitly linked Factory records only
-when their recorded identity matches this task. State the selected boundary.
+tasks or unrelated chat archives. Inspect explicitly linked records from the
+retired Factory workflow only when they identify this task. State the selected
+boundary.
 
 Read task.md, assignments, input-context.md, instructions, project memory,
-relevant project context, and repository guidance. Use explicitly linked Factory
-contracts, assurance, checkpoint history, artifacts, and telemetry when present.
-Inspect the relevant Factory skill or helper before recommending its change.
+relevant project context, and repository guidance. Inspect the applicable
+instructions, skills, or helpers before recommending changes to them.
 Distinguish today's instructions and source from the versions used at the time.
 Do not assume overwritten contracts or missing historical versions can be rebuilt.
 
@@ -72,7 +72,7 @@ Return a self-contained report with:
 - A detailed sequence of important decisions, failures, discoveries, and recovery.
 - Supported findings with exact citations, observed impact, cause or hypothesis,
   confidence, and the earlier detection opportunity where relevant.
-- Prioritized improvements to project instructions, Factory skills, fx helpers,
+- Prioritized improvements to project instructions, skills, fx helpers,
   evidence capture, or review practice. Name the specific target and smallest
   proposed change. Explain its tradeoffs, maintenance cost, and a concrete test
   or future-session measure that would show whether it worked.

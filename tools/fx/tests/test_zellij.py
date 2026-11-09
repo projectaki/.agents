@@ -18,8 +18,8 @@ class ReviewAttachTest(unittest.TestCase):
         fixture = test_fx.FxTest()
         fixture.setUp()
         self.addCleanup(fixture.doCleanups)
-        clone = fixture.project() / 'repo/main'
-        fixture.review_repository(clone)
+        project = fixture.project()
+        fixture.review_repository(project / 'repo/main')
         (fixture.bin / 'zellij').unlink()
         fixture.env['TERM'] = 'xterm-256color'
         input_record = fixture.root / 'review-input.txt'
@@ -29,7 +29,7 @@ from pathlib import Path
 if '--version' not in sys.argv:
     Path({str(input_record)!r}).write_text(input())
 """)
-        result = fixture.fx('pr', 'review', '17', cwd=clone)
+        result = fixture.fx('pr', 'review', '17', cwd=project)
         session = result.stdout.split('zellij attach ')[-1].strip()
         self.addCleanup(fixture.run_command, ZELLIJ, 'delete-session', session, '--force', check=False)
         self.addCleanup(fixture.run_command, ZELLIJ, 'kill-session', session, check=False)

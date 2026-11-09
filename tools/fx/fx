@@ -448,7 +448,7 @@ Completed checks and remaining findings: Not yet recorded.
 Review record: $review_record
 EOF
   cat > "$session/instructions.md" <<EOF
-# Factory session
+# fx agent session
 
 Task directory: $task
 Repository worktree: $task/repo

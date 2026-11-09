@@ -62,7 +62,7 @@ standard error to a log and prints the log path. It returns the command's exit
 code or termination signal. Use a project script to set up dependencies and
 stop a batch when a check fails. Keep secrets out of command arguments and logs.
 
-Factory sessions get instructions to associate their checks with their session.
+fx gives agents instructions to associate checks with their session.
 Use `--session DIR` to select a session explicitly. A response capture saves the
 session's completed check records. The next reviewer can open that snapshot
 from the starting context. Manual checks without a session appear in task status.
@@ -80,8 +80,10 @@ and now. Ignored files and external dependencies need separate setup evidence.
 
 ## Review a GitHub pull request
 
-Run from a clone whose `origin` points to the GitHub repository that owns the
-pull request. Authenticate the GitHub CLI first.
+Run from the fx project directory or from a Git clone. From the project
+directory, fx uses the clone in `repo/main`. The clone's `origin` must point to
+the GitHub repository that owns the pull request. Authenticate the GitHub CLI
+first.
 
 ```bash
 fx pr review 123
@@ -142,15 +144,15 @@ for detailed event sequences and exact evidence references. Later discoveries
 must be traced through earlier planning and review decisions. It also covers
 memory failures, context limits, crashes, retries, recovery, lost findings, and
 instruction conflicts. Recommendations name a concrete project instruction,
-Factory skill, or helper, plus a way to check whether the change works.
+skill, or helper, plus a way to check whether the change works.
 
 This is an analysis assignment. It does not apply recommendations or edit
 source, project instructions, shared context, or original evidence. Agents use
 their normal CLI permissions; the launcher does not enforce a filesystem sandbox.
 Large logs must be read in bounded sections. The report must list unread files
 and ranges when the agent cannot finish. The inventory is not a frozen copy.
-Changes during or after inventory limit historical certainty. Linked Factory
-records are included only when their recorded identity matches this task.
+Changes during or after inventory limit historical certainty. Include linked
+records from the retired Factory workflow only when they identify this task.
 The command does not search unrelated chat archives or create missing history.
 It does not automatically combine reports into cross-task statistics.
 
