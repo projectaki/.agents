@@ -49,6 +49,12 @@ Treat the principles below as review criteria, not instructions to make changes.
 - Consider Command for queued, delayed, or undoable operations and Observer for independent event subscribers. Check delivery expectations, ownership, and cleanup.
 - Check that internal details stay private rather than becoming public only to support tests.
 
+## Typed results and magic strings
+
+- Require typed results. When callers handle different outcomes, use a type that defines each outcome and its associated data. Use typed error codes or variants when callers handle failures differently. Keep error messages for people and logs.
+- Flag magic strings. These are inline string values that control behavior, such as status codes, event names, or error codes. Define each set of values in one place and use a type that restricts callers to valid values. Use an enum or a union of allowed literal values where the language supports it.
+- Keep strings required by an external format at the interface to that system. Validate and convert incoming values to typed values before business logic uses them. Use the defined values when writing to the external system.
+
 ## Testing checks
 
 - Check unit coverage of pure functions, deterministic business logic, validation, and utilities. Tests must be isolated, deterministic, and fast.

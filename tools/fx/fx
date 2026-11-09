@@ -648,6 +648,14 @@ launch_agent() {
   run_agent_session "$@"
 }
 
+request_zellij_tab() {
+  if [[ "${FX_ZELLIJ_TAB_CLIENT-}" == 1 ]]; then
+    exec python3 "$tool_dir/fx_zellij_client.py" "$ZELLIJ_SESSION_NAME" "$@"
+  else
+    exec zellij --session "$ZELLIJ_SESSION_NAME" action new-tab "$@"
+  fi
+}
+
 run_agent_session() {
   local agent="$1" project="$2" task="$3" session="$4" reasoning="$5" captured_context="$6" tab_name="$7" new_tab="$8"
   shift 8
@@ -655,7 +663,7 @@ run_agent_session() {
   cd -- "$task"
   set -- launch "$project" "$task" "$session" "$reasoning" "$@"
   if [[ "$new_tab" == true ]]; then
-    exec zellij --session "$ZELLIJ_SESSION_NAME" action new-tab \
+    request_zellij_tab \
       --name "$tab_name" --cwd "$task" --layout "$tool_dir/templates/agent-tab.kdl" \
       -- "$tool_dir/agents/$agent" "$@"
   fi
@@ -801,9 +809,13 @@ EOF
   [[ "$interactive" == false ]] || set -- "$@" --interactive
   python3 "$tool_dir/fx_group_run.py" "$@"
   printf 'requesting\n' > "$group/tab-request.txt"
-  if zellij --session "$ZELLIJ_SESSION_NAME" action new-tab \
+  set -- python3 "$tool_dir/fx_group_run.py" run "$project" "$task" "$name"
+  if [[ "$interactive" == true && "${FX_ZELLIJ_TAB_CLIENT-}" == 1 ]]; then
+    set -- env FX_ZELLIJ_TAB_CLIENT=1 "$@"
+  fi
+  if (request_zellij_tab \
     --name "$name" --cwd "$task" --layout "$tool_dir/templates/agent-tab.kdl" \
-    -- python3 "$tool_dir/fx_group_run.py" run "$project" "$task" "$name"; then
+    -- "$@"); then
     printf 'accepted\n' > "$group/tab-request.txt"
   else
     status=$?

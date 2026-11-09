@@ -123,7 +123,8 @@ unset ZELLIJ_PANE_ID
     zellij --session "$session" action list-tabs >/dev/null 2>&1
 ) || fail "Could not start Zellij. Review workspace: $workspace"
 
-export ZELLIJ=0 ZELLIJ_SESSION_NAME="$session"
+# Zellij 0.45.1 needs an attached client to size a new tab (upstream issue #5594).
+export ZELLIJ=0 ZELLIJ_SESSION_NAME="$session" FX_ZELLIJ_TAB_CLIENT=1
 if [[ "$group" == true ]]; then
   [[ "$has_agent" == true ]] || options+=(--agent claude)
   launch_agent_group "${options[@]}" --name "$name" -r "$reasoning" --prompt "$prompt"

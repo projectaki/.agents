@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 import shutil
+import subprocess
 import time
 import unittest
 import uuid
@@ -9,6 +10,54 @@ import test_fx
 
 
 ZELLIJ = shutil.which('zellij')
+
+
+@unittest.skipUnless(ZELLIJ and shutil.which('script'), 'Zellij and script are required.')
+class ReviewAttachTest(unittest.TestCase):
+    def test_background_review_survives_attach_and_accepts_input(self):
+        fixture = test_fx.FxTest()
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        clone = fixture.project() / 'repo/main'
+        fixture.review_repository(clone)
+        (fixture.bin / 'zellij').unlink()
+        fixture.env['TERM'] = 'xterm-256color'
+        input_record = fixture.root / 'review-input.txt'
+        (fixture.bin / 'claude').write_text(f'#!{test_fx.sys.executable}\n' + f"""
+import sys
+from pathlib import Path
+if '--version' not in sys.argv:
+    Path({str(input_record)!r}).write_text(input())
+""")
+        result = fixture.fx('pr', 'review', '17', cwd=clone)
+        session = result.stdout.split('zellij attach ')[-1].strip()
+        self.addCleanup(fixture.run_command, ZELLIJ, 'delete-session', session, '--force', check=False)
+        self.addCleanup(fixture.run_command, ZELLIJ, 'kill-session', session, check=False)
+
+        def action(name):
+            return fixture.run_command(ZELLIJ, '--session', session, 'action', name).stdout
+
+        self.assertEqual(len(action('list-clients').splitlines()), 1)
+        with subprocess.Popen(
+            ['script', '-qefc', f'stty rows 40 cols 120; exec zellij attach {session}', '/dev/null'],
+            env=fixture.env, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL, start_new_session=True,
+        ) as client:
+            try:
+                deadline = time.monotonic() + 5
+                while len(action('list-clients').splitlines()) < 2 and time.monotonic() < deadline:
+                    time.sleep(0.05)
+                self.assertIn('000001-review-claude-opus-5-5', action('query-tab-names').splitlines())
+                client.stdin.write(b'attach works\n')
+                client.stdin.flush()
+                deadline = time.monotonic() + 5
+                while not input_record.exists() and time.monotonic() < deadline:
+                    time.sleep(0.05)
+                self.assertTrue(input_record.exists(), 'The review did not receive terminal input.')
+                self.assertEqual(input_record.read_text(), 'attach works')
+            finally:
+                client.terminate()
+                client.wait(timeout=5)
 
 
 @unittest.skipUnless(ZELLIJ, 'Zellij is required for terminal integration checks.')

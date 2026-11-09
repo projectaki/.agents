@@ -18,15 +18,20 @@ class TabProcess:
         self.session = group / member['session']
         self.record = self.session / 'terminal-state.json'
         self.cancelled = self.session / 'terminal-cancelled'
-        command = [
-            'zellij', '--session', os.environ['ZELLIJ_SESSION_NAME'], 'action', 'new-tab',
+        session_name = os.environ['ZELLIJ_SESSION_NAME']
+        command = ['zellij', '--session', session_name, 'action', 'new-tab']
+        temporary_client = os.environ.get('FX_ZELLIJ_TAB_CLIENT') == '1'
+        if temporary_client:
+            command = [sys.executable, str(TOOL_DIR / 'fx_zellij_client.py'), session_name]
+        command += [
             '--name', f"{group.name}-{member['session']}", '--cwd', str(task),
             '--layout', str(TOOL_DIR / 'templates/agent-tab.kdl'), '--',
             sys.executable, str(TOOL_DIR / 'fx_group_tabs.py'), str(project), str(task),
             str(self.session), member['agent'], member['reasoning'],
         ]
         try:
-            request = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=15)
+            request = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT,
+                                     timeout=40 if temporary_client else 15)
             if request.returncode:
                 raise OSError(f'Zellij tab request failed with exit code {request.returncode}.')
             deadline = time.monotonic() + 15
