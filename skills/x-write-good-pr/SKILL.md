@@ -1,31 +1,32 @@
 ---
 name: x-write-good-pr
-description: Write concise pull request titles and descriptions that help reviewers understand the behavior, key design decisions, and material risks.
+description: Write concise pull request titles and descriptions that explain why a change matters, show where to start reviewing, and link to evidence for important claims.
 ---
 
 Inputs: Changes, feature requirements, and evidence; optional design notes and description requirements.
 
-- Read the full diff and relevant surrounding code. Identify the problem, resulting behavior, key design decisions, and material risks directly from the inputs.
+- Read the full diff and relevant surrounding code. For a stack, read the diff against the preceding branch. Identify the problem, resulting behavior, key design decisions, and material risks directly from the inputs.
 - Write a specific title. Use my voice and describe the current implementation without relying on chat history.
 - Keep claims within what the evidence proves. Label inferences and uncertainties. Ask for missing decision rationale instead of inventing it. Omit unsupported assertions.
-- Link evidence where it helps reviewers assess a non-obvious claim, security constraint, or important decision. Use focused references to the code version that proves the claim. For prior behavior, use the original code or a regression test shown to fail before the fix. Do not attach a citation to every sentence or repeat the same reference.
+- Link to the task or design decision when it helps explain why the change exists. Link directly to the code, test, or other evidence that supports an important claim. Use the revision the reviewer needs to inspect. For prior behavior, use the original code or a regression test shown to fail before the fix.
 
 ## Length and selection
 
-- Aim for 150–300 words for a typical description. Small changes may need only a few sentences. Complex changes may need more space, but each extra detail must help a reviewer assess correctness, design, or deployment safety. Never remove a critical constraint to meet the word target.
-- Lead with the problem and resulting behavior. Include a short example only when it makes the behavior easier to understand.
+- Aim for a brief the reviewer can scan before opening the diff. A few sentences may be enough. Give complex changes more space when needed to explain correctness, design, or deployment safety.
+- Lead with what changes and why. Include a short example only when it makes the behavior easier to understand.
 - Explain only the implementation choices whose reasons are not clear from the diff. Keep the reason beside the choice. Omit routine wiring, file inventories, pattern names, and step-by-step code narration unless they explain a material constraint.
 - State each fact once. Combine related decisions. Link existing documentation for extended mechanics instead of copying it into the description. Do not move excess text into an optional-reading section.
 - Keep essential security rules, compatibility limits, known coverage gaps, approved exceptions, and required operational actions visible when they apply. Describe concrete risks rather than listing generic possibilities.
-- Do not include a validation section, local test results, or repeated continuous integration results. Mention test coverage only when it explains an important guarantee or gap.
+- Put evidence beside the claim it supports. Point to the test or result that demonstrates a key behavior or exposes a material gap. Leave routine check results in continuous integration.
 
 ## Description structure
 
 Use only the sections the change needs. Simple descriptions do not need headings.
 
-1. **Summary:** One short paragraph explaining the problem and resulting behavior. Make it understandable without reading the code.
-2. **Key decisions:** A few short bullets covering the important implementation choices and their reasons. Include a focused file reference or review question only when it helps direct attention to a difficult or risky part.
-3. **Risks and rollout:** Include when there are concrete production risks, compatibility constraints, migrations, configuration changes, deployment steps, or rollback requirements. State defaults and any action required to activate the behavior. This applies to application changes as well as infrastructure changes.
-4. **Screenshots:** Include for user interface changes. Add placeholders naming each screen, state, and action to capture and upload. Do not imply missing screenshots exist.
+1. **Summary**. Explain the problem and resulting behavior in one short paragraph. For a stack, state what this pull request delivers and link to the prerequisite when it helps the reader.
+2. **Where to start**. For a change across files, give a short reading order when it helps the reviewer follow the behavior. Start with the most important decision, entry point, or regression test. Link directly to the relevant code and follow the related changes in the order needed to understand them. State the main question the reviewer should verify. For a larger generated, documentation-only, or mechanical change, identify what needs close inspection, what can be skimmed, and how to check it. For a larger behavior change, explain why the pieces belong together.
+3. **Key decisions**. Explain important choices whose reasons are unclear from the diff.
+4. **Risks and rollout**. Include when there are concrete production risks, compatibility constraints, migrations, configuration changes, deployment steps, or rollback requirements. State defaults and any action required to activate the behavior. This applies to application changes as well as infrastructure changes.
+5. **Screenshots**. Include for user interface changes. Add placeholders naming each screen, state, and action to capture and upload. Do not imply missing screenshots exist.
 
 Before finishing, reread the description as a reviewer. Remove repetition and details the diff already explains. Confirm that the reader can identify what changes, why the key choices matter, and what needs special care.

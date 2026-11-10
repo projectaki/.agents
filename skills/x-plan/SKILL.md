@@ -10,7 +10,14 @@ Start from the agreed scope, success criteria, and triage findings. Keep product
 1. Read applicable repository guidance. Apply relevant language and framework skills before choosing the design. Inspect the affected code and reuse established patterns.
 2. Draft the smallest design that meets the task. Name the affected modules, their responsibilities, and their interactions. Cover relevant failure paths, compatibility, and recovery.
 3. Resolve evidence gaps through investigation. Use the [open-question skill](../x-resolve-open-questions/SKILL.md) for decisions that need user input. Return to triage if requirements or scope change.
-4. Run the [design quality skill](../x-ensure-quality/SKILL.md) on the draft. Revise the plan to address material findings. Keep the plan pending while a blocking decision or finding remains.
+4. If the work has several purposes or is likely to exceed the review size target, propose pull request boundaries before implementation. State the purpose, dependencies, and verification for each proposed pull request. Check that each can be verified and safely merged with its predecessors.
+5. Run the [design quality skill](../x-ensure-quality/SKILL.md) on the draft. Revise the plan to address material findings. Keep the plan pending while a blocking decision or finding remains.
+
+## Pull request size and grouping
+
+- Aim for about 100 changed lines or fewer in a pull request that changes behavior. Count additions plus deletions, including tests and hand-written supporting changes. For a cohesive change, 100–300 lines is reasonable. Above 300 lines, look for a coherent split. Keep changes together when a split would make the behavior harder to verify. Keep the tests that prove the change with the behavior they cover.
+- Group generated types and other generated output, documentation-only updates, and mechanical edits by purpose. Give them separate pull requests when each can be verified and safely merged on its own or with its predecessors. These pull requests can be larger when the reviewer can readily verify the generator, the documentation scope, or the mechanical operation. Apply the usual review scrutiny to refactors whose behavior is difficult to verify.
+- When generated output must land with its source change, keep both in one pull request. Put the generated output in a separate commit and report its line count separately from the changes that count toward the target.
 
 ## Output
 
