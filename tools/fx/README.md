@@ -294,6 +294,8 @@ the branch, upstream comparison, and local changes. The summary reads the
 current worktree when the terminal starts. The terminal reports Git errors and
 continues startup.
 
+Additional tabs opened with Zellij's new tab action start a shell.
+
 If already in that session, the command stays there.
 Existing sessions retain their panes and working directories. Detaching returns
 to the original terminal and its original directory. The task session stays alive.

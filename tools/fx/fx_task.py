@@ -11,14 +11,19 @@ def task_layout(task, orchestrator_agent=""):
     directory = json.dumps(str(task), ensure_ascii=False)
     agent = json.dumps(orchestrator_agent, ensure_ascii=False)
     return f'''layout {{
-    pane size=1 borderless=true {{
-        plugin location="tab-bar"
+    default_tab_template {{
+        pane size=1 borderless=true {{
+            plugin location="tab-bar"
+        }}
+        children
+        pane size=1 borderless=true {{
+            plugin location="status-bar"
+        }}
     }}
-    pane command="python3" close_on_exit=true {{
-        args {script} "shell" {directory} {agent}
-    }}
-    pane size=1 borderless=true {{
-        plugin location="status-bar"
+    tab {{
+        pane command="python3" close_on_exit=true {{
+            args {script} "shell" {directory} {agent}
+        }}
     }}
 }}
 '''

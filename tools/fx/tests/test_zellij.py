@@ -31,7 +31,7 @@ class TaskOrchestratorTest(unittest.TestCase):
                            ZELLIJ_CONFIG_DIR=str(config), PATH=f"{test_fx.TOOL.parent}:{fixture.env['PATH']}")
         launches = fixture.root / 'orchestrator-launches.txt'
         shell_ready = fixture.root / 'shell-ready'
-        (fixture.home / '.bashrc').write_text(f'touch -- {shlex.quote(str(shell_ready))}\n')
+        (fixture.home / '.bashrc').write_text(f'pwd -P > {shlex.quote(str(shell_ready))}\n')
         (fixture.bin / 'codex').write_text(f'#!{test_fx.sys.executable}\n' + f'''
 import os, sys
 with open({str(launches)!r}, 'a') as log:
@@ -75,6 +75,16 @@ except KeyboardInterrupt:
                 self.assertEqual(launches.read_text().splitlines(), [f'{task} {session} True'] * 2)
                 self.assertEqual(fixture.run_command(*tab_names).stdout.splitlines(), initial_tabs)
                 self.assertEqual(list((task / 'context').iterdir()), [])
+
+                shell_ready.unlink()
+                client.stdin.write(b'\x14n')
+                client.stdin.flush()
+                wait_for(lambda: shell_ready.exists() or len(launches.read_text().splitlines()) > 2,
+                         'The new tab did not start a terminal.')
+                self.assertEqual(len(fixture.run_command(*tab_names).stdout.splitlines()), 2)
+                self.assertEqual(launches.read_text().splitlines(), [f'{task} {session} True'] * 2,
+                                 'The new tab started another orchestrator.')
+                self.assertEqual(shell_ready.read_text().splitlines(), [str(task)])
             finally:
                 client.terminate()
                 client.wait(timeout=5)
