@@ -11,10 +11,9 @@ import unittest
 TOOL_DIRECTORY = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(TOOL_DIRECTORY))
 sys.path.insert(0, str(TOOL_DIRECTORY / "agents"))
-from fx_resume import resolve_session, session_metadata
+from fx_resume import conversation_id, resolve_session, session_metadata
 from fx_context import save_response
 from fx_events import save_event
-from claude_capture import resume_id
 
 
 class ResumeTest(unittest.TestCase):
@@ -102,20 +101,33 @@ class ResumeTest(unittest.TestCase):
         self.event()
         self.event("child", agent_id="child-agent")
         save_event(self.session, "codex", "hook", '{"session_id":"other-provider"}')
-        self.assertEqual(resume_id(self.session), "conversation-one")
+        self.assertEqual(conversation_id(self.session, "claude"), "conversation-one")
         self.assertFalse((self.session / "results").exists())
 
     def test_recovers_identity_from_existing_response_metadata(self):
         save_response(self.session, "claude", "conversation-one", "turn-one", "Saved response")
-        self.assertEqual(resume_id(self.session), "conversation-one")
+        self.assertEqual(conversation_id(self.session, "claude"), "conversation-one")
+
+    def test_codex_identity_ignores_notifications_and_subagents(self):
+        identity = "01900000-0000-7000-8000-000000000001"
+        save_response(self.session, "codex", identity, "turn-one", "Saved response")
+        for source, payload in (
+            ("notify", {"session_id": "notification"}),
+            ("hook", {"session_id": "child", "agent_id": "subagent"}),
+        ):
+            save_event(self.session, "codex", source, json.dumps(payload))
+        self.assertEqual(conversation_id(self.session, "codex"), identity)
+        save_event(self.session, "codex", "hook", json.dumps({"session_id": "conflicting-session"}))
+        with self.assertRaisesRegex(ValueError, "exactly one recorded Codex"):
+            conversation_id(self.session, "codex")
 
     def test_refuses_missing_or_conflicting_identities(self):
         with self.assertRaisesRegex(ValueError, "exactly one"):
-            resume_id(self.session)
+            conversation_id(self.session, "claude")
         self.event("one")
         self.event("two")
         with self.assertRaisesRegex(ValueError, "exactly one"):
-            resume_id(self.session)
+            conversation_id(self.session, "claude")
 
     def test_refuses_truncated_callback_log_without_repair(self):
         self.event()
@@ -124,7 +136,7 @@ class ResumeTest(unittest.TestCase):
             stream.write('{"unfinished":')
         before = path.read_bytes()
         with self.assertRaisesRegex(ValueError, "incomplete last record"):
-            resume_id(self.session)
+            conversation_id(self.session, "claude")
         self.assertEqual(path.read_bytes(), before)
 
     def test_refuses_symbolic_links_in_identity_evidence(self):
@@ -133,7 +145,7 @@ class ResumeTest(unittest.TestCase):
         path.rename(self.session / "saved.jsonl")
         path.symlink_to(self.session / "saved.jsonl")
         with self.assertRaisesRegex(ValueError, "symbolic links"):
-            resume_id(self.session)
+            conversation_id(self.session, "claude")
 
     def test_access_override_waits_for_the_session_lock(self):
         access = self.session / "access.txt"

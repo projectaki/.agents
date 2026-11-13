@@ -105,9 +105,9 @@ workspace path and how to open the session. The
 default tab starts Claude Opus 5.5 with high reasoning and assigns both
 `x-code-review` and `x-ensure-quality`.
 
-Use `--agent` to select one or more group members. The `--interactive` and
-`--synthesis-agent` options also select group mode, with Claude as the only
-member if you omit `--agent`. Review accepts the other launch options from
+Use `--agent` to select one or more group members. In Rex, groups open one review tab with one pane per member. In Zellij,
+`--interactive` and `--synthesis-agent` also select group mode, with Claude
+as the only member if you omit `--agent`. Review accepts the other launch options from
 `fx agent group`. Use `--prompt` to add a review focus. Relative `--from`
 paths start in the review workspace.
 
@@ -448,37 +448,37 @@ End the input to cancel without creating a session. Commands without terminal
 input must supply `--name`; they fail without creating context if it is missing.
 An explicitly empty or invalid `--name` fails without prompting.
 
-To return to a Claude conversation after exiting or pressing Ctrl+C, use the
-session directory printed by its original launch:
+To resume a Claude or Codex conversation, use the session directory printed
+at launch:
 
 ```bash
 fx agent claude --resume context/000001-investigate-claude-opus-5-5
+fx agent codex --resume context/000002-review-gpt-6.1-sol --new-tab
 ```
 
-Replace the example path with the actual session directory. Paths resolve from
-the invoking directory and must stay inside this task's `context/`. Absolute
-paths work from the task's source directory. `--new-tab` works in Rex or Zellij.
-Resume supports Claude sessions, including group members, comparisons, and task
-analyses. Other providers need an executable `agents/<agent>.resume` handler.
+Use the actual session path inside the current task's `context/` directory.
+Relative paths start in the invoking directory. Absolute paths also work.
+`--new-tab` opens a tab in Rex or Zellij. You can resume a group member,
+comparison, or task analysis by its own session path. Other adapters need
+an executable `agents/<agent>.resume` handler.
 
-Resume reuses the original model, reasoning, instructions, settings, findings,
-starting context, and response directory. It does not send the original prompt
-again. Do not combine `--resume` with `--name`, `--prompt`, `-r`, or `--from`.
-The command starts from the task directory. It restores all configured fx hooks.
-New callbacks append to `events/callbacks.jsonl`. Each resumed launch writes a
-new `events/claude-debug-resume-<unique-id>.log` and its provider version file.
-The original native log and version file remain unchanged. New final responses
-continue the existing numbered `results/turn-*` directories.
+Resume uses the saved model, reasoning, instructions, and access mode. It
+keeps the starting context, findings, and responses in the same directory.
+Use `--access` to change the saved access mode. Resume uses the existing
+conversation history without sending the initial prompt again. Use
+`--name`, `--model`, `--prompt`, `-r`, and `--from` for new sessions.
 
-The conversation identifier comes from recorded Claude hook events or captured
-response metadata. A recorded startup event permits resume before any response
-was captured. Missing or conflicting identifiers stop resume. Fx does not guess
-the most recent conversation. The provider's own conversation history must still
-exist locally. Fx logs cannot replace deleted Claude history. A partial callback
-record also stops resume because further callbacks cannot append safely.
-Claude sessions launched through fx hold a session lock until the process exits.
-A second launch of the same session fails. Sessions opened before this support
-was installed do not hold that lock; exit them before using fx resume.
+Fx reads the conversation identifier from recorded hooks or saved response
+metadata. A startup hook can record it before the first response. Resume
+requires exactly one identifier and the provider's local conversation history.
+An incomplete callback record stops resume. Codex resume needs its original
+session identifier, a UUID. Exit an older session before resuming it. Current
+launches use a lock to prevent two fx processes from using the same session.
+
+New hooks append to `events/callbacks.jsonl`. Each resume writes a separate
+native log, named `claude-debug-resume-*.log` or `codex-session-resume-*.jsonl`.
+Captured responses continue in the existing numbered `results/turn-*`
+directories. Codex hooks still require trust in the Codex CLI.
 
 Names start with a letter or digit. Remaining characters can be letters,
 digits, underscores, or hyphens. Spaces are not accepted. Repeated `--name`
@@ -529,14 +529,25 @@ output directory. Its hook commands retain the normal trust checks. Use
 
 ### `fx agent group [--name <name>] [--agent <agent[:l|m|h]> ...] [--synthesis-agent <agent>] [--interactive] [-r l|m|h] [--prompt <text>] [--from <context-directory>]`
 
-Run inside a task in a Rex or Zellij session. By default, the command opens one tab for
-the group. Members run concurrently without interactive input. The tab shows their status.
-Agent tabs use an explicit layout so a session template cannot replace the requested command.
-This applies to groups, individual launches, comparisons, resumes, and task analyses.
-After every member exits successfully with a saved final response, the runner
-starts one interactive synthesis session in that same tab. You can discuss the
-merged report in that session. No `--new-tab` flag is needed. By default, the
-group contains five independent sessions:
+Run inside a task in a Rex or Zellij session. In Rex, the command opens one
+tab with one interactive pane per member. Run the compare command after every
+member saves a response. Member panes can stay open. Use `--agent` on the
+compare command to select the comparison agent.
+
+```bash
+fx agent group --name review --agent claude:h --agent codex:h \
+  --prompt 'Review the current changes and record findings.'
+
+# Use the full group name printed at launch.
+fx agent group compare 000001-review --name synthesis --new-tab
+```
+
+In Zellij, the command runs the members without interactive input in a single
+status tab. It starts synthesis in that tab after every member exits successfully
+with a saved response. Use `--synthesis-agent` to select the synthesis agent.
+Use `--interactive` to run members in separate tabs and start synthesis manually.
+
+The default group contains five independent sessions:
 
 | Agent | Reasoning |
 | --- | --- |
@@ -546,36 +557,8 @@ group contains five independent sessions:
 | GLM | High |
 | MiniMax | Medium |
 
-This default supports model evaluation and difficult investigations.
 DeepSeek, GLM, and MiniMax require `OPENROUTER_API_KEY`.
-Synthesis uses interactive Claude by default.
-
-```bash
-fx agent group --name review --prompt 'Review the current changes and record findings.'
-```
-
-Use `--interactive` to debug members in separate terminal tabs. Each member uses
-its normal interactive adapter and accepts terminal input. A group status tab
-monitors their completion. Synthesis starts only when you run the compare command.
-You can compare after every member saves a response, while their sessions stay open.
-The comparison uses a snapshot of the responses saved when you run the command.
-
-```bash
-fx agent group --interactive --name review --agent claude:h --agent codex:h \
-  --prompt 'Review the current changes and record findings.'
-
-# Use the full group name printed at launch.
-fx agent group compare 000001-review --name synthesis --new-tab
-```
-
-Interactive mode is saved in `run.json`. `fx agent group retry <group_name>`
-preserves this mode and requires a Rex or Zellij session. Failed tab requests, failed
-member exits, and missing responses prevent comparison. Ctrl+C in the group
-status tab stops its active members. Usage summaries are available after members
-exit. The group prints a compare command that includes the selected synthesis
-agent. Member terminal output stays in its tab; `runner.log` records the tab request. Provider events and captured responses
-remain in each member's session directory. `terminal-state.json` records the
-member terminal process and exit code.
+Comparison uses Claude by default.
 
 Repeat `--agent` to choose the members. These flags replace the default list.
 The same agent can appear more than once. Append `:l`, `:m`, or `:h` to select
@@ -611,7 +594,7 @@ context/groups/000001-review/
 ├── initial_prompt.md
 ├── run.json
 ├── run-state.json
-├── tab-request.txt
+├── group-runner.log
 ├── 1-claude-claude-opus-5-5/
 │   ├── findings.md
 │   ├── instructions.md
@@ -623,14 +606,14 @@ context/groups/000001-review/
     └── ...
 ```
 
-`group.md` lists the active members and reasoning levels. The group status tab
-uses the numbered group name, such as `000001-review`. Interactive member tab
-names include the group name and member directory. `run.json` records the active
-member directories, synthesis provider, and interactive mode. `run-state.json`
-records member status, process identifiers, exit codes, and failures. Each member keeps its own
-`runner.log`, provider events, and captured responses.
+`group.md` lists the active members and reasoning levels. The Rex group tab
+uses the numbered group name, such as `000001-review`. `run.json` records the
+active members and how they run. `run-state.json` records member status,
+process identifiers, exit codes, and failures. Each member keeps its own
+`runner.log`, provider events, and captured responses. For Rex groups,
+`group-runner.log` records group startup and member outcomes.
 
-After members stop, fx prints a usage table before interactive synthesis starts.
+After members stop, fx records usage.
 It saves the table as `usage-summary.md` and the structured data as
 `usage-summary.json` in the group directory. Each attempted member also gets
 `usage.json`. The records include agent, model, reasoning, outcome, elapsed
@@ -737,7 +720,7 @@ launcher changes.
 
 A Claude result containing permission denials fails the member run. The raw
 provider response remains in `events/claude-result.json`, and the capture error
-names the denied tools. Automatic synthesis waits for a successful retry.
+names the denied tools. The member must succeed before comparison can use its response.
 
 Group instructions require independent investigation. Members can read the
 task rules, project memory, project context, repository, and earlier captured
@@ -763,46 +746,30 @@ uses `context/review-record.md` as the persistent task record. Independent
 members receive any existing task record in their starting snapshot and must
 not read later updates or current peers' private records.
 
-The launcher returns after requesting the single group tab. Tab acceptance does
-not establish successful execution. The runner waits for process exit and checks
-saved responses before synthesis. It uses `default-compare-agent` (Claude by
-default) with medium reasoning and the automatic session name `synthesis`.
-Use `--synthesis-agent <agent>` when launching the group to select any installed
-interactive adapter, including `claude`, `codex`, `glm`, and `gemini`. This selection
-is saved in `run.json` and also applies after a retry. It does not change the
-group members selected with `--agent`.
-
-```bash
-fx agent group --name review --synthesis-agent gemini --prompt 'Review the current changes.'
-```
-
-A failed member prevents automatic synthesis. Other members finish, and their
-results remain available. Ctrl+C or termination stops active member process
-groups. Completed results and failed attempts remain on disk.
+Rex reports startup after every member pane starts. Agent output and errors
+remain visible in their panes. Closing the group tab closes all its member panes.
+A failed member blocks comparison. Saved responses and failed attempts remain
+on disk.
 
 ### `fx agent group retry <group_name>`
-
-Run this in the terminal where the group should continue:
 
 ```bash
 fx agent group retry 000001-review
 ```
 
-Retry runs only incomplete members. Each retry uses a fresh member directory and
-the original assignment and starting context. Successful members are reused.
-Previous attempts and their logs remain unchanged. The active member list selects
-which results synthesis receives. A group lock prevents concurrent runners.
-Keep source unchanged during retries; the original source identity still applies.
-After success, interactive synthesis starts in this terminal. A group whose
-members all succeeded must use `compare` to start synthesis again.
-
-If the terminal tab request fails, prepared context remains available. The same
-retry command can run the prepared group without opening another tab.
+In Rex, retry opens one tab with one interactive pane for each incomplete member.
+In Zellij, retry preserves the original group mode. Each retry uses a fresh member
+directory and the original assignment and starting context. Successful members
+are reused. Previous attempts and their logs remain on disk. A group lock prevents
+concurrent runs. Keep source unchanged during retries because the original source
+identity still applies. If a Rex pane request fails, wait for or close any open
+members before retrying.
 
 ### `fx agent group compare <group_name> [--name <name>] [--agent <agent>] [-r l|m|h] [--new-tab]`
 
-Use this to start a fresh synthesis of a completed group, including recovery
-after synthesis fails. The command starts a single interactive comparison agent.
+Use this to start an interactive comparison agent. For a Rex group, run it
+after every member saves a response. For an unattended Zellij group, run it
+after every member finishes successfully.
 It supplies the original assignment and an exact list of saved member responses.
 The agent must read every listed response and its source metadata in full.
 The default agent is Claude with medium reasoning. It runs in the current

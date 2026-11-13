@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 adapter_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+if [[ "${1-}" == launch ]]; then
+  exec python3 "$adapter_dir/../fx_resume.py" lock "$4" \
+    python3 "$adapter_dir/codex_launch.py" "gpt-6.1-sol" "" "$@"
+fi
 exec python3 "$adapter_dir/codex_launch.py" "gpt-6.1-sol" "" "$@"

@@ -50,6 +50,11 @@ def tab_command(name, workspace, arguments):
                                       background=bool(os.environ.get("FX_TERMINAL_SESSION")))
 
 
+def group_terminal():
+    name, session = require_terminal()
+    return getattr(BACKENDS[name], "group_pane", None), session
+
+
 def saved_terminal(workspace):
     try:
         record = json.loads((workspace / RECORD_NAME).read_text())
@@ -153,6 +158,9 @@ def main():
     action, *arguments = sys.argv[1:]
     if action == "require":
         require_terminal()
+    elif action == "group-mode":
+        pane, _ = group_terminal()
+        print("panes" if pane else "tabs")
     elif action == "tab":
         name, workspace, *arguments = arguments
         command, env = tab_command(name, Path(workspace), arguments)

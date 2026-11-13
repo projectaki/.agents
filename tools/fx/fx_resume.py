@@ -1,5 +1,6 @@
 import argparse
 import fcntl
+import json
 import os
 from pathlib import Path
 import re
@@ -42,6 +43,52 @@ def resolve_session(task, agent, supplied):
     if session_metadata(path)["agent"] != agent:
         raise ValueError("The selected session belongs to a different agent.")
     return path
+
+
+def conversation_id(session, agent):
+    session = Path(session)
+    identities = set()
+    events = session / "events"
+    path = events / "callbacks.jsonl"
+    if events.is_symlink() or path.is_symlink():
+        raise ValueError("Conversation records must not be symbolic links.")
+    if path.exists():
+        if not path.is_file():
+            raise ValueError("The callback log must be a regular file.")
+        with path.open() as stream:
+            for line in stream:
+                if not line.endswith("\n"):
+                    raise ValueError("The callback log has an incomplete last record. Preserve it before repairing capture.")
+                try:
+                    record = json.loads(line)
+                except ValueError:
+                    continue
+                if (not isinstance(record, dict) or record.get("agent") != agent
+                        or record.get("source") != "hook"):
+                    continue
+                event = record.get("payload")
+                if not isinstance(event, dict) or event.get("agent_id"):
+                    continue
+                identity = event.get("session_id")
+                if isinstance(identity, str) and re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]*", identity):
+                    identities.add(identity)
+    results = session / "results"
+    if results.is_symlink():
+        raise ValueError("Conversation results must not be symbolic links.")
+    for directory in sorted(results.glob("turn-*")):
+        path = directory / "metadata.json"
+        if directory.is_symlink() or path.is_symlink():
+            raise ValueError("Conversation metadata must not be symbolic links.")
+        metadata = json.loads(path.read_text())
+        if not isinstance(metadata, dict):
+            raise ValueError(f"Expected conversation metadata in {path}.")
+        identity = metadata.get("conversation_id")
+        if (metadata.get("agent") == agent and isinstance(identity, str)
+                and re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]*", identity)):
+            identities.add(identity)
+    if len(identities) != 1:
+        raise ValueError(f"The session needs exactly one recorded {agent.title()} conversation identifier.")
+    return identities.pop()
 
 
 def exec_locked(session, command, access=None):

@@ -6,9 +6,10 @@ description: "Set up and use the projectaki fx CLI for project clones, task work
 # fx CLI
 
 Use `fx` to prepare workspaces and start interactive coding agents. The sentry
-command can repeat diagnostic checks. Groups run unattended investigations in
-parallel, wait for successful completion, then start one interactive synthesis. A worktree is a separate Git
-checkout that shares repository history.
+command can repeat diagnostic checks. Rex groups run independent investigations
+in one tab with one interactive pane per member. Use the compare command to
+start synthesis. A worktree is a separate Git checkout that shares repository
+history.
 
 ## Check the environment
 
@@ -191,7 +192,7 @@ in the VPS shell configuration to select full access there. An explicit flag
 overrides that default. Fx does not detect the machine type. Native provider
 support and managed policies still apply; auto does not approve every action.
 The selected mode is saved in `access.txt`. New tabs, group retries, synthesis,
-and Claude resumes preserve it. Resume and group compare accept `--access` to
+and resumes preserve it. Resume and group compare accept `--access` to
 override the saved selection. Resuming or comparing old sessions without a
 selection uses the machine default. Custom adapters need an
 `agents/<agent>.access` handler for auto mode.
@@ -202,36 +203,34 @@ Only one session may edit task source at a time. Shared project memory and
 context also need one assigned editor. Other sessions can investigate without
 edits. A returned tab request confirms tab creation, not successful agent work.
 
-## Resume a Claude conversation
+## Resume a Claude or Codex conversation
 
 Use the original session directory printed at launch:
 
 ```bash
 fx agent claude --resume context/000001-review-claude-opus-5-5
+fx agent codex --resume context/000002-review-gpt-6.1-sol --new-tab
 ```
 
-Replace the example with the actual directory. Paths resolve from the invoking
-directory and must stay inside this task's context. Absolute paths also work.
-`--new-tab` is supported in Rex and Zellij. Do not combine resume with `--name`, `--prompt`,
-`-r`, or `--from`. Resume supports Claude; other providers need their own
-`agents/<agent>.resume` handler. Group members and comparison or analysis sessions
-can be resumed by their own session directories.
+Use the actual path inside the current task's context. Relative paths start
+in the invoking directory. Absolute paths also work. `--new-tab` works in
+Rex and Zellij. Group members, comparisons, and analyses can be resumed by
+their own session directories. Other adapters need an executable
+`agents/<agent>.resume` handler.
 
-Resume preserves the model, reasoning, original instructions, findings,
-and starting context. It preserves saved settings and hooks. Full access disables
-the shell sandbox. Auto restores user sandbox configuration. It appends callback
-events and captures new responses in
-the same session. Each resumed launch gets its own native debug log under
-`events/claude-debug-resume-<unique-id>.log`; original logs remain unchanged.
-It does not resend the initial assignment or allocate a new context directory.
+Resume uses the saved model, reasoning, instructions, and access mode. Use
+`--access` to override access. The starting context, findings, and captured
+responses stay in the same session. The conversation continues from local
+provider history without sending the original prompt again. Use
+`--name`, `--model`, `--prompt`, `-r`, and `--from` for new sessions.
 
-Fx reads the conversation identifier from its recorded Claude hook events or
-response metadata. A startup event is enough to resume before the first response.
-Missing or conflicting identifiers and partial callback tails stop resume.
-The provider's local conversation history must still exist. Fx does not guess
-the latest conversation or reconstruct deleted history from diagnostic logs.
-Claude launches now hold a session lock. A duplicate launch fails while the
-session runs. Exit sessions launched before this support was installed first.
+Fx requires exactly one conversation identifier from recorded hooks or
+saved response metadata. The startup hook can supply it before the first
+response. Incomplete callback records stop resume. Exit the original
+conversation before resuming it. Current fx launches hold a session lock.
+
+New callbacks append to the original callback log. Each resume writes a
+separate native log. Codex hooks require trust in the Codex CLI.
 
 ## Inspect task sessions with sentry
 
@@ -278,78 +277,55 @@ Keep source and shared context unchanged until their investigations finish.
 
 ```bash
 fx agent group --name review --agent claude:h --agent codex:h \
-  --prompt 'Review the current changes independently. Do not edit source or shared context. Record supported findings in your own session directory.'
+  --prompt 'Review the current changes independently. Do not edit source. Record supported findings in your own session directory.'
 ```
 
 The default group runs Claude, Codex, DeepSeek, GLM, and MiniMax.
 Codex, DeepSeek, and GLM explicitly use high reasoning. Claude and MiniMax
 use `-r`, which defaults to medium. The three OpenRouter agents require
-`OPENROUTER_API_KEY`. This default supports evaluation and difficult investigations.
-Repeated `--agent` flags replace `default-group`. Members without an explicit
-level use `-r`. No `--new-tab` flag is needed.
-Members must not read current peers' findings or later results. They may read
-earlier responses listed in their starting context snapshot.
+`OPENROUTER_API_KEY`. Repeated `--agent` flags replace `default-group`.
+Members without an explicit level use `-r`. Supply `--prompt` or enter one
+assignment before launch. Members must read only the earlier responses listed
+in their starting context snapshot and keep their findings private from peers
+in the current group.
 
-By default, a group opens one terminal tab. Its members run without interactive input. Supply
-`--prompt`, or enter the assignment at the terminal before launch. The group tab
-shows member status. Each member saves its own response and diagnostic logs.
-After every member exits successfully with a saved response, the same tab starts
-an interactive synthesis session named `synthesis`. It uses
-`default-compare-agent` (Claude by default) with medium reasoning. Continue the
-discussion there. Supply `--synthesis-agent <agent>` on the group launch to choose
-any installed interactive adapter, such as `codex`, `claude`, `glm`, or `gemini`.
-This selection is saved for retries. Repeated `--agent` flags select group members
-separately.
+In Rex, the command opens one tab with one interactive pane per member.
+After every member saves a response, start comparison manually:
 
-Use `fx agent group --interactive` to debug members in separate terminal tabs.
-Each member uses its normal interactive adapter. Interactive groups never start
-synthesis automatically. Once every member has a captured response, run
-`fx agent group compare <full-group-name> --name synthesis --new-tab`.
-Member sessions can stay open. Comparison uses the responses saved when launched.
-The group prints this command with its selected synthesis agent. Ctrl+C in the
-status tab stops active members. Retries preserve interactive mode and require
-Rex or Zellij. Member output stays in its tab; `runner.log` records its tab request.
-Usage summaries are available after members exit.
+```bash
+fx agent group compare 000001-review --name synthesis --new-tab
+```
 
-After members stop, fx prints per-attempt runtime, token usage, and cost before
-synthesis. The group saves `usage-summary.md` and `usage-summary.json`; members
-save `usage.json`. OpenRouter members also save `pricing.json` for base-rate cost
-estimates. Failures and retries remain in the summary. Missing values are
-unavailable, not zero. Claude's CLI cost and catalog-based costs are estimates,
-not invoices. Subscription charges are not inferred. Group time excludes retry
-waits and interactive synthesis. Usage readers register as `agents/<agent>.usage`
-and keep provider parsing outside the group runner.
+Use the full group name printed at launch. Members can stay open. Use `--agent`
+on the compare command to select the comparison adapter. Comparison reads the
+saved responses available at launch. Failed members block comparison.
 
-Failures stop automatic synthesis. Other members can finish. Ctrl+C stops active
-member process groups. Inspect `run-state.json` and each member's `runner.log`.
-To retry only incomplete members in the current terminal:
+In Zellij, the default group runs without interactive input in a status tab
+and starts synthesis there after all members exit successfully with saved
+responses. Use `--synthesis-agent` to select the synthesis adapter. Use
+`--interactive` to open separate member tabs and compare manually.
+
+Each member saves its response and diagnostic logs. After members exit, fx
+saves `usage-summary.md` and `usage-summary.json`. Members save `usage.json`.
+Missing values are unavailable. Provider costs may be estimates.
+
+To retry incomplete members, use:
 
 ```bash
 fx agent group retry 000001-review
 ```
 
-Use the full name printed at launch. Successful results remain available.
-Retries use fresh member directories and preserve failed attempts. The original
-assignment, context snapshot, and source identity still apply. Keep source
-unchanged. Concurrent runners for the same group are rejected.
+Retries use fresh member directories and preserve successful responses and
+failed attempts. The original assignment, context snapshot, and source
+identity still apply. Rex retries open one tab with one pane per incomplete
+member. Zellij retries preserve the original mode. Inspect `run-state.json`
+and each member's `runner.log` for failures. For Rex, inspect
+`group-runner.log` for group startup errors.
 
-For another synthesis, or recovery after synthesis fails:
-
-```bash
-fx agent group compare 000001-review --name summary --new-tab
-```
-
-Unattended comparison requires successful completion of every active member.
-Interactive comparison requires a captured response from every member. Short names
-work only when one group matches. `--agent` overrides `default-compare-agent`.
-Comparison reads an exact list of saved response files, checks disagreements,
-and produces one merged report. It does not authorize source edits. The full
-reports remain in files, so their combined text can exceed the 48 KB inline
-handoff limit. Legacy interactive groups still require manual completion checks.
-
-Adapters implement unattended execution in `agents/<agent>.batch`. The group
-runner never branches on provider names. Claude uses print mode; Codex uses
-exec mode. Auto access selects Claude's `--permission-mode auto` or Codex's
+For unattended Zellij groups, adapters implement execution in
+`agents/<agent>.batch`. The group runner uses the registered adapters.
+Claude uses print mode. Codex uses exec mode.
+Auto access selects Claude's `--permission-mode auto` or Codex's
 `--approve-for-me`, including batch members and synthesis. Full access selects
 Claude's `bypassPermissions` mode with its shell sandbox disabled, or Codex's
 `--dangerously-bypass-approvals-and-sandbox`. Fx supplies no tool-specific
@@ -416,9 +392,9 @@ errors stop the launch. One saved turn per member does not prove group completio
   Do not reset work or use stale commits.
 - If opening the terminal session fails after task preparation, reuse the task. It remains
   available through `--no-attach`.
-- If a group tab request fails, inspect the group's `tab-request.txt`. Use
-  `fx agent group retry <full-group-name>` to run its prepared members in the
-  current terminal. A fresh `group` invocation creates a different group.
+- If a group tab request fails, inspect the group's launch records. For Rex,
+  wait for or close any open members. Use `fx agent group retry <full-group-name>`
+  to recover the group. A fresh `group` invocation creates a different group.
 - If capture fails, inspect the session's `capture-error.txt` and saved turns.
   Do not claim that a missing response was captured or delete error markers
   merely to bypass a handoff failure.

@@ -1839,7 +1839,7 @@ pwd -P
         self.assertEqual(list((task / "context").iterdir()), [session])
         self.assertEqual(list((session / "events").glob("claude-debug-resume-*")), [])
         result = self.fx("agent", "codex", "--resume", session, cwd=task, check=False)
-        self.assertIn("does not support resume", result.stderr)
+        self.assertIn("different agent", result.stderr)
 
     def test_claude_resume_new_tab_uses_resume_adapter_and_same_session(self):
         task = self.task()
@@ -1851,6 +1851,89 @@ pwd -P
         self.assertIn(str(TOOL.parent / "agents/claude.resume"), args)
         self.assertIn(str(session), args)
         self.assertEqual(list((task / "context").iterdir()), [session])
+
+    def test_codex_resume_keeps_context_and_captures_new_turn(self):
+        task = self.task()
+        identity = "01900000-0000-7000-8000-000000000001"
+        (self.bin / "codex").write_text(f"#!{sys.executable}\n" + """
+import fcntl, json, os, subprocess, sys
+from pathlib import Path
+
+args = sys.argv[1:]
+if args == ["--version"]:
+    print("Codex test version")
+    sys.exit(0)
+
+session = Path(os.environ["FX_SESSION_CONTEXT_DIR"])
+with (session / ".fx-agent.lock").open() as lock:
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        pass
+    else:
+        raise AssertionError("The Codex process must hold the session lock")
+
+resuming = args[0] == "resume"
+identity = args[-1] if resuming else "01900000-0000-7000-8000-000000000001"
+log = Path(os.environ["CODEX_TUI_SESSION_LOG_PATH"])
+log.write_text("Resumed log" if resuming else "Original log")
+
+def hook(name, **extra):
+    setting = next(argument for argument in args if argument.startswith(f"hooks.{name}="))
+    command = json.loads(setting.split("command=", 1)[1].split(",timeout=", 1)[0])
+    event = dict(hook_event_name=name, session_id=identity, **extra)
+    subprocess.run(command, shell=True, input=json.dumps(event), text=True, capture_output=True, check=True)
+
+hook("SessionStart")
+if resuming:
+    hook("Stop", turn_id="two", last_assistant_message="Resumed response")
+print(json.dumps(args))
+""")
+        self.fx("agent", "codex", "--name", "review", "-r", "h", "--access", "auto",
+                "--model", "gpt-6.1-terra", "--prompt", "Original assignment", cwd=task)
+        session, = (task / "context").iterdir()
+        self.assertFalse((session / "results").exists())
+        preserved = {name: (session / name).read_bytes() for name in (
+            "launch.txt", "instructions.md", "input-context.md", "initial_prompt.md", "findings.md",
+            "events/codex-session.jsonl", "events/harness-version.txt")}
+        callbacks = session / "events/callbacks.jsonl"
+        before = callbacks.read_bytes()
+
+        result = self.fx("agent", "codex", "--resume", session, cwd=task / "repo")
+        args = json.loads(result.stdout)
+        self.assertEqual(args[0], "resume")
+        self.assertEqual(args[-2:], ["--", identity])
+        self.assertEqual(args[args.index("--model") + 1], "gpt-6.1-terra")
+        self.assertEqual(args[args.index("--cd") + 1], str(task))
+        self.assertIn('model_reasoning_effort="high"', args)
+        self.assertIn("--approve-for-me", args)
+        self.assertNotIn("Original assignment", args)
+        self.assertEqual(list((task / "context").iterdir()), [session])
+        for name, data in preserved.items():
+            self.assertEqual((session / name).read_bytes(), data, name)
+        self.assertTrue(callbacks.read_bytes().startswith(before))
+        resumed_log, = (session / "events").glob("codex-session-resume-*.jsonl")
+        self.assertEqual(resumed_log.read_text(), "Resumed log")
+        self.assertEqual((session / "last_turn_results.md").read_text(), "Resumed response")
+
+        self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
+        result = self.fx("agent", "codex", "--resume", session, "--new-tab", cwd=task)
+        args = json.loads(result.stdout)["arguments"]
+        self.assertIn(str(TOOL.parent / "agents/codex.resume"), args)
+        self.assertIn(str(session), args)
+
+    def test_codex_resume_rejects_missing_id_and_session_name(self):
+        task = self.task()
+        self.fx("agent", "codex", "--name", "review", cwd=task)
+        session, = (task / "context").iterdir()
+        result = self.fx("agent", "codex", "--resume", session, cwd=task, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("exactly one recorded Codex", result.stderr)
+        self.capture_codex(session, {"hook_event_name": "SessionStart", "session_id": "review"})
+        result = self.fx("agent", "codex", "--resume", session, cwd=task, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("must be a UUID", result.stderr)
+        self.assertEqual(list((session / "events").glob("codex-session-resume-*")), [])
 
     def test_claude_final_responses_are_captured_without_agent_file_writes(self):
         task = self.task()

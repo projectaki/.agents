@@ -1,5 +1,6 @@
 import argparse
 import fcntl
+from functools import partial
 import json
 import os
 from pathlib import Path
@@ -11,23 +12,27 @@ import time
 from datetime import datetime, timezone
 
 from fx_context import captured_results, group_sessions
-from fx_group_tabs import TabProcess
+from fx_group_tabs import GroupPanes, TabProcess
 from fx_group import comparison_context, resolve_group
-from fx_terminal import require_terminal
+from fx_terminal import group_terminal, require_terminal
 from fx_usage import collect_usage, save_group_usage, write_json
 
 
 TOOL_DIR = Path(__file__).resolve().parent
 
 
-def prepare_run(group, synthesis_agent, interactive=False):
+def prepare_run(group, synthesis_agent, interactive=False, panes=False):
     members = []
     for session in group_sessions(group):
         metadata = dict(line.split("=", 1) for line in (session / "launch.txt").read_text().splitlines())
         members.append({"session": session.name, "agent": metadata["agent"],
                         "reasoning": metadata["reasoning"]})
-    write_json(group / "run.json", {"members": members, "synthesis_agent": synthesis_agent,
-                                    "interactive": interactive})
+    manifest = {"members": members, "interactive": interactive or panes}
+    if panes:
+        manifest["panes"] = True
+    else:
+        manifest["synthesis_agent"] = synthesis_agent
+    write_json(group / "run.json", manifest)
     write_json(group / "run-state.json", {"status": "waiting", "members": {
         member["session"]: {"status": "waiting"} for member in members}})
 
@@ -92,17 +97,17 @@ def stop_members(processes):
         process.wait()
 
 
-def run_members(project, task, group, manifest, state):
+def run_members(project, task, group, manifest, state, panes=None, report_startup=None):
     processes = {}
     started = {}
     run_started = time.monotonic()
     state["status"] = "running"
     state["runner_pid"] = os.getpid()
     try:
-        for member in manifest["members"]:
+        pending = [member for member in manifest["members"]
+                   if state["members"][member["session"]]["status"] != "finished"]
+        for index, member in enumerate(pending):
             name = member["session"]
-            if state["members"][name]["status"] == "finished":
-                continue
             agent = member["agent"]
             if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]*", agent):
                 raise ValueError("Invalid group adapter name.")
@@ -112,7 +117,10 @@ def run_members(project, task, group, manifest, state):
             state["members"][name] = {"status": "running",
                                       "started_at": datetime.now(timezone.utc).isoformat()}
             try:
-                if manifest.get("interactive", False):
+                if panes:
+                    open_pane = partial(panes.open, name, len(pending) - index)
+                    process = TabProcess(project, task, group, member, log, open_pane)
+                elif manifest.get("interactive", False):
                     process = TabProcess(project, task, group, member, log)
                 else:
                     command = [str(TOOL_DIR / "agents" / f"{agent}.batch"), str(project),
@@ -135,6 +143,8 @@ def run_members(project, task, group, manifest, state):
             state["members"][name]["pid"] = process.pid
             print(f"fx: {name}: running", flush=True)
         write_json(group / "run-state.json", state)
+        if report_startup:
+            report_startup(len(processes) == len(pending))
         while processes:
             for name, (process, log) in list(processes.items()):
                 code = process.poll()
@@ -183,7 +193,7 @@ def run_members(project, task, group, manifest, state):
         save_group_usage(group, manifest, state)
 
 
-def run_group(project, task, group, retry=False):
+def run_group(project, task, group, retry=False, report_startup=None):
     with (group / ".run.lock").open("a") as lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -192,17 +202,23 @@ def run_group(project, task, group, retry=False):
         group_sessions(group)
         manifest = json.loads((group / "run.json").read_text())
         state = json.loads((group / "run-state.json").read_text())
-        if manifest.get("interactive", False):
+        panes = None
+        if manifest.get("panes"):
+            create_pane, session = group_terminal()
+            if create_pane is None:
+                raise ValueError("Open this task in Rex to run the group in split panes.")
+            panes = GroupPanes(create_pane, session, task, group.name)
+        elif manifest.get("interactive", False):
             require_terminal()
         if retry:
             retry_members(group, manifest, state)
         elif state["status"] != "waiting":
             raise ValueError("This group was already started. Use fx agent group retry or compare.")
-        if manifest.get("interactive", False):
+        if manifest.get("interactive", False) and not panes:
             print("fx: Synthesis is manual. After every member saves a response, run:", flush=True)
             print(f"fx agent group compare {group.name} --name synthesis "
                   f"--agent {manifest['synthesis_agent']} --new-tab", flush=True)
-        run_members(project, task, group, manifest, state)
+        run_members(project, task, group, manifest, state, panes, report_startup)
         if state["status"] != "finished":
             raise ValueError(f"Group incomplete. Results are preserved in {group}. Retry with: fx agent group retry {group.name}")
         if manifest.get("interactive", False):
@@ -216,27 +232,67 @@ def run_group(project, task, group, retry=False):
         os.execv(command[0], command)
 
 
+def launch_pane_runner(project, task, group, retry):
+    log_path = group / "group-runner.log"
+    with log_path.open("a") as log:
+        runner = subprocess.Popen(
+            [sys.executable, str(Path(__file__).resolve()), "supervise", str(project),
+             str(task), group.name, *(["--retry"] if retry else [])],
+            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=log,
+            text=True, start_new_session=True,
+        )
+    try:
+        with runner.stdout:
+            accepted = runner.stdout.readline().strip() == "accepted"
+    except KeyboardInterrupt:
+        runner.terminate()
+        raise
+    if not accepted:
+        print(f"fx: Group panes could not all start. See {log_path}. "
+              f"After any open members exit, use fx agent group retry {group.name}.", file=sys.stderr)
+        return 1
+    print(f"fx: After every member saves a response, run fx agent group compare "
+          f"{group.name} --name synthesis --new-tab.", file=sys.stderr)
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", choices=("prepare", "run", "retry"))
+    parser.add_argument("action", choices=("prepare", "run", "retry", "supervise"))
     parser.add_argument("project", type=Path)
     parser.add_argument("task", type=Path)
     parser.add_argument("group")
     parser.add_argument("synthesis_agent", nargs="?")
     parser.add_argument("--interactive", action="store_true")
+    parser.add_argument("--panes", action="store_true")
+    parser.add_argument("--retry", action="store_true")
     args = parser.parse_args()
     try:
         group = resolve_group(args.task, args.group)
         if args.action == "prepare":
-            if not args.synthesis_agent:
+            if not args.panes and not args.synthesis_agent:
                 raise ValueError("Supply the synthesis adapter when preparing a group.")
-            prepare_run(group, args.synthesis_agent, args.interactive)
+            prepare_run(group, args.synthesis_agent, args.interactive, args.panes)
         else:
+            retry = args.action == "retry" or args.retry
+            manifest = json.loads((group / "run.json").read_text())
+            if manifest.get("panes") and args.action != "supervise":
+                return launch_pane_runner(args.project, args.task, group, retry)
+
             def cancel(signum, frame):
                 raise KeyboardInterrupt
             signal.signal(signal.SIGTERM, cancel)
             signal.signal(signal.SIGHUP, cancel)
-            run_group(args.project, args.task, group, args.action == "retry")
+            report_startup = None
+            if args.action == "supervise":
+                startup = sys.stdout
+                sys.stdout = sys.stderr
+
+                def report_startup(accepted):
+                    print("accepted" if accepted else "failed", file=startup, flush=True)
+                    startup.close()
+
+            run_group(args.project, args.task, group, retry, report_startup)
     except KeyboardInterrupt:
         print("\nfx: Group cancelled. Completed results and logs are preserved.", file=sys.stderr)
         return 130

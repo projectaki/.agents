@@ -114,5 +114,18 @@ def tab(session_id, name, workspace, arguments, background):
     return [*terminal_command, "--", *arguments], environment()
 
 
+def group_pane(session_id, workspace, name, member, arguments, anchor, remaining):
+    if anchor is None:
+        subcommand = ("window", "new")
+        target = [name]
+    else:
+        subcommand = ("split",)
+        target = ["--block", anchor, "--label", member, "--split=right",
+                  "--ratio", str(min(99, round(100 * remaining / (remaining + 1)))), "--focus=false"]
+    return request(*subcommand, "--session", session_id, *target, "--cwd", str(workspace),
+                   "--keep-open", "--json", *interactive_options(*subcommand),
+                   "--", *arguments)
+
+
 def close(session_id):
     subprocess.run(command("session", "kill", session_id), env=environment(), check=True)

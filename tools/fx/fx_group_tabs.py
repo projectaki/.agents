@@ -15,17 +15,20 @@ TOOL_DIR = Path(__file__).resolve().parent
 
 
 class TabProcess:
-    def __init__(self, project, task, group, member, log):
+    def __init__(self, project, task, group, member, log, open_pane=None):
         self.session = group / member['session']
         self.record = self.session / 'terminal-state.json'
         self.cancelled = self.session / 'terminal-cancelled'
         arguments = [sys.executable, str(Path(__file__).resolve()), str(project), str(task),
                      str(self.session), member['agent'], member['reasoning']]
         try:
-            command, env = tab_command(f"{group.name}-{member['session']}", task, arguments)
-            request = subprocess.run(command, env=env, stdout=log, stderr=subprocess.STDOUT, timeout=40)
-            if request.returncode:
-                raise OSError(f'Terminal tab request failed with exit code {request.returncode}.')
+            if open_pane:
+                open_pane(arguments, log)
+            else:
+                command, env = tab_command(f"{group.name}-{member['session']}", task, arguments)
+                request = subprocess.run(command, env=env, stdout=log, stderr=subprocess.STDOUT, timeout=40)
+                if request.returncode:
+                    raise OSError(f'Terminal tab request failed with exit code {request.returncode}.')
             deadline = time.monotonic() + 15
             while not self.record.exists():
                 if time.monotonic() >= deadline:
@@ -107,6 +110,31 @@ def run_member(project, task, session, agent, reasoning):
     finally:
         write_json(record, {**state, 'exit_code': code})
     return code
+
+
+class GroupPanes:
+    def __init__(self, create_pane, session_id, workspace, group_name):
+        self.create_pane = create_pane
+        self.session_id = session_id
+        self.workspace = workspace
+        self.group_name = group_name
+        self.anchor = None
+        self.creation_failed = False
+
+    def open(self, member, remaining, arguments, log):
+        if self.creation_failed:
+            raise OSError("A previous pane request failed. Check the group tab before retrying.")
+        try:
+            result = self.create_pane(self.session_id, self.workspace, self.group_name,
+                                      member, arguments, self.anchor, remaining)
+            print(json.dumps(result), file=log, flush=True)
+            self.anchor = result["block_ids"][0]
+        except subprocess.CalledProcessError as error:
+            self.creation_failed = True
+            raise OSError(error.stderr.strip() or str(error)) from error
+        except (OSError, ValueError, KeyError, IndexError, subprocess.TimeoutExpired) as error:
+            self.creation_failed = True
+            raise OSError(f"Cannot create group pane: {error}") from error
 
 
 if __name__ == '__main__':

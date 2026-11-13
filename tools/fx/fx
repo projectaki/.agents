@@ -687,7 +687,7 @@ run_agent_session() {
 
 launch_agent_group() {
   local name='' prompt='' default_reasoning=m project task group spec agent level session status index captured_context synthesis_agent=''
-  local prompt_supplied=false reasoning_supplied=false interactive=false
+  local prompt_supplied=false reasoning_supplied=false interactive=false group_mode group_layout group_comparison
   local -a specs=() agents=() levels=() models=()
   local -a context_args=()
   local access=''
@@ -747,6 +747,21 @@ launch_agent_group() {
     done < "$tool_dir/default-group"
   fi
   [[ ${#specs[@]} -gt 0 ]] || fail 'No default group agents are configured. Supply --agent.'
+  group_mode="$(python3 "$tool_dir/fx_terminal.py" group-mode)"
+  if [[ "$group_mode" == panes ]]; then
+    [[ -z "$synthesis_agent" ]] || fail 'Select the comparison agent with fx agent group compare --agent.'
+    interactive=true
+    group_layout='Each member runs in its own pane in one Rex tab.'
+  elif [[ "$interactive" == true ]]; then
+    group_layout='Each member runs in its own terminal tab.'
+  else
+    group_layout='Members run unattended in the group tab.'
+  fi
+  if [[ "$interactive" == true ]]; then
+    group_comparison='Run fx agent group compare after every member saves a response. Member sessions can stay open.'
+  else
+    group_comparison='Synthesis starts in the group tab after every member exits successfully with a saved response.'
+  fi
   for spec in "${specs[@]}"; do
     agent="${spec%%:*}"
     validate_name "$agent"
@@ -761,16 +776,17 @@ launch_agent_group() {
     levels+=("$level")
     models+=("$(agent_model "$agent")")
   done
-  python3 "$tool_dir/fx_terminal.py" require
   project="$(find_project)"
   task="$(find_task "$project")"
   command -v python3 >/dev/null || fail 'Install Python 3 to capture and load agent results.'
-  [[ -n "$synthesis_agent" ]] || synthesis_agent="$(cat "$tool_dir/default-compare-agent")"
-  validate_name "$synthesis_agent"
-  [[ -x "$tool_dir/agents/$synthesis_agent" ]] || fail "No synthesis adapter is installed for: $synthesis_agent"
-  check_agent_access "$synthesis_agent" "$access"
-  "$tool_dir/agents/$synthesis_agent" check || fail "The $synthesis_agent CLI is not available for synthesis."
-  agent_model "$synthesis_agent" >/dev/null
+  if [[ "$group_mode" != panes ]]; then
+    [[ -n "$synthesis_agent" ]] || synthesis_agent="$(cat "$tool_dir/default-compare-agent")"
+    validate_name "$synthesis_agent"
+    [[ -x "$tool_dir/agents/$synthesis_agent" ]] || fail "No synthesis adapter is installed for: $synthesis_agent"
+    check_agent_access "$synthesis_agent" "$access"
+    "$tool_dir/agents/$synthesis_agent" check || fail "The $synthesis_agent CLI is not available for synthesis."
+    agent_model "$synthesis_agent" >/dev/null
+  fi
   captured_context="$(python3 "$tool_dir/fx_context.py" "$task" ${context_args[@]+"${context_args[@]}"})"
   name="$(require_name Group "$name")"
   if [[ "$prompt_supplied" == false ]]; then
@@ -794,11 +810,8 @@ launch_agent_group() {
 
 Task: $task
 Each member works independently and writes its result in its own findings.md.
-Interactive member tabs: $interactive.
-Each interactive member runs in its own tab. Otherwise members run unattended in the group tab.
-Interactive groups require manual synthesis through fx agent group compare.
-Comparison is available after all members save responses, while their sessions stay open.
-Unattended groups start synthesis in the group tab after all members exit successfully with saved responses.
+$group_layout
+$group_comparison
 The sessions share the live task worktree. Keep source and shared context unchanged during the investigation.
 run-state.json records member outcomes. runner.log and events/ preserve each member's diagnostics.
 
@@ -818,7 +831,13 @@ EOF
     printf '| %s | %s | %s |\n' "$(basename -- "$session")" "$agent" "${levels[$index]}" >> "$group/group.md"
   done
   cd -- "$task"
-  set -- prepare "$project" "$task" "$name" "$synthesis_agent"
+  set -- prepare "$project" "$task" "$name"
+  if [[ "$group_mode" == panes ]]; then
+    python3 "$tool_dir/fx_group_run.py" "$@" --panes
+    python3 "$tool_dir/fx_group_run.py" run "$project" "$task" "$name"
+    return
+  fi
+  set -- "$@" "$synthesis_agent"
   [[ "$interactive" == false ]] || set -- "$@" --interactive
   python3 "$tool_dir/fx_group_run.py" "$@"
   printf 'requesting\n' > "$group/tab-request.txt"
@@ -1033,15 +1052,15 @@ Use --new-tab inside Rex or Zellij to launch the agent in a new tab in the curre
 Session, group, and comparison session names are required. Use --name or enter a name at the terminal prompt.
 Names use letters, digits, underscores, or hyphens and must start with a letter or digit.
 Without terminal input, --name is required. Names appear in context directories and tab titles.
-Groups run independent unattended agents in one terminal tab, then start interactive synthesis in that tab.
-Use group --interactive to open each member in its own tab. Start synthesis manually with group compare.
+Rex opens one group tab with one interactive pane per agent. Run group compare to start synthesis.
+In Zellij, groups run unattended and start synthesis automatically. Use --interactive for separate member tabs and manual synthesis.
 Groups require an assignment through --prompt or terminal input. Unattended groups need agents/<agent>.batch.
 Group defaults come from default-group. Repeated --agent flags replace those defaults.
-Use --synthesis-agent to select the interactive synthesis adapter for a group.
+In Zellij, --synthesis-agent selects the synthesis adapter. For manual synthesis, use group compare --agent.
 Each group agent uses -r (medium by default), unless its agent:reasoning value overrides it.
 Final responses are captured under each session's results/ directory. Python 3.9+ is required.
 Use --from to supply saved responses from a session, group, or results/turn-* directory in this task.
-Group compare starts a fresh synthesis of a completed group. Group retry reruns only incomplete members in this terminal.
+Group compare starts a fresh synthesis of a completed group. Group retry reruns only incomplete members.
 Synthesis defaults to default-compare-agent (Claude). Comparisons use medium reasoning, and the current terminal unless --new-tab is supplied.
 EOF
       printf '\nAvailable task actions:\n'
