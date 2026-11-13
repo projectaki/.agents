@@ -1,7 +1,8 @@
 # fx
 
 `fx` prepares filesystem workspaces and starts interactive coding agents.
-It uses Bash, Git, Zellij, and Python 3.9 or later. An initial assignment
+It uses Bash, Git, and Python 3.9 or later. It opens terminal sessions in Rex
+or Zellij. An initial assignment
 can be supplied with `fx agent --prompt`.
 Groups run independent investigations without interactive input, then start one interactive synthesis.
 The sentry command can repeat diagnostic checks. Individual agent launches remain interactive.
@@ -19,27 +20,33 @@ or `.zshrc` to load it in new terminals. Keep the whole `tools/fx` directory.
 The shell integration adds it to `PATH` and defines the `fx` shell function.
 
 The function changes the current directory after successful project setup.
-Tasks open in Zellij. With `fx task <name> --no-attach`, the function changes
-the current directory without opening Zellij. Without shell integration,
+With `fx task <name> --no-attach`, the function changes the current directory
+without opening a terminal session. Without shell integration,
 setup and tasks with `--no-attach` print the destination path.
 All setup diagnostics go to standard error.
 
 ## Workflow
 
-Connect to the server, or use a local terminal. Then run:
+In Rex, select the machine that holds the project and open a shell there.
+For a virtual private server (VPS) without Rex, connect through SSH and use
+Zellij on that server. Run the commands on the machine that holds the worktree:
 
 ```bash
 fx setup my-project owner/repository
 fx task fix-login
 ```
 
-`fx task` creates or attaches to the Zellij session `my-project-fix-login`.
+`fx task` creates or reopens a session for `my-project-fix-login`. The default
+`FX_MULTIPLEXER=auto` uses a running Rex server on the same machine. If Rex is
+unavailable for a new session, fx uses Zellij. Set `FX_MULTIPLEXER=rex` or
+`FX_MULTIPLEXER=zellij` to require a backend for new sessions.
+Existing sessions keep their backend.
 In a new session, the first terminal starts the task orchestrator. Choose
 Claude or Codex at the prompt, then give it the assignment. Exit the
 orchestrator to open the task shell. Run `fx orchestrator` there to start
 a fresh orchestrator in the same terminal.
 
-You can also open another terminal or Zellij pane, enter the task directory,
+You can also open another terminal, enter the task directory,
 and start an assigned agent directly:
 
 ```bash
@@ -93,8 +100,8 @@ fx pr review 123
 fx pr review 123 --agent claude:h --agent codex:h
 ```
 
-The command opens a review tab in a background Zellij session. It prints the
-workspace path and a `zellij attach` command for when you want to join. The
+The command opens a review tab in a background terminal session. It prints the
+workspace path and how to open the session. The
 default tab starts Claude Opus 5.5 with high reasoning and assigns both
 `x-code-review` and `x-ensure-quality`.
 
@@ -129,7 +136,7 @@ fx task analyze --new-tab
 
 The command starts an interactive analysis session. The default provider is
 `codex`, configured in `default-analyze-agent`. Reasoning defaults to high.
-`--new-tab` requires Zellij. The command analyzes an existing task. It does not
+`--new-tab` requires a Rex or Zellij session. The command analyzes an existing task. It does not
 create a task, fetch source, or resume implementation. `analyze` is a reserved
 task action name. Task actions register through executables in `task-commands/`.
 
@@ -270,7 +277,7 @@ and build output. Put needed local files in the main clone before creating a
 task. Git cloning does not retrieve these local files from another checkout.
 
 Reopening a task copies missing files as well. It never overwrites an existing
-task file or link. To fill missing files without attaching to Zellij:
+task file or link. To fill missing files without opening a terminal session:
 
 ```bash
 fx task fix-login --no-attach
@@ -283,36 +290,29 @@ Copy failures preserve the worktree and existing files. Rerun the task command
 after correcting the problem. Files are independent copies, so later changes
 in the main clone do not update existing task files.
 
-After preparing the worktree, the command creates or attaches to a Zellij
-session named `<project_name>-<task_name>`. From inside Zellij, it switches sessions
-instead of nesting another client. A new session uses a layout with the tab bar,
-one terminal, and the status bar. The terminal prints its directory, repository
-path, Zellij session name, latest commit, and Git status before starting the
-orchestrator. When the orchestrator exits or fails to start, the terminal opens
-the interactive shell selected by `SHELL` (Bash when unset). Git status includes
-the branch, upstream comparison, and local changes. The summary reads the
-current worktree when the terminal starts. The terminal reports Git errors and
-continues startup.
+After preparing the worktree, fx opens its terminal session. A new session
+prints the directory, repository path, latest commit, and Git status before
+starting the orchestrator. When the orchestrator exits or fails to start, the
+terminal opens the interactive shell selected by `SHELL` (Bash when unset).
+The terminal reports Git errors and continues startup.
 
-Additional tabs opened with Zellij's new tab action start a shell.
+Rex session names include the project, task, and a suffix based on the
+worktree path. Fx records the session ID in `.fx-terminal.json`. If one Rex app
+is connected, or `REX_CLIENT` selects an app, fx asks it to show the session.
+If the app cannot switch, fx prints the session name and ID. You can open it in
+the app.
 
-If already in that session, the command stays there.
-Existing sessions retain their panes and working directories. Detaching returns
-to the original terminal and its original directory. The task session stays alive.
-Reattaching does not restart the terminal or print a new startup summary.
-The `--no-attach` option prints only the task path to standard output.
+Zellij uses the session name `<project_name>-<task_name>`. From inside Zellij,
+fx switches sessions. Existing sessions with that name are reused. New
+sessions use a tab bar, one terminal, and a status bar.
 
-The project prefix lets different projects reuse a task name. Zellij session
-names are shared by the operating-system account, so the combined name must
-remain unique. A manually created session with the same combined name is reused.
-
-Use `--no-attach` to prepare a task without Zellij, including from scripts.
-Zellij must be installed for the default command. If attaching fails, the
-worktree and context remain available. Rerun the command to retry.
-Reload shell integration in already-open terminals after upgrading this behavior.
+Reopening a session keeps its existing terminals and does not restart the
+orchestrator. If its backend is unreachable, reconnect and retry. The worktree
+and context remain available. Use `--no-attach` to prepare a worktree without
+either backend. This option prints only the task path to standard output.
 
 If a terminal appears stuck after `Task ready`, an old shell function may be
-capturing Zellij's screen output. The command rejects captured output when
+capturing terminal output. The command rejects captured output when
 started from an interactive terminal and gives a reload instruction.
 To recover an already-stuck terminal, open another terminal and run:
 
@@ -340,18 +340,17 @@ is empty or unset, fx prompts for a provider. Each provider uses its normal
 model and permission settings.
 
 The orchestrator receives its role, task paths, and the path to this reference.
-It passes `--new-tab` to `fx agent` to launch assigned agents in separate Zellij
-tabs. Fx skips its session directory, context capture, and event recording for
+It passes `--new-tab` to `fx agent` to launch assigned agents in separate tabs. Fx skips its session directory, context capture, and event recording for
 the orchestrator. Assigned agents still use the normal `fx agent` workflow.
 
 ### `fx delete <task_name> [--force]`
 
 Deletes the named task directory, including its context and captured responses.
-Removes its Git worktree registration and deletes the Zellij session named
-`<project_name>-<task_name>`. A running session is stopped. An exited session's
-saved state is deleted. Git branches and committed work on those branches remain.
+Removes its Git worktree registration and closes its terminal session.
+Zellij also removes any saved session state. Git branches and committed work
+on those branches remain.
 
-Run from the project directory in a terminal outside the target Zellij session:
+Run from the project directory in a terminal outside the target terminal session:
 
 ```bash
 cd ~/work/my-project
@@ -371,11 +370,12 @@ Task context files are deleted even without `--force`.
 The command accepts a renamed task branch. It rejects symbolic links, worktrees
 from another repository, and locked worktrees, including with `--force`.
 
-Zellij must be installed. A missing session does not prevent deletion.
+If fx has a saved terminal session, its backend must be reachable to check it.
+A confirmed missing session does not prevent deletion.
 A session deletion failure preserves task files. If Git then fails to remove the
 worktree, the session is already gone and the task files remain. Resolve the
 reported error and retry. Cleanup can be retried when the worktree has already
-been removed or only the named Zellij session remains.
+been removed or only the named legacy Zellij session remains.
 Do not start another task session while deletion is in progress.
 
 ### `fx agent <agent> [--name <name>] [--model <model>] [-r l|m|h] [--prompt <text>] [--from <context-directory>] [--new-tab]`
@@ -434,7 +434,7 @@ fx agent codex --name review-login -r h --prompt 'Review the current changes. Wr
 fx agent claude --name investigate-login --prompt 'Investigate the failing login test.'
 ```
 
-Use `--new-tab` from inside Zellij to open the agent in a new tab:
+Use `--new-tab` from inside Rex or Zellij to open the agent in a new tab:
 
 ```bash
 fx agent claude --new-tab --name investigate
@@ -457,7 +457,7 @@ fx agent claude --resume context/000001-investigate-claude-opus-5-5
 
 Replace the example path with the actual session directory. Paths resolve from
 the invoking directory and must stay inside this task's `context/`. Absolute
-paths work from the task's source directory. `--new-tab` also works in Zellij.
+paths work from the task's source directory. `--new-tab` works in Rex or Zellij.
 Resume supports Claude sessions, including group members, comparisons, and task
 analyses. Other providers need an executable `agents/<agent>.resume` handler.
 
@@ -495,10 +495,10 @@ Use the printed path to select a session with `--from`.
 The tab opens in the task directory and receives focus. Its title is the
 numbered session directory name, including the model. The same `--name`
 option applies in the current terminal.
-The tab belongs to the current Zellij session. Each invocation creates one
-agent context directory. The command returns after Zellij creates the tab;
-agent startup errors appear in that tab. A failed tab request preserves the
-prepared context for inspection. Zellij and a current session are required.
+The tab belongs to the current Rex or Zellij session. Each invocation creates
+one agent context directory. The command returns after the backend creates the
+tab. Agent startup errors appear there. A failed tab request preserves the
+prepared context for inspection.
 Without `--new-tab`, the agent runs in the current terminal.
 
 The launcher saves the exact initial text in the session's `initial_prompt.md`
@@ -529,7 +529,7 @@ output directory. Its hook commands retain the normal trust checks. Use
 
 ### `fx agent group [--name <name>] [--agent <agent[:l|m|h]> ...] [--synthesis-agent <agent>] [--interactive] [-r l|m|h] [--prompt <text>] [--from <context-directory>]`
 
-Run inside a task in a Zellij session. By default, the command opens one tab for
+Run inside a task in a Rex or Zellij session. By default, the command opens one tab for
 the group. Members run concurrently without interactive input. The tab shows their status.
 Agent tabs use an explicit layout so a session template cannot replace the requested command.
 This applies to groups, individual launches, comparisons, resumes, and task analyses.
@@ -554,7 +554,7 @@ Synthesis uses interactive Claude by default.
 fx agent group --name review --prompt 'Review the current changes and record findings.'
 ```
 
-Use `--interactive` to debug members in separate Zellij tabs. Each member uses
+Use `--interactive` to debug members in separate terminal tabs. Each member uses
 its normal interactive adapter and accepts terminal input. A group status tab
 monitors their completion. Synthesis starts only when you run the compare command.
 You can compare after every member saves a response, while their sessions stay open.
@@ -569,7 +569,7 @@ fx agent group compare 000001-review --name synthesis --new-tab
 ```
 
 Interactive mode is saved in `run.json`. `fx agent group retry <group_name>`
-preserves this mode and requires a Zellij session. Failed tab requests, failed
+preserves this mode and requires a Rex or Zellij session. Failed tab requests, failed
 member exits, and missing responses prevent comparison. Ctrl+C in the group
 status tab stops its active members. Usage summaries are available after members
 exit. The group prints a compare command that includes the selected synthesis
@@ -796,7 +796,7 @@ Keep source unchanged during retries; the original source identity still applies
 After success, interactive synthesis starts in this terminal. A group whose
 members all succeeded must use `compare` to start synthesis again.
 
-If the Zellij tab request fails, prepared context remains available. The same
+If the terminal tab request fails, prepared context remains available. The same
 retry command can run the prepared group without opening another tab.
 
 ### `fx agent group compare <group_name> [--name <name>] [--agent <agent>] [-r l|m|h] [--new-tab]`
@@ -1248,7 +1248,8 @@ findings until all investigators finish.
 ## Checks
 
 Tests use Python's standard library, temporary local Git repositories, and
-fake agent and Zellij executables. They make no model requests or network calls.
+fake agent executables. Terminal integration checks use Rex and Zellij when
+installed. They make no model requests.
 
 ```bash
 python3 -m unittest discover -s tools/fx/tests -v

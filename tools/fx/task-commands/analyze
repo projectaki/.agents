@@ -49,8 +49,7 @@ validate_name "$agent"
 "$tool_dir/agents/$agent" check || fail "The $agent CLI is not available. Install and authenticate it first."
 model="$(agent_model "$agent")"
 if [[ "$new_tab" == true ]]; then
-  [[ -n "${ZELLIJ-}" && -n "${ZELLIJ_SESSION_NAME-}" ]] || fail 'Run --new-tab inside a Zellij session.'
-  command -v zellij >/dev/null || fail 'Install Zellij to use --new-tab.'
+  python3 "$tool_dir/fx_terminal.py" require
 fi
 command -v python3 >/dev/null || fail 'Install Python 3 to inventory task evidence.'
 ensure_directory "$task/context/analyses"

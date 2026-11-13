@@ -31,8 +31,7 @@ def task_layout(task, orchestrator_agent=""):
 
 def task_shell(task):
     os.chdir(task)
-    session = os.environ.get("ZELLIJ_SESSION_NAME", f"{task.parent.parent.name}-{task.name}")
-    print(f"Directory: {Path.cwd()}\nRepository: {task / 'repo'}\nZellij session: {session}", flush=True)
+    print(f"Directory: {Path.cwd()}\nRepository: {task / 'repo'}", flush=True)
     for title, arguments in (
         ("Latest commit", ["log", "-1", "--format=%h %s"]),
         ("Git status", ["status", "--branch"]),

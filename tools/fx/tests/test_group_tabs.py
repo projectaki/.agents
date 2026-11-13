@@ -37,7 +37,7 @@ class TabProcessTest(unittest.TestCase):
     def test_startup_timeout_cancels_a_late_member(self):
         member = self.manifest['members'][0]
         with (self.first / 'runner.log').open('w') as log:
-            with patch.dict(os.environ, ZELLIJ_SESSION_NAME='test'):
+            with patch.dict(os.environ, ZELLIJ='0', ZELLIJ_SESSION_NAME='test'):
                 with patch('fx_group_tabs.subprocess.run') as request:
                     request.return_value.returncode = 0
                     with patch('fx_group_tabs.time.monotonic', side_effect=[0, 15]):
@@ -66,7 +66,7 @@ class TabProcessTest(unittest.TestCase):
     def test_tab_failure_preserves_request_log_and_cancels_late_start(self):
         member = self.manifest['members'][0]
         with (self.first / 'runner.log').open('w') as log:
-            with patch.dict(os.environ, ZELLIJ_SESSION_NAME='test'):
+            with patch.dict(os.environ, ZELLIJ='0', ZELLIJ_SESSION_NAME='test'):
                 with patch('fx_group_tabs.subprocess.run') as request:
                     request.return_value.returncode = 23
                     with self.assertRaisesRegex(OSError, 'exit code 23'):

@@ -40,13 +40,16 @@ Do not install every optional CLI by default.
 | --- | --- | --- |
 | Bash and Git | The executable and repository operations | `bash --version`, `git --version` |
 | Python 3.9 or later | Task support and response capture | `python3 --version` |
-| Zellij | Task attachment, deletion, groups, and new tabs | `zellij --version` |
+| Rex | Preferred backend for terminal sessions | `rex --autostart=false whoami --json` |
+| Zellij | Fallback backend for terminal sessions | `zellij --version` |
 | GitHub CLI | Cloning with `owner/repository` shorthand | `gh --version`, `gh auth status` |
 | Selected agent CLI | Launching that adapter | `codex --version` or `claude --version` |
 
 For macOS with Homebrew, the base tools can be installed with
-`brew install bash git python zellij`. Install only missing packages. For Linux,
-use the distribution's Bash, Git, and Python packages. Install Zellij through
+`brew install bash git python`. Install only missing packages. For Linux,
+use the distribution's Bash, Git, and Python packages. For Rex, follow the
+[Rex documentation](https://www.superlogical.com/rex/docs) and connect to the
+machine that holds the project. Install Zellij through
 an available package or its official release binary for the machine's operating
 system and architecture. If Cargo is already installed,
 `cargo install --locked zellij` is another supported option.
@@ -117,7 +120,7 @@ after updates that change shell integration.
 1. Confirm `fx --help` shows the project and agent commands. With integration
    loaded, `type fx` should report a shell function.
 2. Check dependencies for the requested operation. Project and task preparation
-   with `--no-attach` does not require Zellij.
+   with `--no-attach` works without a terminal backend.
 3. Check the selected adapter without launching a paid model session:
    `"$HOME/.agents/tools/fx/agents/codex" check`, or the `claude` adapter.
    Substitute the actual installation path.
@@ -130,6 +133,6 @@ after updates that change shell integration.
    agent launch or response capture.
 
 If a task appears stuck after `Task ready`, an old shell function may be
-capturing Zellij output. Load the current integration in another terminal and
+capturing terminal output. Load the current integration in another terminal and
 reopen the same task. Do not delete or reset it. Scripts that capture a task
 path must use `--no-attach`.

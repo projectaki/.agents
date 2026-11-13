@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from fx_context import captured_results, group_sessions
 from fx_group_tabs import TabProcess
 from fx_group import comparison_context, resolve_group
+from fx_terminal import require_terminal
 from fx_usage import collect_usage, save_group_usage, write_json
 
 
@@ -191,9 +192,8 @@ def run_group(project, task, group, retry=False):
         group_sessions(group)
         manifest = json.loads((group / "run.json").read_text())
         state = json.loads((group / "run-state.json").read_text())
-        if manifest.get("interactive", False) and not (
-                os.environ.get("ZELLIJ") and os.environ.get("ZELLIJ_SESSION_NAME")):
-            raise ValueError("Run this interactive group inside a Zellij session.")
+        if manifest.get("interactive", False):
+            require_terminal()
         if retry:
             retry_members(group, manifest, state)
         elif state["status"] != "waiting":

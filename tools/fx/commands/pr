@@ -52,7 +52,6 @@ name="${name:-review}"
 reasoning="${reasoning:-h}"
 
 command -v gh >/dev/null || fail 'Install and authenticate the GitHub CLI to review a pull request.'
-command -v zellij >/dev/null || fail 'Install Zellij to open a background review session.'
 project="$( (find_project) 2>/dev/null || true)"
 if [[ "$project" == "$(pwd -P)" ]] || ! clone="$(git rev-parse --show-toplevel 2>/dev/null)"; then
   [[ -n "$project" ]] || fail 'Run this command from an fx project directory or a cloned GitHub repository.'
@@ -119,20 +118,13 @@ Keep review records in your own session directory. Do not edit source or post an
 session_id="$(printf '%s\n' "$workspace" | git -C "$clone" hash-object --stdin)"
 session="fx-pr-$number-${session_id:0:12}"
 cd -- "$workspace"
-unset ZELLIJ_PANE_ID
-(
-  unset ZELLIJ ZELLIJ_SESSION_NAME
-  zellij --session "$session" action list-tabs >/dev/null 2>&1 ||
-    zellij attach --create-background "$session" options --default-cwd "$workspace" ||
-    zellij --session "$session" action list-tabs >/dev/null 2>&1
-) || fail "Could not start Zellij. Review workspace: $workspace"
-
-# Zellij 0.45.1 needs an attached client to size a new tab (upstream issue #5594).
-export ZELLIJ=0 ZELLIJ_SESSION_NAME="$session" FX_ZELLIJ_TAB_CLIENT=1
+terminal="$(python3 "$tool_dir/fx_terminal.py" background "$workspace" "$session")"
+IFS=$'\t' read -r FX_TERMINAL_BACKEND FX_TERMINAL_SESSION terminal_hint <<< "$terminal"
+export FX_TERMINAL_BACKEND FX_TERMINAL_SESSION
 if [[ "$group" == true ]]; then
   [[ "$has_agent" == true ]] || options+=(--agent claude)
   launch_agent_group "${options[@]}" --name "$name" -r "$reasoning" --prompt "$prompt"
 else
   (launch_agent claude "${options[@]}" --name "$name" -r "$reasoning" --model claude-opus-5-5 --prompt "$prompt" --new-tab)
 fi
-printf 'Review workspace: %s\nAttach with: zellij attach %s\n' "$workspace" "$session"
+printf 'Review workspace: %s\n%s\n' "$workspace" "$terminal_hint"

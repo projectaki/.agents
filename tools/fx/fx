@@ -307,7 +307,7 @@ open_task() {
   local usage='Usage: fx task <task_name> [--base <branch>] [--onto <branch>] [--no-attach]'
   [[ $# -ge 1 ]] || fail "$usage"
   validate_name "$1"
-  local name="$1" project task branch candidate session_name base='' onto='' base_reference attach=true current_branch='' changes layout
+  local name="$1" project task branch candidate session_name base='' onto='' base_reference attach=true current_branch='' changes
   shift
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -329,9 +329,8 @@ open_task() {
   done
   if [[ "$attach" == true ]]; then
     if [[ -t 0 && ! -t 1 ]]; then
-      fail 'Zellij output is being captured. Run source ~/.bashrc to reload fx, then retry. Use --no-attach when capturing a task path.'
+      fail 'Terminal output is being captured. Run source ~/.bashrc to reload fx, then retry. Use --no-attach when capturing a task path.'
     fi
-    command -v zellij >/dev/null || fail 'Install Zellij to open task sessions, or use --no-attach.'
   fi
   project="$(find_project)"
   validate_clone "$project/repo/main"
@@ -387,21 +386,13 @@ open_task() {
     return
   fi
   cd -- "$task"
-  layout="$(python3 "$tool_dir/fx_task.py" layout "$task")"
-  if [[ -n "${ZELLIJ-}" ]]; then
-    if [[ "${ZELLIJ_SESSION_NAME-}" == "$session_name" ]]; then
-      printf 'fx: Already in Zellij session: %s\n' "$session_name" >&2
-      return
-    fi
-    exec zellij action switch-session "$session_name" --cwd "$task" --layout-string "$layout"
-  fi
-  exec zellij --layout-string "$layout" attach --create "$session_name" options --default-cwd "$task"
+  exec python3 "$tool_dir/fx_terminal.py" open "$task" "$session_name"
 }
 
 delete_task() {
   [[ $# -ge 1 && $# -le 2 ]] || fail 'Usage: fx delete <task_name> [--force]'
   validate_name "$1"
-  local name="$1" force=false project task session_name sessions status session changes lock
+  local name="$1" force=false project task session_name changes lock
   local has_session=false registered=false worktrees entry
   local -a remove_options=()
   if [[ $# == 2 ]]; then
@@ -416,9 +407,6 @@ delete_task() {
   [[ -d "$project/tasks" && ! -L "$project/tasks" && ! -L "$task" ]] ||
     fail "Expected a task directory without symbolic links: $task"
   [[ ! -e "$task" || -d "$task" ]] || fail "Expected a task directory: $task"
-  [[ "${ZELLIJ_SESSION_NAME-}" != "$session_name" ]] ||
-    fail "Run fx delete $name from a terminal outside Zellij session $session_name so cleanup can finish."
-  command -v zellij >/dev/null || fail 'Install Zellij to delete the task session.'
   worktrees="$(git -C "$project/repo/main" worktree list --porcelain)" ||
     fail 'Could not list Git worktrees. Nothing was deleted.'
   while IFS= read -r entry; do
@@ -438,24 +426,13 @@ delete_task() {
         fail 'The task has uncommitted, untracked, or ignored files. Use --force to discard them.'
     fi
   fi
-  if sessions="$(zellij list-sessions --short --no-formatting 2>&1)"; then
-    while IFS= read -r session; do
-      [[ "$session" != "$session_name" ]] || has_session=true
-    done <<< "$sessions"
-  else
-    status=$?
-    [[ "$status" == 1 && "$sessions" == 'No active zellij sessions found.' ]] ||
-      fail "Could not list Zellij sessions. Nothing was deleted: $sessions"
-  fi
-  [[ -d "$task" || "$has_session" == true || "$registered" == true ]] || fail "Task not found: $task"
   cd -- "$project"
-  if [[ "$has_session" == true ]]; then
-    zellij delete-session --force "$session_name" >&2 ||
-      fail "Could not delete Zellij session $session_name. Task files were preserved."
-  fi
+  has_session="$(python3 "$tool_dir/fx_terminal.py" close "$task" "$session_name")" ||
+    fail 'Could not close the task session. Task files were preserved.'
+  [[ -d "$task" || "$has_session" == true || "$registered" == true ]] || fail "Task not found: $task"
   if [[ "$registered" == true ]]; then
     git -C "$project/repo/main" worktree remove "${remove_options[@]}" -- "$task/repo" >&2 ||
-      fail 'Could not remove the task worktree. The Zellij session is gone; task files remain. Fix the Git error and retry.'
+      fail 'Could not remove the task worktree. The terminal session is gone; task files remain. Fix the Git error and retry.'
   fi
   rm -rf -- "$task" || fail "Could not finish deleting $task. Retry fx delete $name from the project directory."
   printf 'fx: Deleted task: %s\n' "$task" >&2
@@ -648,9 +625,7 @@ launch_agent() {
     esac
   done
   if [[ "$new_tab" == true ]]; then
-    [[ -n "${ZELLIJ-}" && -n "${ZELLIJ_SESSION_NAME-}" ]] ||
-      fail 'Run fx agent --new-tab inside a Zellij session. Use fx task <task_name> to open one.'
-    command -v zellij >/dev/null || fail 'Install Zellij to use --new-tab.'
+    python3 "$tool_dir/fx_terminal.py" require
   fi
   adapter="$tool_dir/agents/$agent"
   [[ -x "$adapter" ]] || fail "No agent adapter is installed for: $agent"
@@ -672,9 +647,8 @@ launch_agent() {
     printf 'fx: Resuming session context: %s\n' "$session" >&2
     cd -- "$task"
     if [[ "$new_tab" == true ]]; then
-      exec zellij --session "$ZELLIJ_SESSION_NAME" action new-tab \
-        --name "$(basename -- "$session")" --cwd "$task" --layout "$tool_dir/templates/agent-tab.kdl" \
-        -- "$resume_adapter" "$project" "$task" "$session" "$reasoning" "$access"
+      exec python3 "$tool_dir/fx_terminal.py" tab "$(basename -- "$session")" "$task" \
+        "$resume_adapter" "$project" "$task" "$session" "$reasoning" "$access"
     fi
     exec "$resume_adapter" "$project" "$task" "$session" "$reasoning" "$access"
   fi
@@ -699,14 +673,6 @@ launch_agent() {
   run_agent_session "$@"
 }
 
-request_zellij_tab() {
-  if [[ "${FX_ZELLIJ_TAB_CLIENT-}" == 1 ]]; then
-    exec python3 "$tool_dir/fx_zellij_client.py" "$ZELLIJ_SESSION_NAME" "$@"
-  else
-    exec zellij --session "$ZELLIJ_SESSION_NAME" action new-tab "$@"
-  fi
-}
-
 run_agent_session() {
   local agent="$1" project="$2" task="$3" session="$4" reasoning="$5" captured_context="$6" tab_name="$7" new_tab="$8"
   shift 8
@@ -714,9 +680,7 @@ run_agent_session() {
   cd -- "$task"
   set -- launch "$project" "$task" "$session" "$reasoning" "$@"
   if [[ "$new_tab" == true ]]; then
-    request_zellij_tab \
-      --name "$tab_name" --cwd "$task" --layout "$tool_dir/templates/agent-tab.kdl" \
-      -- "$tool_dir/agents/$agent" "$@"
+    exec python3 "$tool_dir/fx_terminal.py" tab "$tab_name" "$task" "$tool_dir/agents/$agent" "$@"
   fi
   exec "$tool_dir/agents/$agent" "$@"
 }
@@ -797,9 +761,7 @@ launch_agent_group() {
     levels+=("$level")
     models+=("$(agent_model "$agent")")
   done
-  [[ -n "${ZELLIJ-}" && -n "${ZELLIJ_SESSION_NAME-}" ]] ||
-    fail 'Run fx agent group inside a Zellij session. Use fx task <task_name> to open one.'
-  command -v zellij >/dev/null || fail 'Install Zellij to launch an agent group.'
+  python3 "$tool_dir/fx_terminal.py" require
   project="$(find_project)"
   task="$(find_task "$project")"
   command -v python3 >/dev/null || fail 'Install Python 3 to capture and load agent results.'
@@ -861,12 +823,7 @@ EOF
   python3 "$tool_dir/fx_group_run.py" "$@"
   printf 'requesting\n' > "$group/tab-request.txt"
   set -- python3 "$tool_dir/fx_group_run.py" run "$project" "$task" "$name"
-  if [[ "$interactive" == true && "${FX_ZELLIJ_TAB_CLIENT-}" == 1 ]]; then
-    set -- env FX_ZELLIJ_TAB_CLIENT=1 "$@"
-  fi
-  if (request_zellij_tab \
-    --name "$name" --cwd "$task" --layout "$tool_dir/templates/agent-tab.kdl" \
-    -- "$@"); then
+  if python3 "$tool_dir/fx_terminal.py" tab "$name" "$task" "$@"; then
     printf 'accepted\n' > "$group/tab-request.txt"
   else
     status=$?
@@ -927,8 +884,7 @@ compare_agent_group() {
   "$tool_dir/agents/$agent" check || fail "The $agent CLI is not available. Install and authenticate it first."
   model="$(agent_model "$agent")"
   if [[ "$new_tab" == true ]]; then
-    [[ -n "${ZELLIJ-}" && -n "${ZELLIJ_SESSION_NAME-}" ]] || fail 'Run --new-tab inside a Zellij session.'
-    command -v zellij >/dev/null || fail 'Install Zellij to use --new-tab.'
+    python3 "$tool_dir/fx_terminal.py" require
   fi
   command -v python3 >/dev/null || fail 'Install Python 3 to compare captured results.'
   project="$(find_project)"
@@ -1053,10 +1009,12 @@ Usage:
 
 Projects live under FX_ROOT (default: ~/work).
 Load shell-init in Bash or Zsh to enter projects and tasks automatically.
-Tasks open a Zellij session named <project_name>-<task_name>. Use --no-attach to skip Zellij.
+Tasks prefer Rex on the current machine and fall back to Zellij for new sessions.
+Set FX_MULTIPLEXER=rex or FX_MULTIPLEXER=zellij to select a backend for new sessions.
+Use --no-attach to prepare the worktree without opening a terminal session.
 New task sessions start an orchestrator in the first terminal. Set FX_ORCHESTRATOR_AGENT to claude or codex, or choose at the prompt.
-Delete removes the task directory, Git worktree, and Zellij session. Git branches are kept.
-Use delete --force to discard uncommitted files or a detached worktree. Run outside the target Zellij session.
+Delete removes the task directory, Git worktree, and terminal session. Git branches are kept.
+Use delete --force to discard uncommitted files or a detached worktree. Run outside the target terminal session.
 Without --base or --onto, new feature/<task_name> branches start from the fetched default.
 Use --base alone to check out the named branch. Remote branches get a local tracking branch.
 Missing local branches start from the fetched default. Existing branches are never reset.
@@ -1071,11 +1029,11 @@ Sessions, group retries, and synthesis preserve saved access. Resume and compare
 Use --model (or -m) to override an agent's default model.
 Reasoning: l = low, m = medium (default), h = high.
 Use --prompt to supply an initial assignment. Without it, the agent waits for interactive input.
-Use --new-tab inside Zellij to launch the agent in a new tab in the current session.
+Use --new-tab inside Rex or Zellij to launch the agent in a new tab in the current session.
 Session, group, and comparison session names are required. Use --name or enter a name at the terminal prompt.
 Names use letters, digits, underscores, or hyphens and must start with a letter or digit.
 Without terminal input, --name is required. Names appear in context directories and tab titles.
-Groups run independent unattended agents in one Zellij tab, then start interactive synthesis in that tab.
+Groups run independent unattended agents in one terminal tab, then start interactive synthesis in that tab.
 Use group --interactive to open each member in its own tab. Start synthesis manually with group compare.
 Groups require an assignment through --prompt or terminal input. Unattended groups need agents/<agent>.batch.
 Group defaults come from default-group. Repeated --agent flags replace those defaults.

@@ -26,7 +26,7 @@ class FxTest(unittest.TestCase):
         self.bin.mkdir()
         self.env = dict(os.environ)
         for key in list(self.env):
-            if key.startswith(("GIT_", "ZELLIJ")) or key in ("BASH_ENV", "ENV", "CDPATH", "FX_ORCHESTRATOR_AGENT"):
+            if key.startswith(("GIT_", "ZELLIJ", "REX_", "FX_TERMINAL_")) or key in ("BASH_ENV", "ENV", "CDPATH", "FX_ORCHESTRATOR_AGENT"):
                 self.env.pop(key)
         self.env.update(
             HOME=str(self.home),
@@ -41,6 +41,7 @@ class FxTest(unittest.TestCase):
             CLAUDE_CODE_EFFORT_LEVEL="max",
             OPENROUTER_API_KEY="test-key",
             FX_ACCESS="auto",
+            FX_MULTIPLEXER="zellij",
         )
         self.origin = self.root / "origin"
         self.run_command("git", "init", "-b", "main", self.origin)
@@ -64,6 +65,9 @@ class FxTest(unittest.TestCase):
         zellij.write_text(
             f"#!{sys.executable}\n"
             "import json, os, sys\n"
+            "if sys.argv[1] == 'list-sessions':\n"
+            "    print('No active zellij sessions found.', file=sys.stderr)\n"
+            "    sys.exit(1)\n"
             "if sys.argv[3:5] == ['action', 'list-tabs']:\n"
             "    sys.exit(int(os.environ.get('FX_TEST_ZELLIJ_LIST_TABS_EXIT', '1')))\n"
             "if os.environ.get('FX_ZELLIJ_TAB_CLIENT') == '1':\n"
@@ -150,7 +154,7 @@ class FxTest(unittest.TestCase):
         self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="caller-session")
         result = self.fx("pr", "review", "17", "--prompt", "Check failure handling.", cwd=project)
         workspace, = (project / "reviews/pr-17").iterdir()
-        commands = [json.loads(line)["arguments"] for line in result.stdout.splitlines()
+        commands = [json.loads(line)["arguments"] for line in (result.stderr + result.stdout).splitlines()
                     if line.startswith("{")]
         start, launch = commands
         self.assertEqual(start[:2], ["attach", "--create-background"])
@@ -1527,7 +1531,7 @@ pwd -P
                 self.env.update(environment)
                 result = self.fx("agent", "claude", "--name", "review", "--new-tab", cwd=task, check=False)
                 self.assertNotEqual(result.returncode, 0)
-                self.assertIn("inside a Zellij session", result.stderr)
+                self.assertIn("inside a Rex or Zellij session", result.stderr)
                 self.assertEqual(list((task / "context").iterdir()), [])
 
     def test_new_tab_requires_zellij_before_creating_context(self):
@@ -1539,7 +1543,7 @@ pwd -P
             self.skipTest("Zellij is installed in the system test path")
         result = self.fx("agent", "claude", "--name", "review", "--new-tab", cwd=task, check=False)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("Install Zellij", result.stderr)
+        self.assertIn("Install or reconnect Zellij", result.stderr)
         self.assertEqual(list((task / "context").iterdir()), [])
 
     def test_new_tab_failure_propagates_and_preserves_session_context(self):
@@ -1680,7 +1684,7 @@ pwd -P
         task = self.task()
         result = self.fx("agent", "group", "--name", "review", cwd=task, check=False)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("inside a Zellij session", result.stderr)
+        self.assertIn("inside a Rex or Zellij session", result.stderr)
         self.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
         result = self.fx("agent", "group", "--name", "review", cwd=task.parent.parent, check=False)
         self.assertNotEqual(result.returncode, 0)
@@ -2440,7 +2444,6 @@ pwd -P
         result = self.run_command(sys.executable, TOOL.parent / "fx_task.py", "shell", task)
         self.assertIn(f"Directory: {task}", result.stdout)
         self.assertIn(f"Repository: {task / 'repo'}", result.stdout)
-        self.assertIn("Zellij session: example-fix-login", result.stdout)
         self.assertIn("Initial source", result.stdout)
         self.assertIn("On branch feature/fix-login", result.stdout)
         self.assertIn("modified:   source.txt", result.stdout)

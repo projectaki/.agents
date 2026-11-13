@@ -1,6 +1,6 @@
 ---
 name: fx-cli
-description: "Set up and use the projectaki fx CLI for project clones, task worktrees, Zellij sessions, coding agents, independent review groups, and saved response handoffs. Use when asked to install or configure fx, prepare an fx task, launch agents through fx, compare group results, or troubleshoot an fx workspace. Excludes the unrelated fx JSON processor and foreign exchange tools."
+description: "Set up and use the projectaki fx CLI for project clones, task worktrees, terminal sessions, coding agents, independent review groups, and saved response handoffs. Use when asked to install or configure fx, prepare an fx task, launch agents through fx, compare group results, or troubleshoot an fx workspace. Excludes the unrelated fx JSON processor and foreign exchange tools."
 ---
 
 # fx CLI
@@ -29,10 +29,12 @@ files together. Do not install a package named `fx` from a package registry.
 - In a command runner, use the absolute executable path and `--no-attach`.
   Set the working directory explicitly on later calls. Shell state does not
   necessarily persist between tool calls.
-- A normal `fx task` opens or attaches to Zellij, a terminal session manager.
+- A normal `fx task` prefers Rex on the machine that holds the worktree. For
+  new sessions it falls back to Zellij. Set `FX_MULTIPLEXER=rex` or
+  `FX_MULTIPLEXER=zellij` to require a backend for a new session.
   Do not capture that command's output with command substitution.
 - Agent sessions remain interactive even with `--prompt`. Use an interactive
-  terminal, or `--new-tab` from inside an existing Zellij session. Do not treat
+  terminal, or `--new-tab` from inside an existing Rex or Zellij session. Do not treat
   standard agent launches as an unattended batch interface. Group members use
   explicit batch adapters. Sentry's explicit
   `--headless` mode supports unattended diagnostic checks.
@@ -42,7 +44,9 @@ files together. Do not install a package named `fx` from a package registry.
 Reuse the intended project and task when they exist. Run setup and task
 creation sequentially. Substitute actual paths and names in these examples.
 
-Interactive shell with integration loaded:
+Open a local shell or select the virtual private server (VPS) in Rex and open
+a shell there. Use SSH and Zellij if Rex is unavailable on the VPS.
+In an interactive shell with integration loaded:
 
 ```bash
 fx setup my-project owner/repository
@@ -71,14 +75,14 @@ Each task contains `repo/`, `AGENTS.md`, and `context/`. Agents start in the
 task directory. Source commands run in its `repo/` directory. Read task and
 repository instructions before edits.
 
-New Zellij sessions show the directory, repository path, session name, latest
+New terminal sessions show the directory, repository path, latest
 commit, and Git status in their initial terminal, then start the task
 orchestrator. Set `FX_ORCHESTRATOR_AGENT` to `claude` or `codex`, or choose at
 the terminal prompt. Exiting opens the interactive `SHELL` (Bash when unset).
 Run `fx orchestrator` from the task or its worktree to start a fresh session in
 the current terminal. It receives paths to the task instructions and CLI
-reference. It launches assigned agents in new Zellij tabs. Fx skips context and
-event capture for the orchestrator. Existing Zellij sessions keep their terminals.
+reference. It launches assigned agents in new terminal tabs. Fx skips context and
+event capture for the orchestrator. Existing sessions keep their backend and terminals.
 `--no-attach` keeps standard output limited to the task path.
 
 Without `--base` or `--onto`, existing task worktrees keep their branch and files.
@@ -134,7 +138,7 @@ fx task analyze --agent claude -r h --new-tab
 ```
 
 The default provider comes from `default-analyze-agent` (`codex` by default).
-Reasoning defaults to high. `--new-tab` requires an existing Zellij session.
+Reasoning defaults to high. `--new-tab` requires an existing Rex or Zellij session.
 This command supplies its own assignment and session name. It does not create
 or reopen the selected task. `analyze` is a reserved task action name.
 
@@ -173,7 +177,7 @@ fx agent codex --name review-login -r h --new-tab \
 ```
 
 Omit `--new-tab` to use the current interactive terminal. The option requires
-an existing Zellij session. Each new launch creates a new conversation and a numbered context directory
+an existing Rex or Zellij session. Each new launch creates a new conversation and a numbered context directory
 ending in the model name, even when the name is reused. Numbers increase per
 task across sessions, groups, and comparisons. Record the printed context path.
 
@@ -208,7 +212,7 @@ fx agent claude --resume context/000001-review-claude-opus-5-5
 
 Replace the example with the actual directory. Paths resolve from the invoking
 directory and must stay inside this task's context. Absolute paths also work.
-`--new-tab` is supported in Zellij. Do not combine resume with `--name`, `--prompt`,
+`--new-tab` is supported in Rex and Zellij. Do not combine resume with `--name`, `--prompt`,
 `-r`, or `--from`. Resume supports Claude; other providers need their own
 `agents/<agent>.resume` handler. Group members and comparison or analysis sessions
 can be resumed by their own session directories.
@@ -269,7 +273,7 @@ outside normal captured response indexes and `--from` handoffs.
 ## Independent groups and comparison
 
 Use groups for an assigned independent investigation. Run inside the task in
-Zellij. Every member receives the same prompt and shares the live worktree.
+Rex or Zellij. Every member receives the same prompt and shares the live worktree.
 Keep source and shared context unchanged until their investigations finish.
 
 ```bash
@@ -286,7 +290,7 @@ level use `-r`. No `--new-tab` flag is needed.
 Members must not read current peers' findings or later results. They may read
 earlier responses listed in their starting context snapshot.
 
-By default, a group opens one Zellij tab. Its members run without interactive input. Supply
+By default, a group opens one terminal tab. Its members run without interactive input. Supply
 `--prompt`, or enter the assignment at the terminal before launch. The group tab
 shows member status. Each member saves its own response and diagnostic logs.
 After every member exits successfully with a saved response, the same tab starts
@@ -297,14 +301,14 @@ any installed interactive adapter, such as `codex`, `claude`, `glm`, or `gemini`
 This selection is saved for retries. Repeated `--agent` flags select group members
 separately.
 
-Use `fx agent group --interactive` to debug members in separate Zellij tabs.
+Use `fx agent group --interactive` to debug members in separate terminal tabs.
 Each member uses its normal interactive adapter. Interactive groups never start
 synthesis automatically. Once every member has a captured response, run
 `fx agent group compare <full-group-name> --name synthesis --new-tab`.
 Member sessions can stay open. Comparison uses the responses saved when launched.
 The group prints this command with its selected synthesis agent. Ctrl+C in the
 status tab stops active members. Retries preserve interactive mode and require
-Zellij. Member output stays in its tab; `runner.log` records its tab request.
+Rex or Zellij. Member output stays in its tab; `runner.log` records its tab request.
 Usage summaries are available after members exit.
 
 After members stop, fx prints per-attempt runtime, token usage, and cost before
@@ -410,7 +414,7 @@ errors stop the launch. One saved turn per member does not prove group completio
 - If base discovery or fetch fails, inspect the reported remote and branch.
   Supply an existing remote base or a local `--base` when needed.
   Do not reset work or use stale commits.
-- If Zellij attachment fails after task preparation, reuse the task. It remains
+- If opening the terminal session fails after task preparation, reuse the task. It remains
   available through `--no-attach`.
 - If a group tab request fails, inspect the group's `tab-request.txt`. Use
   `fx agent group retry <full-group-name>` to run its prepared members in the
@@ -422,7 +426,7 @@ errors stop the launch. One saved turn per member does not prove group completio
   Diagnostic events are not task context and cannot be passed with `--from`.
 
 For requested deletion, run `fx delete <task-name>` from the project directory,
-outside the target Zellij session. Zellij must be installed. Deletion stops the
+outside the target terminal session. The saved backend must be reachable. Deletion stops the
 session and removes the task, context, and captured results. Git branches remain.
 Inspect source status and needed context first. Use `--force` only when loss
 of uncommitted, untracked, ignored, or detached work is explicitly authorized.

@@ -7,6 +7,7 @@ import subprocess
 import sys
 import time
 
+from fx_terminal import tab_command
 from fx_usage import write_json
 
 
@@ -18,22 +19,13 @@ class TabProcess:
         self.session = group / member['session']
         self.record = self.session / 'terminal-state.json'
         self.cancelled = self.session / 'terminal-cancelled'
-        session_name = os.environ['ZELLIJ_SESSION_NAME']
-        command = ['zellij', '--session', session_name, 'action', 'new-tab']
-        temporary_client = os.environ.get('FX_ZELLIJ_TAB_CLIENT') == '1'
-        if temporary_client:
-            command = [sys.executable, str(TOOL_DIR / 'fx_zellij_client.py'), session_name]
-        command += [
-            '--name', f"{group.name}-{member['session']}", '--cwd', str(task),
-            '--layout', str(TOOL_DIR / 'templates/agent-tab.kdl'), '--',
-            sys.executable, str(TOOL_DIR / 'fx_group_tabs.py'), str(project), str(task),
-            str(self.session), member['agent'], member['reasoning'],
-        ]
+        arguments = [sys.executable, str(Path(__file__).resolve()), str(project), str(task),
+                     str(self.session), member['agent'], member['reasoning']]
         try:
-            request = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT,
-                                     timeout=40 if temporary_client else 15)
+            command, env = tab_command(f"{group.name}-{member['session']}", task, arguments)
+            request = subprocess.run(command, env=env, stdout=log, stderr=subprocess.STDOUT, timeout=40)
             if request.returncode:
-                raise OSError(f'Zellij tab request failed with exit code {request.returncode}.')
+                raise OSError(f'Terminal tab request failed with exit code {request.returncode}.')
             deadline = time.monotonic() + 15
             while not self.record.exists():
                 if time.monotonic() >= deadline:
@@ -53,7 +45,9 @@ class TabProcess:
                     except ProcessLookupError:
                         pass
             if isinstance(error, subprocess.TimeoutExpired):
-                raise OSError('The Zellij tab request timed out.') from error
+                raise OSError('The terminal tab request timed out.') from error
+            if isinstance(error, ValueError):
+                raise OSError(str(error)) from error
             raise
 
     def poll(self):
