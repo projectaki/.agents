@@ -31,11 +31,14 @@ def provider_arguments(provider):
             "-c", f"model_providers.fx_openrouter={definition}"]
 
 
-def launch(project, task, session, reasoning, prompt, model, provider, resume=None):
+def launch(project, task, session, reasoning, prompt, model, provider, resume=None, restart=False):
     session = Path(session)
     adapter_dir = Path(__file__).resolve().parent
     events = prepare_events(session)
-    suffix = f"-resume-{uuid4().hex}" if resume else ""
+    suffix = ""
+    if resume or restart:
+        attempt = "resume" if resume else "restart"
+        suffix = f"-{attempt}-{uuid4().hex}"
     log = events / f"codex-session{suffix}.jsonl"
     descriptor = os.open(log, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     os.close(descriptor)
@@ -57,7 +60,7 @@ def launch(project, task, session, reasoning, prompt, model, provider, resume=No
         command.extend(["--", resume])
     elif prompt:
         command.extend(["--", prompt[0]])
-    if not resume:
+    if not (resume or restart):
         with (session / "launch.txt").open("a") as metadata:
             metadata.write(f"model={model}\n")
             if provider:
@@ -82,7 +85,24 @@ def main():
             provider = metadata.get("provider", provider)
             if provider == "openrouter":
                 api_key()
-            identity = conversation_id(session, metadata["agent"])
+            identity = conversation_id(session, metadata["agent"], allow_missing=True)
+            if identity is None:
+                session = Path(session)
+                events = prepare_events(session)
+                for path in [events / "callbacks.jsonl", events / "codex-exec.jsonl",
+                             *events.glob("codex-session*.jsonl")]:
+                    if path.is_symlink() or (path.exists() and (not path.is_file() or path.stat().st_size)):
+                        raise ValueError("This session has conversation records but no recorded conversation ID.")
+                if any((session / name).exists() or (session / name).is_symlink()
+                       for name in ("results", "last_turn_results.md", "capture-error.txt", "events/capture-error.txt")):
+                    raise ValueError("This session has response records but no recorded conversation ID.")
+                original_prompt = session / "initial_prompt.md"
+                if original_prompt.is_symlink():
+                    raise ValueError("The original prompt must not be a symbolic link.")
+                prompt = [original_prompt.read_text()] if original_prompt.exists() else []
+                print("fx: Starting the first conversation in the existing session.", file=sys.stderr)
+                launch(project, task, session, reasoning, prompt, metadata["model"], provider, restart=True)
+                return 0
             try:
                 identity = str(UUID(identity))
             except ValueError as error:

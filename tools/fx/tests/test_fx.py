@@ -1922,18 +1922,42 @@ print(json.dumps(args))
         self.assertIn(str(TOOL.parent / "agents/codex.resume"), args)
         self.assertIn(str(session), args)
 
-    def test_codex_resume_rejects_missing_id_and_session_name(self):
+    def test_codex_resume_rejects_activity_without_id_and_session_name(self):
         task = self.task()
         self.fx("agent", "codex", "--name", "review", cwd=task)
         session, = (task / "context").iterdir()
+        (session / "events/codex-session.jsonl").write_text("Recorded activity\n")
         result = self.fx("agent", "codex", "--resume", session, cwd=task, check=False)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("exactly one recorded Codex", result.stderr)
+        self.assertIn("conversation records but no recorded conversation ID", result.stderr)
         self.capture_codex(session, {"hook_event_name": "SessionStart", "session_id": "review"})
         result = self.fx("agent", "codex", "--resume", session, cwd=task, check=False)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("must be a UUID", result.stderr)
         self.assertEqual(list((session / "events").glob("codex-session-resume-*")), [])
+
+    def test_codex_restarts_unstarted_session_in_place(self):
+        task = self.task()
+        self.fx("agent", "codex", "--name", "review", "--prompt", "Original assignment", cwd=task)
+        session, = (task / "context").iterdir()
+        original_log = session / "events/codex-session.jsonl"
+        launch = (session / "launch.txt").read_bytes()
+        result = self.fx("agent", "codex", "--resume", session, cwd=task)
+        record = json.loads(result.stdout)
+        self.assertNotIn("resume", record["arguments"])
+        self.assertEqual(record["arguments"][-2:], ["--", "Original assignment"])
+        self.assertEqual(record["event_session"], str(session))
+        restarted_log, = (session / "events").glob("codex-session-restart-*.jsonl")
+        self.assertEqual(record["session_log"], str(restarted_log))
+        self.assertEqual(original_log.read_bytes(), b"")
+        self.assertEqual((session / "launch.txt").read_bytes(), launch)
+        self.assertEqual(list((task / "context").iterdir()), [session])
+
+        self.capture_codex(session, {"hook_event_name": "SessionStart",
+                                     "session_id": "01900000-0000-7000-8000-000000000001"})
+        result = self.fx("agent", "codex", "--resume", session, cwd=task)
+        self.assertEqual(json.loads(result.stdout)["arguments"][0], "resume")
+        self.assertEqual(list((session / "events").glob("codex-session-restart-*.jsonl")), [restarted_log])
 
     def test_claude_final_responses_are_captured_without_agent_file_writes(self):
         task = self.task()

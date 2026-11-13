@@ -8,7 +8,7 @@ import re
 import stat
 import sys
 from fx_access import validate_access
-from fx_models import validate_model
+from fx_models import session_model, validate_model
 
 
 def session_metadata(session):
@@ -20,7 +20,9 @@ def session_metadata(session):
         raise ValueError("The session has no valid saved reasoning level.")
     if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.-]*", metadata.get("agent", "")):
         raise ValueError("The session has no valid saved agent.")
-    validate_model(metadata.get("model", ""))
+    if "model" not in metadata:
+        metadata["model"] = session_model(session, "")
+    validate_model(metadata["model"])
     return metadata
 
 
@@ -46,7 +48,7 @@ def resolve_session(task, agent, supplied):
     return path
 
 
-def conversation_id(session, agent):
+def conversation_id(session, agent, *, allow_missing=False):
     session = Path(session)
     identities = set()
     events = session / "events"
@@ -87,6 +89,8 @@ def conversation_id(session, agent):
         if (metadata.get("agent") == agent and isinstance(identity, str)
                 and re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]*", identity)):
             identities.add(identity)
+    if not identities and allow_missing:
+        return None
     if len(identities) != 1:
         raise ValueError(f"The session needs exactly one recorded {agent.title()} conversation identifier.")
     return identities.pop()

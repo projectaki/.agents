@@ -234,6 +234,11 @@ conversation before resuming it. Current fx launches hold a session lock.
 New callbacks append to the original callback log. Each resume writes a
 separate native log. Codex hooks require trust in the Codex CLI.
 
+If the Codex updater exits before the conversation starts, use the same
+resume command. Fx starts the first conversation in the existing directory
+when it has no recorded activity. If it finds activity without a conversation
+ID, it stops and reports the missing ID.
+
 ## Inspect task sessions with sentry
 
 Run `fx agent sentry` inside a task or its worktree to open an interactive,

@@ -482,6 +482,12 @@ native log, named `claude-debug-resume-*.log` or `codex-session-resume-*.jsonl`.
 Captured responses continue in the existing numbered `results/turn-*`
 directories. Codex hooks still require trust in the Codex CLI.
 
+If the Codex updater exits before the conversation starts, use the same
+`--resume` command. When the session has no recorded activity, fx starts
+its first conversation in the existing directory with the saved settings
+and prompt. It writes a separate restart log. If fx finds activity without
+a conversation ID, it stops and reports the missing ID.
+
 Names start with a letter or digit. Remaining characters can be letters,
 digits, underscores, or hyphens. Spaces are not accepted. Repeated `--name`
 flags are rejected. These rules also apply to groups and comparison sessions.

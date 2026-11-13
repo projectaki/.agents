@@ -39,6 +39,12 @@ class ResumeTest(unittest.TestCase):
         })
         self.assertEqual((self.session / "findings.md").read_text(), "Preserve this file\n")
 
+    def test_resolves_session_prepared_before_the_adapter_started(self):
+        (self.session / "launch.txt").write_text("agent=deepseek\nreasoning=high\n")
+        (self.session / "model.txt").write_text("deepseek/deepseek-v4.1-flash\n")
+        self.assertEqual(resolve_session(self.task, "deepseek", self.session), self.session)
+        self.assertEqual(session_metadata(self.session)["model"], "deepseek/deepseek-v4.1-flash")
+
     def test_generated_claude_settings_apply_access_and_preserve_capture_hooks(self):
         for access in ("auto", "full"):
             with self.subTest(access=access):
