@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -37,17 +38,35 @@ class TerminalSelectionTest(unittest.TestCase):
             self.assertNotIn("REX_SERVER", rex.environment())
 
     def test_rex_shows_session_in_the_only_connected_app(self):
-        clients = {"clients": [
-            {"client_id": "app", "info": {"kind": "app"}, "connection_state": "connected"},
-            {"client_id": "cli", "info": {"kind": "cli"}, "connection_state": "connected"},
-        ]}
         with patch.dict(os.environ, {}, clear=True):
-            with patch("terminals.rex.request", return_value=clients):
-                with patch("terminals.rex.subprocess.run") as action:
-                    action.return_value.returncode = 0
-                    rex.show(Path("/tmp/workspace"), "task", "session:task")
-        self.assertEqual(action.call_args.args[0][-5:],
-                         ["--client", "app", "do", "session.select", "session_id=session:task"])
+            with patch("terminals.rex.subprocess.run") as run:
+                def reply(command, **options):
+                    stdout = '{"clients": [{"client_id": "client:mac"}]}' if "--json" in command else "client:mac\n"
+                    return subprocess.CompletedProcess(command, 0, stdout, "")
+                run.side_effect = reply
+                rex.show(Path("/tmp/workspace"), "task", "session:task")
+        commands = [call.args[0] for call in run.call_args_list]
+        self.assertEqual(commands[0][-4:], ["client", "ls", "--quiet", "--short=false"])
+        self.assertEqual(commands[1][-5:],
+                         ["--client", "client:mac", "do", "session.select", "session_id=session:task"])
+
+    def test_rex_prints_manual_hint_when_app_selection_is_ambiguous(self):
+        with patch.dict(os.environ, {}, clear=True):
+            with patch("terminals.rex.subprocess.run") as run, patch("sys.stderr") as stderr:
+                run.return_value.stdout = "client:mac\nclient:phone\n"
+                run.return_value.returncode = 0
+                rex.show(Path("/tmp/workspace"), "task", "session:task")
+        run.assert_called_once()
+        stderr.write.assert_any_call("Open Rex session task (session:task) on this host.")
+
+    def test_rex_uses_an_explicit_client_without_listing_apps(self):
+        with patch.dict(os.environ, {"REX_CLIENT": "mac"}, clear=True):
+            with patch("terminals.rex.subprocess.run") as run:
+                run.return_value.returncode = 0
+                rex.show(Path("/tmp/workspace"), "task", "session:task")
+        run.assert_called_once()
+        self.assertEqual(run.call_args.args[0][-5:],
+                         ["--client", "mac", "do", "session.select", "session_id=session:task"])
 
     def test_rex_label_distinguishes_workspaces_and_fits_the_server_limit(self):
         name = "project-task" * 20

@@ -81,20 +81,23 @@ def show(workspace, name, session_id):
     try:
         client = os.environ.get("REX_CLIENT")
         if not client:
-            clients = request("client", "ls", "--json", timeout="2s")["clients"]
-            apps = [entry["client_id"] for entry in clients
-                    if entry["info"].get("kind") == "app" and entry.get("connection_state") == "connected"]
-            if len(apps) != 1:
+            listing = subprocess.run(command("client", "ls", "--quiet", "--short=false", timeout="2s"),
+                                     env=environment(), capture_output=True, text=True, check=True)
+            clients = listing.stdout.split()
+            if len(clients) != 1:
                 print(hint(name, session_id), file=sys.stderr)
                 return
-            client = apps[0]
+            client = clients[0]
         result = subprocess.run(command("--client", client, "do", "session.select",
                                         f"session_id={session_id}", timeout="2s"),
                                 env=environment(), capture_output=True, text=True)
         if result.returncode:
             print(f"fx: Rex could not select the session in the app. {result.stderr.strip()}", file=sys.stderr)
             print(hint(name, session_id), file=sys.stderr)
-    except (OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
+    except subprocess.CalledProcessError as error:
+        print(f"fx: Rex could not list app clients. {error.stderr.strip()}", file=sys.stderr)
+        print(hint(name, session_id), file=sys.stderr)
+    except (OSError, subprocess.SubprocessError) as error:
         print(f"fx: Rex could not select the session in the app. {error}", file=sys.stderr)
         print(hint(name, session_id), file=sys.stderr)
 
