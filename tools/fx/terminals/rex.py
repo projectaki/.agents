@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -62,8 +63,14 @@ def legacy_session(name, background):
     return None
 
 
+def interactive_options(*subcommand):
+    result = subprocess.run(command(*subcommand, "--help"), env=environment(),
+                            capture_output=True, text=True, check=True, timeout=4)
+    return ["--interactive"] if re.search(r"(?m)^\s*--interactive\s", result.stdout) else []
+
+
 def create(workspace, name, startup, background):
-    options = ["--interactive", "--window", "Task", "--", *startup] if startup else []
+    options = [*interactive_options("session", "new"), "--window", "Task", "--", *startup] if startup else []
     return request("session", "new", name, "--cwd", str(workspace),
                    "--json", *options)["session_id"]
 
@@ -98,7 +105,7 @@ def hint(name, session_id):
 
 def tab(session_id, name, workspace, arguments, background):
     terminal_command = command("window", "new", "--session", session_id, name,
-                               "--cwd", str(workspace), "--interactive")
+                               "--cwd", str(workspace), *interactive_options("window", "new"))
     if background:
         terminal_command.append("--focus=false")
     return [*terminal_command, "--", *arguments], environment()

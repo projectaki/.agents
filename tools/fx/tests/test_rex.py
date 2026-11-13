@@ -115,6 +115,44 @@ if session and {keep_running!r}:
         self.assertEqual(self.sessions(), [])
         self.assertFalse(self.task.exists())
 
+    def test_task_and_agent_tab_work_with_rex_without_interactive_flag(self):
+        executable = self.fixture.bin / "rex"
+        executable.write_text(f"""#!{sys.executable}
+import os, subprocess, sys
+arguments = sys.argv[1:]
+options = arguments[:arguments.index("--")] if "--" in arguments else arguments
+if "--interactive" in options:
+    sys.exit("Error: unknown flag: --interactive")
+if "--help" in options:
+    result = subprocess.run([{REX!r}, *arguments], text=True, capture_output=True)
+    sys.stdout.write("".join(line for line in result.stdout.splitlines(keepends=True)
+                             if "--interactive" not in line))
+    sys.stderr.write(result.stderr)
+    sys.exit(result.returncode)
+os.execv({REX!r}, [{REX!r}, *arguments])
+""")
+        executable.chmod(0o755)
+
+        result = self.fixture.fx("task", "fix-login", cwd=self.project, check=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        record = json.loads((self.task / ".fx-terminal.json").read_text())
+        self.assertEqual(record["backend"], "rex")
+        self.wait_for(self.launch.exists)
+        self.assertTrue(json.loads(self.launch.read_text())["tty"])
+
+        self.launch.unlink()
+        self.fixture.env.update(REX_SESSION=record["id"], REX_BLOCK="block:unused")
+        prompt = "Check literal arguments: --interactive, 'quotes', and $value"
+        result = self.fixture.fx("agent", "codex", "--name", "review", "--new-tab",
+                                 "--prompt", prompt, cwd=self.task, check=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.wait_for(self.launch.exists)
+        launch = json.loads(self.launch.read_text())
+        self.assertTrue(launch["tty"])
+        self.assertEqual(launch["session"], record["id"])
+        self.assertIn(prompt, launch["args"][-1])
+        self.assertEqual(len(self.sessions()), 1)
+
     def test_concurrent_reopens_create_one_session(self):
         self.fixture.task(self.project)
         with ThreadPoolExecutor(max_workers=2) as executor:
