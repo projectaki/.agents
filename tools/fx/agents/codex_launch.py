@@ -12,7 +12,7 @@ from fx_events import prepare_events
 from fx_access import session_access
 from codex_access import access_arguments
 from fx_models import session_model, validate_model
-from fx_resume import conversation_id, session_metadata
+from fx_resume import conversation_id, session_lock, session_metadata
 from fx_usage import write_json
 from openrouter_api import api_key, verify_model
 
@@ -76,19 +76,22 @@ def main():
             return 0
         if not shutil.which("codex"):
             raise ValueError("Install Codex CLI before using this agent.")
-        if provider:
-            api_key()
-        if action == "check":
-            return 0
         if action == "resume" and len(arguments) == 4:
             project, task, session, reasoning = arguments
-            model = session_metadata(session)["model"]
-            identity = conversation_id(session, "codex")
+            metadata = session_metadata(session)
+            provider = metadata.get("provider", provider)
+            if provider == "openrouter":
+                api_key()
+            identity = conversation_id(session, metadata["agent"])
             try:
                 identity = str(UUID(identity))
             except ValueError as error:
                 raise ValueError("The recorded Codex conversation identifier must be a UUID.") from error
-            launch(project, task, session, reasoning, [], model, provider, resume=identity)
+            launch(project, task, session, reasoning, [], metadata["model"], provider, resume=identity)
+            return 0
+        if provider:
+            api_key()
+        if action == "check":
             return 0
         if action not in ("launch", "batch") or not 4 <= len(arguments) <= 5:
             raise ValueError("Unsupported Codex adapter action or arguments.")
@@ -102,12 +105,13 @@ def main():
                     "captured_at": datetime.now(timezone.utc).isoformat(),
                     "source": "https://openrouter.ai/api/v1/models",
                 })
-        if action == "batch":
-            from codex_batch import run_batch
-            if not prompt:
-                raise ValueError("Batch execution requires an assignment.")
-            return run_batch(project, task, session, reasoning, prompt[0], model, provider_arguments(provider), provider)
-        launch(project, task, session, reasoning, prompt, model, provider)
+        with session_lock(session):
+            if action == "batch":
+                from codex_batch import run_batch
+                if not prompt:
+                    raise ValueError("Batch execution requires an assignment.")
+                return run_batch(project, task, session, reasoning, prompt[0], model, provider_arguments(provider), provider)
+            launch(project, task, session, reasoning, prompt, model, provider)
     except subprocess.CalledProcessError as error:
         print(f"fx: Codex command failed with exit status {error.returncode}.", file=sys.stderr)
         return error.returncode

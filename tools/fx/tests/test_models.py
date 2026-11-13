@@ -55,6 +55,7 @@ class ModelTest(unittest.TestCase):
             self.assertEqual(result.stdout.strip(), "other/model:variant")
             self.assertTrue(os.access(adapter.with_name(agent + ".batch"), os.X_OK))
             self.assertTrue(os.access(adapter.with_name(agent + ".process"), os.X_OK))
+            self.assertEqual(adapter.with_name(agent + ".resume").resolve(), root / "agents/codex.resume")
 
     def test_subscription_provider_is_not_overridden(self):
         self.assertEqual(codex_launch.provider_arguments(""), [])
@@ -202,6 +203,47 @@ class ModelSelectionCommandTest(unittest.TestCase):
         response = json.loads(next((session / "results").glob("*/metadata.json")).read_text())
         self.assertEqual(response["agent"], "glm")
         self.assertEqual((session / "last_turn_results.md").read_text(), "Review result")
+
+    def test_openrouter_agents_resume_saved_model_and_conversation(self):
+        fixture = self.fixture
+        task = fixture.task()
+        identity = "01900000-0000-7000-8000-000000000001"
+        for agent, model in (
+            ("deepseek", "deepseek/deepseek-v4.1-flash"),
+            ("gemini", "~google/gemini-flash-latest"),
+            ("glm", "z-ai/glm-5.3"),
+            ("minimax", "minimax/minimax-m3.1-flash:free"),
+        ):
+            with self.subTest(agent=agent):
+                fixture.env.update(ZELLIJ="0", ZELLIJ_SESSION_NAME="example-fix-login")
+                fixture.fx("agent", agent, "--name", agent, "--model", model, "-r", "h",
+                           "--prompt", "Original assignment", "--new-tab", cwd=task)
+                session = sorted((task / "context").iterdir())[-1]
+                launch = session / "launch.txt"
+                with launch.open("a") as metadata:
+                    metadata.write(f"model={model}\nprovider=openrouter\n")
+                fixture.capture_codex(session, {"hook_event_name": "Stop", "session_id": identity,
+                                                "turn_id": "one", "last_assistant_message": "Original result"})
+                before = launch.read_bytes()
+
+                result = fixture.fx("agent", agent, "--resume", session, cwd=task)
+                record = json.loads(result.stdout)
+                args = record["arguments"]
+                self.assertEqual(args[0], "resume")
+                self.assertEqual(args[-2:], ["--", identity])
+                self.assertEqual(args[args.index("--model") + 1], model)
+                self.assertIn('model_provider="fx_openrouter"', args)
+                self.assertIn('model_reasoning_effort="high"', args)
+                self.assertNotIn("Original assignment", args)
+                self.assertEqual(record["event_session"], str(session))
+                self.assertEqual(launch.read_bytes(), before)
+                self.assertTrue(Path(record["session_log"]).is_file())
+                fixture.capture_codex(session, {"hook_event_name": "Stop", "session_id": identity,
+                                                "turn_id": "two", "last_assistant_message": "Resumed result"})
+                responses = sorted((session / "results").glob("turn-*/metadata.json"))
+                self.assertEqual(len(responses), 2)
+                self.assertEqual(json.loads(responses[-1].read_text())["agent"], agent)
+                self.assertEqual((session / "last_turn_results.md").read_text(), "Resumed result")
 
 
 if __name__ == "__main__":

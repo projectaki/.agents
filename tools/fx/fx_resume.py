@@ -1,4 +1,5 @@
 import argparse
+from contextlib import contextmanager
 import fcntl
 import json
 import os
@@ -7,6 +8,7 @@ import re
 import stat
 import sys
 from fx_access import validate_access
+from fx_models import validate_model
 
 
 def session_metadata(session):
@@ -16,10 +18,9 @@ def session_metadata(session):
     metadata = dict(line.split("=", 1) for line in path.read_text().splitlines() if "=" in line)
     if metadata.get("reasoning") not in ("low", "medium", "high"):
         raise ValueError("The session has no valid saved reasoning level.")
-    for field in ("agent", "model"):
-        value = metadata.get(field, "")
-        if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.-]*", value):
-            raise ValueError(f"The session has no valid saved {field}.")
+    if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.-]*", metadata.get("agent", "")):
+        raise ValueError("The session has no valid saved agent.")
+    validate_model(metadata.get("model", ""))
     return metadata
 
 
@@ -91,23 +92,30 @@ def conversation_id(session, agent):
     return identities.pop()
 
 
-def exec_locked(session, command, access=None):
+@contextmanager
+def session_lock(session):
     descriptor = os.open(Path(session) / ".fx-agent.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
-    if not stat.S_ISREG(os.fstat(descriptor).st_mode):
-        os.close(descriptor)
-        raise ValueError("The session lock must be a regular file.")
     try:
-        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise ValueError("The session lock must be a regular file.")
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise ValueError("This session is already running. Exit it before resuming.") from None
+        os.set_inheritable(descriptor, True)
+        yield
+    finally:
         os.close(descriptor)
-        raise ValueError("This session is already running. Exit it before resuming.")
-    os.set_inheritable(descriptor, True)
-    if access is not None:
-        path = Path(session) / "access.txt"
-        if path.is_symlink():
-            raise ValueError("Saved access must not be a symbolic link.")
-        path.write_text(validate_access(access) + "\n")
-    os.execvp(command[0], command)
+
+
+def exec_locked(session, command, access=None):
+    with session_lock(session):
+        if access is not None:
+            path = Path(session) / "access.txt"
+            if path.is_symlink():
+                raise ValueError("Saved access must not be a symbolic link.")
+            path.write_text(validate_access(access) + "\n")
+        os.execvp(command[0], command)
 
 
 def main():

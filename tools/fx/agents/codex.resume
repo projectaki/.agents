@@ -2,5 +2,6 @@
 set -euo pipefail
 
 adapter_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+adapter="${0##*/}"
 exec python3 "$adapter_dir/../fx_resume.py" lock --access "$5" "$3" \
-  "$adapter_dir/codex" resume "${@:1:4}"
+  "$adapter_dir/${adapter%.resume}" resume "${@:1:4}"

@@ -448,12 +448,13 @@ End the input to cancel without creating a session. Commands without terminal
 input must supply `--name`; they fail without creating context if it is missing.
 An explicitly empty or invalid `--name` fails without prompting.
 
-To resume a Claude or Codex conversation, use the session directory printed
-at launch:
+To resume a Claude, Codex, DeepSeek, Gemini, GLM, or MiniMax conversation,
+use the session directory printed at launch:
 
 ```bash
 fx agent claude --resume context/000001-investigate-claude-opus-5-5
 fx agent codex --resume context/000002-review-gpt-6.1-sol --new-tab
+fx agent deepseek --resume context/000003-review-deepseek-deepseek-v4.1-flash --new-tab
 ```
 
 Use the actual session path inside the current task's `context/` directory.
@@ -462,7 +463,7 @@ Relative paths start in the invoking directory. Absolute paths also work.
 comparison, or task analysis by its own session path. Other adapters need
 an executable `agents/<agent>.resume` handler.
 
-Resume uses the saved model, reasoning, instructions, and access mode. It
+Resume uses the saved provider, model, reasoning, instructions, and access mode. It
 keeps the starting context, findings, and responses in the same directory.
 Use `--access` to change the saved access mode. Resume uses the existing
 conversation history without sending the initial prompt again. Use
@@ -471,8 +472,9 @@ conversation history without sending the initial prompt again. Use
 Fx reads the conversation identifier from recorded hooks or saved response
 metadata. A startup hook can record it before the first response. Resume
 requires exactly one identifier and the provider's local conversation history.
-An incomplete callback record stops resume. Codex resume needs its original
-session identifier, a UUID. Exit an older session before resuming it. Current
+An incomplete callback record stops resume. Codex and OpenRouter sessions
+need their original session identifier, a UUID. OpenRouter still requires
+`OPENROUTER_API_KEY`. Exit an older session before resuming it. Current
 launches use a lock to prevent two fx processes from using the same session.
 
 New hooks append to `events/callbacks.jsonl`. Each resume writes a separate

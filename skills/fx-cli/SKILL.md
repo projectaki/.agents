@@ -203,22 +203,24 @@ Only one session may edit task source at a time. Shared project memory and
 context also need one assigned editor. Other sessions can investigate without
 edits. A returned tab request confirms tab creation, not successful agent work.
 
-## Resume a Claude or Codex conversation
+## Resume a conversation
 
 Use the original session directory printed at launch:
 
 ```bash
 fx agent claude --resume context/000001-review-claude-opus-5-5
 fx agent codex --resume context/000002-review-gpt-6.1-sol --new-tab
+fx agent deepseek --resume context/000003-review-deepseek-deepseek-v4.1-flash --new-tab
 ```
 
+Resume supports Claude, Codex, DeepSeek, Gemini, GLM, and MiniMax.
 Use the actual path inside the current task's context. Relative paths start
 in the invoking directory. Absolute paths also work. `--new-tab` works in
 Rex and Zellij. Group members, comparisons, and analyses can be resumed by
 their own session directories. Other adapters need an executable
 `agents/<agent>.resume` handler.
 
-Resume uses the saved model, reasoning, instructions, and access mode. Use
+Resume uses the saved provider, model, reasoning, instructions, and access mode. Use
 `--access` to override access. The starting context, findings, and captured
 responses stay in the same session. The conversation continues from local
 provider history without sending the original prompt again. Use
