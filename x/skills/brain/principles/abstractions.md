@@ -11,3 +11,5 @@ Avoid creating abstractions that:
 Inline small logic when appropriate.
 
 Create abstractions only when they reduce complexity or encapsulate meaningful concepts.
+
+Make each decision in one place. Do not repeat the same choice in several places. Pass the result of the decision as a simple value.
