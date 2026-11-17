@@ -26,6 +26,7 @@ disable-model-invocation: true
 - **A change to a UI, an app, or a CLI** → Prove that it works in the real app with the **verify** skill. Show the evidence, such as a screenshot or the actual output. Passing tests alone are not proof. For a bug fix, reproduce the bug yourself in the same app before you fix it. Ask the user to reproduce it only when you cannot reach that app.
 - **A review or comment on a pull request, from a person, a bot, or an agent** → Be skeptical. Many comments come from automated tools, even when a person posts them. Check each comment against the code, then fix it, dismiss it with a specific reason, or ask the user, according to the **triage-comments** skill. Do not change code only to make a comment go away.
 - **A skill is broken during a task** → Report what is broken and why. Do not quietly work around it. Propose a fix to the skill and ask the user before you change it. Continue with the parts of the task that do not depend on that skill.
+- **About to hand work to another agent** → Choose a background subagent or a visible session with the delegation reference.
 - **The context fills up: large tool output, long files, repeated reads, or work planned for many subagents** → Send bulk work to subagents. Keep summaries in the main conversation, not raw output. Limit the files and turns for each phase.
 - **About to ask "should I do X?" about work that can be undone** → Do it. Then show the result and the reason. This does not apply to a deviation from a standard. For that, follow the approval reference. Ask before an action that cannot be undone, such as a force-push, deleting data, or sending a message to other people.
 - **You write the same instruction a second time, or the user corrects the same behavior twice** → Propose a mechanism in the x plugin, such as a script or a check that a skill runs. Do not propose more text. If no mechanism can enforce the rule, propose to make the instruction easier to find and to add an example of the mistake. Ask the user before you change a skill.
@@ -35,4 +36,11 @@ disable-model-invocation: true
 Each reference is a file in `references/` next to this file. Read a reference when its condition applies.
 
 - [Approval for exceptions](references/approval-for-exceptions.md): read before you deviate from a standard, use a temporary workaround, or build on an uncertain design.
+- [Delegation](references/delegation.md): read before you hand work to another agent.
 - [File search](references/file-search.md): read before you search files in a git repository.
+
+## Playbooks
+
+Match the task to a playbook below. Before you add any steps of your own, copy every step of the playbook into your todo list, word for word. Keep each step that you do not do in the list, with a one-line `skip: <reason>`.
+
+If no playbook matches, say so in your first message. If the task is clear enough to do, continue with the triggers and the **brain** principles. If it is not, ask the user what steps to follow.
