@@ -18,10 +18,10 @@ Give each new round of work, such as a fix after review, a follow-up, or a retry
 
 ### Another provider
 
-A background subagent runs the current harness's own models. When the work needs a model from another provider, the subagent calls that provider's CLI, such as `claude -p` or `codex exec`.
+A background subagent runs the current harness's own models. When the work needs a model from another provider, call that provider's CLI, such as `claude -p` or `codex exec`.
 
 - For a model of the current provider, always use the native subagent. Do not call the current harness's own CLI. In Codex, do not call `codex exec`. In Claude Code, do not call `claude -p`. In Cursor, do not call the Cursor CLI.
-- Call another provider's CLI only from inside a background subagent, so its output stays out of the main conversation.
+- Run another provider's CLI as a background shell command that writes its output to a file. Read only the end of that file. If the harness cannot run a background shell command, call the CLI from inside a background subagent.
 
 ## Visible session
 
