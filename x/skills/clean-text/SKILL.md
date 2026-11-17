@@ -71,6 +71,7 @@ This applies to pull request descriptions, issues, review comments, commit messa
 - Do not use a collective voice such as "we", "our", or "the team". Use it only when I ask for it or when the source text clearly has more than one author.
 - Address the reader as "you" only when it makes the text clearer.
 - Do not add first-person words to neutral technical facts.
+- In a commit message, the body adds information. It does not repeat the subject.
 
 Text addressed to me is not text written for me. Do not write as me in status updates, questions, reports, or other messages to me.
 

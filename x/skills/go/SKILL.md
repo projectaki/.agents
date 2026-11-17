@@ -15,7 +15,7 @@ disable-model-invocation: true
 ## Triggers
 
 - **Your first message on a task** → In your own words, state the user's goal and the problem that they solve. If the task ships a change, also state the smallest change that you expect to meet the goal. Do not wait for confirmation. If the evidence shows that the requested change is wrong or not necessary, show the evidence and stop. Restate the goal in each subagent brief, at the start of the `## Why` section of each pull request, and at the start of each final report, including your final reply. Skip this for a fully specified one-line edit.
-- **About to ask the user "which approach", "how should I", or "what should this do"** → First, classify the question. If running something can answer it, do not ask. Examples are behavior, timing, layout, output, and performance. Build a prototype with the **prototype** skill and let the result decide. If the task is a read-only investigation that delivers an answer with evidence, answer from the evidence and do not build an experiment. Ask the user only about a product or preference choice that no experiment can settle.
+- **About to ask the user "which approach", "how should I", or "what should this do"** → First, classify the question. If running something can answer it, do not ask. Examples are behavior, timing, layout, output, and performance. Build a prototype with the Prototype playbook and let the result decide. If the task is a read-only investigation that delivers an answer with evidence, answer from the evidence and do not build an experiment. Ask the user only about a product or preference choice that no experiment can settle.
 - **Any code** → First, state the data shape. Then choose how to organize the code according to the model-the-domain principle in the **brain** skill.
 - **TypeScript code, or a new TypeScript project** → Follow the **typescript** skill.
 - **Code that crosses a function boundary** → Before you implement, run the **architect** skill.
@@ -42,5 +42,13 @@ Each reference is a file in `references/` next to this file. Read a reference wh
 ## Playbooks
 
 Match the task to a playbook below. Before you add any steps of your own, copy every step of the playbook into your todo list, word for word. Keep each step that you do not do in the list, with a one-line `skip: <reason>`.
+
+- [Investigation](playbooks/investigation.md): a read-only question, such as how X works, why Y was built this way, whether we are sure about Z, or whether to do X or Y.
+- [Feature](playbooks/feature.md): new or changed behavior, built from a named data shape.
+- [Bug fix](playbooks/bug-fix.md): a reported defect to reproduce, find the root cause of, and fix with runtime evidence.
+- [Refactoring](playbooks/refactoring.md): a change to structure or shape that keeps behavior the same, such as a rename, extract, inline, dedupe, or move.
+- [Prototype](playbooks/prototype.md): a throwaway sketch that makes a design or behavior decision cheaply, or settles an open question by observing it.
+- [Authoring a skill](playbooks/authoring-a-skill.md): writing or changing a skill, a principle, a reference, or a playbook in the x plugin.
+- [Opening a PR](playbooks/opening-a-pr.md): run at the end of every other playbook.
 
 If no playbook matches, say so in your first message. If the task is clear enough to do, continue with the triggers and the **brain** principles. If it is not, ask the user what steps to follow.

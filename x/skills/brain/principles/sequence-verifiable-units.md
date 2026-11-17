@@ -10,7 +10,7 @@ In a sweep, a migration, or a run of similar edits, check each change before you
 
 ## When you deliver
 
-Order commits and pull requests so that the order proves the work. The standard order is the failing test first, then the fix. Other orders are removal before restructuring, a measurement of the starting point before the change, and the scaffold before the feature. Each commit works on its own, and the sequence reads as an argument.
+Order commits and pull requests so that the order proves the work. The standard order is the failing test first, then the fix. Other orders are removal before restructuring, a measurement of the starting point before the change, and the scaffold before the feature. Each commit works on its own, and the sequence reads as an argument. When a fix belongs in the commit that you just made, amend that commit. When the fix stands on its own, make a new commit.
 
 ## Pull request size
 
