@@ -14,3 +14,6 @@ Core skills name what they need with the words below. They never name a harness'
 - **Ask the user**: a question to the user, with options when the choices are known.
 - **Run a skill**: load another skill's instructions and follow them.
 - **Validate the plugin**: check the x plugin's manifest and skills.
+- **Headless run**: a separate run of an agent that no one can answer, in a working folder that you choose, with the plugin or skills that you choose loaded. It writes its output to a file.
+- **Session transcript**: the file that records each message and tool call of a session.
+- **Project skill folder**: the folder in a repository where the harness finds that project's own skills.

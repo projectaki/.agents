@@ -51,6 +51,7 @@ Match the task to a playbook below. Before you add any steps of your own, copy e
 - [Refactoring](playbooks/refactoring.md): a change to structure or shape that keeps behavior the same, such as a rename, extract, inline, dedupe, or move.
 - [Prototype](playbooks/prototype.md): a throwaway sketch that makes a design or behavior decision cheaply, or settles an open question by observing it.
 - [Authoring a skill](playbooks/authoring-a-skill.md): writing or changing a skill, a principle, a reference, or a playbook in the x plugin.
+- [Eval](playbooks/eval.md): a blind test of whether a variant, such as a skill change, changes what agents do.
 - [Opening a PR](playbooks/opening-a-pr.md): run at the end of every other playbook.
 
 If no playbook matches, say so in your first message. If the task is clear enough to do, continue with the triggers and the **brain** principles. If it is not, ask the user what steps to follow.

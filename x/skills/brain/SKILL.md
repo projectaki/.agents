@@ -34,5 +34,6 @@ Each principle is a file in `principles/` next to this file. Read every principl
 - [Separate before serializing shared state](principles/separate-before-serializing-shared-state.md): read when two or more actors can write the same state at the same time.
 - [Observability](principles/observability.md): read when you design a system or a code path that can fail in production.
 - [Prove it works](principles/prove-it-works.md): read before you say that a task is done.
+- [Explain the number](principles/explain-the-number.md): read before you measure, and before you trust, report, or act on a number that you measured.
 - [Sequence verifiable units](principles/sequence-verifiable-units.md): read when work has more than one step, or before you open a pull request.
 - [Testing](principles/testing.md): read when you write or change tests, or design code that needs tests.

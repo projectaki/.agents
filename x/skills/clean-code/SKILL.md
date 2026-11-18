@@ -28,6 +28,8 @@ Read the diff that you are about to commit, or the files that the caller names. 
 
 When you are not sure that a keep applies, delete the comment. Before you delete a comment that says "do not remove" or "important", check its claim in the code, or with the **why** skill.
 
+A comment that states a rule about our own code, such as "do not remove" or "talk to X before changing", is a rule in prose. Propose the cheapest check that enforces it, a type, a runtime check, a test, or a lint, according to the encode-lessons-in-structure principle. With approval, add the check and delete the comment.
+
 ## Report
 
 One to three sentences: what you removed, and each surprise or problem that you could not fix inside the diff.
