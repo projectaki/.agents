@@ -3,7 +3,7 @@
 You own the design. Plan, review, and verify. Delegate the implementation. Stay in the lead.
 
 1. Trace the affected subsystem.
-2. Run the **architect** skill to explore designs in parallel.
+2. Run the **architect** skill to choose the shape.
 3. Decide how to split the work. Work on code that belongs together, such as one feature or one migration, goes to one owner. That owner can split it further after the blocking steps. Split at your own level only for independent outputs, such as audits or competing experiments.
    - If one worker is enough, write one todo item: `one worker: <reason>`.
    - If the work splits into two or more workstreams, write these four todo items:

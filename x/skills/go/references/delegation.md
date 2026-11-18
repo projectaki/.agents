@@ -34,7 +34,7 @@ Without Rex, such as on a cloud agent, there are no visible sessions. Use a back
 ## Rules for both
 
 - You own each agent's work. Review the diff and check the result yourself. Write your own summary from what you checked. Do not pass on the agent's report.
-- For a second opinion, send the same prompt to a different model. Agreement between the two is strong evidence.
+- For a second opinion, send the same prompt to another vendor's model.
 - One agent edits a worktree at a time. An agent that edits in parallel needs its own worktree.
 - Give each agent the goal, the scope, the files, the success criteria, and what to return.
 - Spawn each background subagent as an x-agent. Give it the absolute path to the x skills folder.

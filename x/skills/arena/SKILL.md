@@ -13,7 +13,7 @@ Every candidate gets the same prompt, so the prompt is the contract.
 
 1. State the result that each candidate produces.
 2. Write the rubric: 3 to 6 concrete criteria that can be graded and that define success for this task. You use it to pick in Phase D. Candidates see only the task.
-3. Choose the runners: one fresh subagent on your strongest model, one on your second model, and one other-vendor model, according to the delegation reference. If a runner cannot start, drop it and say so. Keep at least two runners. Add runners when the arena covers several design directions. Use the same model several times only when the work depends on volume more than on judgment. Choose each runner's effort according to the delegation reference.
+3. Choose the runners: one fresh subagent on your strongest model, one on your second model, and one other-vendor model, according to the delegation reference. If a runner cannot start, use the nearest model of the same family, or drop that runner. Keep at least two runners, and say so. Add runners for several design directions, and repeat one model when the work depends on volume, not judgment. Choose each runner's effort according to the delegation reference.
 4. Give each candidate its own output location: a git worktree where possible, otherwise `/tmp/arena-<slug>/candidate-<n>/`. This follows the separate-before-serializing-shared-state principle.
 
 ## Phase B: Fan out
@@ -24,7 +24,7 @@ If a candidate produces nothing, continue with the others and note the dropout.
 
 ## Phase C: Cross-judge
 
-After all candidates finish, start one read-only judge on an other-vendor model. The judge is never from your own vendor. If no other vendor is available, skip the judge, pick the base alone in Phase D, and say so. The judge gets the rubric and the candidates by folder name, scores each criterion, and recommends a base with its reasons. It runs while you read the candidates in Phase D. Do not start it while candidates are still writing.
+After all candidates finish, start one read-only judge on an other-vendor model. The judge is never from your own vendor. If the judge cannot start, use the nearest model of the same family. If none starts, skip the judge, pick the base alone in Phase D, and say so. While you read in Phase D, the judge scores each candidate, by folder name, on each rubric criterion and recommends a base.
 
 ## Phase D: Pick a base
 

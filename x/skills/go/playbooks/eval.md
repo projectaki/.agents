@@ -17,7 +17,7 @@ You own the experiment design. Plan, blind, run, and synthesize.
 1. **Frame.** State the variant that you test and the behavior that counts as success. Write the rubric, 3 to 6 concrete criteria, for the judge only. Do not show it to the candidates.
 2. **Set up clean folders.** Make one working folder for each candidate, with the variant in place. Add the context that a real task would have, such as a project skeleton.
 3. **Write one prompt** that a user would type. It does not show what you measure.
-4. **Start the candidates in parallel.** Run each candidate as a headless run in its own folder, with the variant loaded, as the capabilities reference defines it. Choose the runners as in Phase A of the **arena** skill. Give each the same prompt.
+4. **Start the candidates in parallel.** Run each candidate as a headless run in its own folder, with the variant loaded, as the capabilities reference defines it. Choose the runners as in Phase A of the **arena** skill. Give each the same prompt. An agent that only starts runs, polls, or collects results runs on the fast model.
 5. **Start one blinded judge** on a model from a different family, as in Phase C of the **arena** skill. The judge sees the outputs by neutral labels and the rubric, never a model name.
 6. **Check what each candidate did from its session transcript, not from its report.** See which files it really opened. Grade how it followed the skills from the files that it read and the shape of its code, never from its own claims.
 7. **Read every candidate output yourself**, from start to end. Compare your reading with the judge's verdict. A disagreement means that a model is biased or that the rubric is unclear. Combine the results.

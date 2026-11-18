@@ -2,8 +2,8 @@
 
 Run at the end of every other playbook.
 
-1. Check the diff with the **clean-code** skill. Write the title, the description, and each commit message with the **clean-text** skill.
-2. Write the title as a Conventional Commit: `type(scope): subject`, with no period at the end. The type is `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, or `perf`. The subject is short and imperative, and names a real symbol when one carries the change.
+1. Work from a git worktree off `main`, and keep unrelated work out of it. Rebase into small commits that can each land. Check the diff with the **clean-code** skill. Write the title, the description, and each commit message with the **clean-text** skill.
+2. Write the title as `type(scope): subject`. Name a real symbol when one carries the change.
 3. Write the description as a one-minute briefing for a reviewer who has the diff. Keep it under about 40 lines. Use these `##` sections in this order, and leave out a section that has nothing to say:
    - `## Why`: the problem and the approach, in 1 to 3 sentences.
    - `## What changed`: 1 to 3 bullets. Name a symbol or path only when it carries the change.

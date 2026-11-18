@@ -11,53 +11,46 @@ If you cannot say something in plain words, you do not understand it well enough
 
 ## Sentences
 
-- Write one idea per sentence. Keep sentences short. If the reader must read a sentence twice to parse it, split it or remove clauses.
-- Use the active voice. Find "is/are/was/were + past participle" and name the actor. "The file is parsed by the loader" becomes "The loader parses the file." Use the passive voice only when the actor is unknown or does not matter.
-- Write complete sentences with articles and verbs. Do not use verbless fragments, arrows, or symbols as words. "Parser rejects bad date → exit 2" becomes "The parser rejects a bad date and exits with code 2."
+- Write one idea per sentence. If the reader must read a sentence twice, split it or remove clauses.
+- Use the active voice. Name the actor, unless the actor is unknown or does not matter.
+- Write complete sentences with articles and verbs. Spell out arrows, symbols, and abbreviations.
 - Split an instruction longer than about 20 words, and any other sentence longer than about 25 words.
-- Write an instruction as a command: "Install the package", not "the package should be installed". Put the condition before the instruction: "To delete the file, run `rm`." Put a warning before the step that it guards.
-- Put the common case first and the exceptions after it.
-- State the point directly. Do not use "not just X, but Y" or other comparison frames.
+- Write an instruction as a command. Put the condition or the warning before the step that it guards. Put the common case first.
+- State the point directly. Do not use "not just X, but Y".
 - Use the natural number of items. Do not force ideas into groups of three.
+- When a rule makes a sentence worse, fix the sentence another way or leave it alone.
 
 ## One reading only
 
-- Put "only" and "not" next to the word that they change. "Only fails on growth" and "fails only on growth" say different things.
-- Break up noun stacks. "The proto import budget check script" becomes "the script that checks the proto-import budget".
-- Make each "it", "they", and "this" point to one obvious thing. If you are not sure, repeat the noun. Do not use "this" or "which" for a whole clause.
-- Give each clause its own verb. "Phase 1 moves the converters and Phase 2 the runtime" becomes "Phase 1 moves the converters, and Phase 2 moves the runtime".
-- Keep the small words that show structure, such as "the", "a", and "that". "Remove backup file" has two readings. "Remove the backup file" has one.
-- Repeat the article in a series of two different things: "the client and the host".
-- When a sentence with "and" or "or" can group two ways, use "both...and", "either...or", or "if...then".
+- Put "only" and "not" next to the word that they change.
+- Break up noun stacks.
+- Make each "it", "they", and "this" point to one obvious thing. Do not use "this" or "which" for a whole clause.
+- Give each clause its own verb. Keep the small words that show structure, such as "the", "a", and "that".
+- Repeat the article in a series when it prevents a misread. Say which parts "and" or "or" joins.
 - Call each thing by one name everywhere. Do not rename a thing that did not change.
 
 ## Words
 
-- Define a term the first time you use it.
-- Use one word for one meaning. Do not change between synonyms for the same thing.
-- Never use a code, ticket number, abbreviation, or short label on its own. Write what it means. If you must use it, put the meaning in the same sentence every time.
-- Do not invent labels for findings and then reuse them later as if the reader remembers them.
-- Write the real symbol, file, flag, or command name. Do not use a synonym or a description of it.
-- In a procedure, do not write "simply", "easy", "quickly", or "please".
-- Use the plain word. "Utilize" and "leverage" become "use". "Facilitate" becomes "help". "Numerous" becomes "many". "In the event that" becomes "if".
-- Say "is" or "has". Do not use "serves as", "stands as", "boasts", or "features".
-- Remove AI vocabulary: additionally, crucial, delve, enduring, enhance, fostering, garner, interplay, intricate, landscape, pivotal, showcase, tapestry, testament, underscore, vibrant.
-- Remove adverbs that prop up a weak verb. Use a stronger verb or the number. "Significantly improves" becomes the measured change.
-- Remove filler. "In order to" becomes "to". "Due to the fact that" becomes "because". Delete "it is important to note that".
-- Use one hedge at most. "Could potentially possibly be argued that it might" becomes "may".
+- Define a term the first time you use it. Do not invent jargon. Use the words that a developer says out loud.
+- Use one word for one meaning, and one word for each action.
+- Never use a code, ticket number, abbreviation, or short label on its own. Write what it means. Do not invent labels for findings and reuse them later.
+- Write the real symbol, file, flag, or command name, not a synonym or a description of it.
+- In a procedure, do not write "please", "simply", "easy", or "quickly".
+- Use the plain word: "use", not "utilize" or "leverage". Say "is" or "has", not "serves as", "stands as", "boasts", or "features".
+- Remove AI vocabulary: additionally, crucial, delve, enhance, foster, landscape, pivotal, showcase, testament, underscore, vibrant.
+- Cut adverbs, or use a stronger verb. Give the number.
+- Cut every word that does no work. "In order to" becomes "to". Delete "it is important to note that".
+- Use one hedge at most: "may".
 
 ## Literal meaning
 
-- Do not use metaphors, idioms, or figures of speech. Write the literal fact.
-- Replace metaphor nouns with the concrete word: substrate, wedge, vector, locus, vantage, nexus, primitive, harness, surface, bedrock, scaffolding, modality, paradigm, gold-plating, ratchet, endgame, north star, flywheel.
-- Do not use aphorisms, rhetorical fragments, or figurative verbs such as "rides along" or "stands on". Write what happens.
-- Do not use false ranges: "from X to Y" where X and Y are not on one scale. List the items.
-- Do not give code human actions or feelings. "The plan holds it" becomes the real mechanism.
-- Say what a thing does, not how it feels. Name the mechanism or a number. "SQL you can read" becomes "`.toSQL()` returns the exact string sent to the database."
-- Cut a sentence that could appear unchanged in another project's documents. It says nothing about this one.
-- Name the source of a claim, or delete the claim. Do not write "experts believe" or "reports suggest".
-- Do not end with a general conclusion such as "the future looks bright". State specific facts or plans.
-- Delete "-ing" phrases that add no fact, such as "highlighting...", "ensuring...", or "showcasing...".
+- Do not use metaphors, idioms, aphorisms, personified code, or figurative verbs where a literal phrase exists.
+- Do not use abstract metaphor nouns: substrate, wedge, vector, nexus, primitive, harness, surface, scaffolding, paradigm, ratchet, north star, flywheel. Use the concrete word.
+- Do not write "from X to Y" unless X and Y are on a real scale.
+- Say what a thing does, not how it feels. Name the mechanism or the number. Cut a sentence that could appear unchanged in another project's documents.
+- Name the source of a claim, or delete the claim.
+- Do not end with a general conclusion. State specific facts or plans.
+- Delete "-ing" phrases that add no fact, such as "highlighting..." or "ensuring...".
 
 ## Estimates
 
@@ -71,17 +64,16 @@ If you cannot say something in plain words, you do not understand it well enough
 
 ## Formatting
 
-- Do not use em dashes, en dashes, or semicolons as punctuation. Use a period or a comma.
+- Do not use em dashes, en dashes, hyphens as dashes, semicolons, or parentheses in place of a dash. Use a period or a comma.
 - Use a colon only before a list or an example. Do not use it to join two clauses.
-- Do not use slashes for "or". Write "a, b, or both", not "a/b" or "and/or". Do not form plurals with "(s)". Text in parentheses is a complete phrase or its own sentence.
-- Use the serial comma. Do not end a list with "etc.". Say before the list that it is partial.
-- Use bold text only where it helps the reader find something. Do not bold every name or acronym. Put UI elements in bold and code in code font.
-- Do not start a list item with a bold label that only repeats the line, such as "**Performance:** Performance improved". A bold lead-in is correct when it names the item and new detail follows.
+- Do not use slashes or "(s)". Text in parentheses is a complete phrase or its own sentence.
+- Use the serial comma. Do not write "etc.".
+- Do not bold every name or acronym. Put UI elements in bold and code in code font.
+- Do not start a list item with a bold label that only repeats the line. A bold lead-in that ends in a period and adds new detail is correct.
 - Use numbered lists for steps in order and bullets for everything else. Introduce a list with a complete sentence. Keep the items parallel.
-- Use sentence case for headings. A heading states the point, not only the topic: "Pick the mode first", not "Modes". A task heading is a verb phrase, such as "Create an instance". Use one top-level heading for each page, and do not skip heading levels.
-- Make link text name where the link goes: the page title or a short description. Never write "click here".
-- Do not use decorative emojis.
-- Use straight quotes, not curly quotes.
+- Use sentence case for headings, and make a heading state the point. Use one top-level heading for each page, and do not skip heading levels.
+- Make link text name where the link goes.
+- Do not use decorative emojis. Use straight quotes.
 
 ## Text that I publish or send
 
@@ -106,16 +98,14 @@ Text addressed to me is not text written for me. Do not write as me in status up
 
 ## Documents: pick the mode first
 
-Before you write documentation, such as a README, a guide, an RFC, or a reference page, pick its mode. One document has one mode. Ask two questions: does the reader want to act or to understand, and is the reader learning or working?
+Before you write documentation, such as a README, a guide, an RFC, or a reference page, pick its mode. One document has one mode. Do not mix modes. Split the document and link the parts.
 
-- **Tutorial** (act, learning): open with what the reader will build. Each step gives a visible result, and you say what the reader should see. Keep explanation to one clause and a link.
-- **How-to** (act, working): solve one problem that a person has. Assume competence. Give only actions, with forks such as "If you want x, do y". Name the guide by the task: "How to rotate the keys".
-- **Reference** (understand, working): describe only. Give the facts, options, limits, and errors with no opinion and no hedging. Follow the structure of the thing that it describes. Generate it from code where you can.
-- **Explanation** (understand, learning): one topic, with the reasons: design decisions, history, constraints, and alternatives. Give your opinion here, and nowhere else.
+- **Tutorial: learning by doing.** Say what the reader will build. Each step gives a visible result, and you say what the reader should see. Keep explanation to one clause and a link.
+- **How-to: steps to a goal.** Solve the reader's problem. Assume competence. Give only actions, and allow forks. Name the guide by the task.
+- **Reference: facts for lookup.** Describe only. Be dry, complete, and sure. Follow the structure of the thing that it describes.
+- **Explanation: understanding and why.** One topic, with design decisions, history, constraints, and alternatives. Give your opinion here, and nowhere else.
 
-Do not mix modes. Split the document and link the parts.
-
-In documentation, mix sentence lengths. A short sentence makes a point. A longer sentence can carry a fact with its condition. Split a sentence that carries two ideas, and keep a long sentence that carries one. Be specific: not "schema changes can cause issues" but "a column rename fails the build". Replies stay short, as the Sentences section says.
+In documentation, mix sentence lengths. Split a sentence that carries two ideas, and keep a long sentence that carries one. Be specific: not "schema changes can cause issues" but "a column rename fails the build". Replies stay short.
 
 ## Documents show the current state
 
