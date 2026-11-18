@@ -25,7 +25,7 @@ disable-model-invocation: true
 - **Any text** → Write and check it with the **clean-text** skill. This includes your replies, documents, plans, pull request descriptions, issues, commit messages, review comments, code comments, and skill files.
 - **Before each commit** → Check the diff with the **clean-code** skill.
 - **A change to a UI, an app, or a CLI** → Prove that it works in the real app with the **verify** skill. Show the evidence, such as a screenshot or the actual output. Passing tests alone are not proof. For a bug fix, reproduce the bug yourself in the same app before you fix it. Ask the user to reproduce it only when you cannot reach that app.
-- **A review or comment on a pull request, from a person, a bot, or an agent** → Be skeptical. Many comments come from automated tools, even when a person posts them. Check each comment against the code, then fix it, dismiss it with a specific reason, or ask the user, according to the **triage-comments** skill. Do not change code only to make a comment go away.
+- **A review or comment on a pull request, from a person, a bot, or an agent** → Triage each comment with the **triage-comments** skill.
 - **A skill is broken during a task** → Report what is broken and why. Do not quietly work around it. Propose a fix to the skill and ask the user before you change it. Continue with the parts of the task that do not depend on that skill.
 - **About to hand work to another agent** → Choose a background subagent or a visible session with the delegation reference.
 - **The context fills up: large tool output, long files, repeated reads, or work planned for many subagents** → Send bulk work to subagents. Keep summaries in the main conversation, not raw output. Limit the files and turns for each phase.
