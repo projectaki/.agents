@@ -4,6 +4,7 @@ Public API (all a caller needs):
 
     setup(root, name, source)            -> Project
     find_project(cwd, root, name=None)   -> Project
+    find_task(project, cwd, name=None)   -> WorktreeTask
     open_task(project, name, request)    -> WorktreeTask
     delete_task(project, name, force=..., stop_sessions=...)
     open_checkout_task(...)              -> CheckoutTask    (cloud; later step)
@@ -116,6 +117,20 @@ def find_project(cwd: Path, root: Path, name: ProjectName | None = None) -> Proj
             _check_marker(project)
             return project
     raise XEnvError("Run this command inside a project created by x-env setup.")
+
+
+def find_task(project: Project, cwd: Path, name: TaskName | None = None) -> WorktreeTask:
+    """The task named by `--task`, else the task folder that holds `cwd`
+    (`<project>/tasks/<task>/...`). Its worktree must exist."""
+    if name is None:
+        here = cwd.resolve()
+        if not here.is_relative_to(project.tasks_dir) or here == project.tasks_dir:
+            raise XEnvError("Run this command inside a task folder, or pass --task <name>.")
+        name = TaskName(here.relative_to(project.tasks_dir).parts[0])
+    task = project.task(name)
+    if not task.source.is_dir():
+        raise XEnvError(f"Task not found: {task.dir}. Run x-env task {name} first.")
+    return task
 
 
 def _check_marker(project: Project) -> None:
@@ -318,7 +333,7 @@ def task_agents_md(task: WorktreeTask) -> str:
 
 StopSessions = Callable[[WorktreeTask], bool]
 """Stops every running session of a task and returns True if it found any.
-Step 1 passes `lambda task: False`. Later steps pass `sessions.stop_task`."""
+The CLI passes `sessions.stop_task` for this host."""
 
 
 @dataclass(frozen=True)

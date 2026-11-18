@@ -1,0 +1,54 @@
+#!/usr/bin/env python3
+"""A fake `rex` for the terminal tests.
+
+Environment:
+  FAKE_REX_STATE   folder for its state
+  FAKE_REX_SERVER  "1": a server is reachable; anything else: none
+
+Without `--autostart=false`, real rex starts a server; this fake writes
+`server-started` instead, so a test can prove x-env never does that.
+`new` runs the command detached, with REX_SESSION set, like a Rex session;
+`kill` sends it SIGHUP, like `rex kill`.
+"""
+import json
+import os
+import signal
+import subprocess
+import sys
+from pathlib import Path
+
+state = Path(os.environ["FAKE_REX_STATE"])
+args = sys.argv[1:]
+with open(state / "calls.jsonl", "a") as calls:
+    calls.write(json.dumps(args) + "\n")
+if "--autostart=false" in args:
+    args.remove("--autostart=false")
+else:
+    (state / "server-started").touch()
+if os.environ.get("FAKE_REX_SERVER") != "1":
+    print("Error: no server", file=sys.stderr)
+    sys.exit(1)
+
+command = args[0]
+if command == "ls":
+    sys.exit(0)
+if command == "new":
+    label, cwd = args[1], args[args.index("--cwd") + 1]
+    argv = args[args.index("--") + 1:]
+    number = len(list(state.glob("session-*"))) + 1
+    session_id = f"session:fake-{number}"
+    process = subprocess.Popen(argv, cwd=cwd, env={**os.environ, "REX_SESSION": session_id},
+                               start_new_session=True, stdin=subprocess.DEVNULL,
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    (state / f"session-{number}").write_text(json.dumps({"label": label, "pid": process.pid}))
+    print(json.dumps({"session_id": session_id}))
+    sys.exit(0)
+if command == "kill":
+    path = state / f"session-{args[1].removeprefix('session:fake-')}"
+    if not path.exists() or path.read_text() == "killed":
+        print(f'Error: session target "{args[1]}" not found', file=sys.stderr)
+        sys.exit(3)
+    os.kill(json.loads(path.read_text())["pid"], signal.SIGHUP)
+    path.write_text("killed")
+    sys.exit(0)
+sys.exit(2)

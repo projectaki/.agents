@@ -1,0 +1,54 @@
+#!/usr/bin/env python3
+"""A fake `claude` for the session tests.
+
+It reads the hooks from `--settings` and calls them with the payload shapes
+that Claude Code sends (tested on this machine): UserPromptSubmit, a subagent
+Stop (`agent_id`, must be ignored), a Stop, and a Stop with
+`stop_hook_active` (must not count as a turn). Then it exits.
+
+Environment:
+  FAKE_CLAUDE_STATE  folder; it writes `argv.json` and `pid` there
+  FAKE_CLAUDE_EXIT   exit code (default 0)
+  FAKE_CLAUDE_SLEEP  seconds to sleep before the Stop hooks (default 0)
+"""
+import json
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+argv = sys.argv[1:]
+state = Path(os.environ["FAKE_CLAUDE_STATE"])
+(state / "argv.json").write_text(json.dumps(argv))
+(state / "pid").write_text(str(os.getpid()))
+
+settings = json.loads(argv[argv.index("--settings") + 1])
+session_id = argv[argv.index("--session-id") + 1]
+prompt = argv[argv.index("--") + 1] if "--" in argv else None
+slug = os.getcwd().replace("/", "-").replace(".", "-")
+transcript = str(Path.home() / ".claude/projects" / slug / f"{session_id}.jsonl")
+
+
+def hook(event, **fields):
+    payload = {"session_id": session_id, "transcript_path": transcript, "cwd": os.getcwd(),
+               "hook_event_name": event, **fields}
+    for group in settings.get("hooks", {}).get(event, []):
+        for entry in group["hooks"]:
+            result = subprocess.run(entry["command"], shell=True, input=json.dumps(payload),
+                                    capture_output=True, text=True)
+            if result.returncode != 0 or result.stdout:
+                print(f"hook {event} exit={result.returncode} stdout={result.stdout!r}", file=sys.stderr)
+
+
+reply = f"PONG to {prompt}"
+if prompt is not None:
+    hook("UserPromptSubmit", prompt_id="p1", prompt=prompt, permission_mode="auto")
+    print(reply, flush=True)
+    time.sleep(float(os.environ.get("FAKE_CLAUDE_SLEEP", "0")))
+    hook("Stop", prompt_id="p1", agent_id="a1", agent_type="Explore", stop_hook_active=False,
+         last_assistant_message="subagent text")
+    hook("Stop", prompt_id="p1", stop_hook_active=False, last_assistant_message=reply)
+    hook("Stop", prompt_id="p1", stop_hook_active=True, last_assistant_message="held open")
+print("fake claude: stderr line", file=sys.stderr, flush=True)
+sys.exit(int(os.environ.get("FAKE_CLAUDE_EXIT", "0")))

@@ -60,8 +60,8 @@ class Harness(Protocol):
     def command(self, meta: SessionMeta, hook: Sequence[str]) -> Command:
         """The argv for this launch. `hook` is the argv prefix of
         `x-env _hook <harness> <record>`; the adapter installs it for this one
-        launch only (Claude: `--settings` JSON with UserPromptSubmit, Stop, and
-        SessionStart hooks; Codex: `-c hooks...` or `-c notify=[...]`).
+        launch only (Claude: `--settings` JSON with UserPromptSubmit and Stop
+        hooks; Codex: `-c hooks...` or `-c notify=[...]`).
         Headless adds `-p` / `exec` and the prompt; visible passes the prompt
         as the first message."""
 
