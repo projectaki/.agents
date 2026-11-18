@@ -330,7 +330,8 @@ class DeleteFacts:
     source_exists: bool
     locked: bool  # read from the registration, even when the source is gone
     detached: bool  # only meaningful when source_exists
-    dirty: bool  # uncommitted, untracked, or ignored files
+    dirty: bool  # uncommitted changes, or untracked files that are not ignored
+    changed_local_files: tuple[str, ...]  # copied local files whose bytes differ from the clone's
 
 
 @dataclass(frozen=True)
@@ -352,7 +353,12 @@ def decide_delete(facts: DeleteFacts, force: bool) -> DeletePlan:
             )
         if facts.dirty:
             raise XEnvError(
-                "The task has uncommitted, untracked, or ignored files. Use --force to discard them."
+                "The task has uncommitted or untracked files. Use --force to discard them."
+            )
+        if facts.changed_local_files:
+            raise XEnvError(
+                f"The task has changed local files: {', '.join(facts.changed_local_files)}. "
+                "Use --force to discard them."
             )
     return DeletePlan(remove_registration=facts.registered, remove_dir=facts.dir_exists)
 
@@ -403,10 +409,12 @@ def _inspect(project: Project, task: WorktreeTask) -> DeleteFacts:
     registration = _git.registered_worktrees(project.clone).get(task.source)
     source_exists = task.source.exists() or task.source.is_symlink()
     detached = dirty = False
+    changed: tuple[str, ...] = ()
     if source_exists:
         info = _validated_worktree(project, task)
         detached = info.branch is None
-        dirty = bool(_git.status_porcelain(task.source, ignored=True))
+        dirty = bool(_git.status_porcelain(task.source, ignored=False))
+        changed = _changed_local_files(project.clone, task.source)
     return DeleteFacts(
         dir_exists=task.dir.exists(),
         registered=registration is not None,
@@ -414,7 +422,24 @@ def _inspect(project: Project, task: WorktreeTask) -> DeleteFacts:
         locked=registration is not None and registration.locked,
         detached=detached,
         dirty=dirty,
+        changed_local_files=changed,
     )
+
+
+def _changed_local_files(clone: Path, worktree: Path) -> tuple[str, ...]:
+    """Local files of the clone that exist in the worktree as regular files
+    with other bytes. Skips what the clone no longer has, and what the task
+    tracks (`dirty` already covers it)."""
+    changed = []
+    for relative in _git.local_files(clone):
+        source, target = clone / relative, worktree / relative
+        if source.is_symlink() or not source.is_file():
+            continue
+        if target.is_symlink() or not target.is_file():
+            continue
+        if source.read_bytes() != target.read_bytes() and not _git.is_tracked(worktree, relative):
+            changed.append(relative)
+    return tuple(changed)
 
 
 @contextmanager

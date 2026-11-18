@@ -6,8 +6,9 @@ from x_env.model import XEnvError
 from x_env.workspace import DeleteFacts, DeletePlan, decide_delete
 
 
-def facts(dir_exists=True, registered=True, source_exists=True, locked=False, detached=False, dirty=False):
-    return DeleteFacts(dir_exists, registered, source_exists, locked, detached, dirty)
+def facts(dir_exists=True, registered=True, source_exists=True, locked=False, detached=False, dirty=False,
+          changed_local_files=()):
+    return DeleteFacts(dir_exists, registered, source_exists, locked, detached, dirty, changed_local_files)
 
 
 class DecideDeleteTest(unittest.TestCase):
@@ -22,15 +23,18 @@ class DecideDeleteTest(unittest.TestCase):
             ("locked", facts(locked=True, source_exists=False, dir_exists=False), True),
             ("not registered", facts(registered=False), True),
             ("detached", facts(detached=True), False),
-            ("--force", facts(dirty=True), False),
+            ("uncommitted or untracked files\\. Use --force", facts(dirty=True), False),
+            ("changed local files: \\.env, a/b\\.json\\. Use --force to discard them",
+             facts(changed_local_files=(".env", "a/b.json")), False),
         )
         for message, observed, force in cases:
             with self.subTest(message=message, facts=observed):
                 with self.assertRaisesRegex(XEnvError, message):
                     decide_delete(observed, force)
 
-    def test_force_discards_dirty_and_detached_worktrees(self):
-        self.assertEqual(decide_delete(facts(dirty=True, detached=True), True), DeletePlan(True, True))
+    def test_force_discards_dirty_detached_and_changed_worktrees(self):
+        observed = facts(dirty=True, detached=True, changed_local_files=(".env",))
+        self.assertEqual(decide_delete(observed, True), DeletePlan(True, True))
 
     def test_partial_leftovers_remove_only_what_exists(self):
         cases = (
@@ -44,7 +48,7 @@ class DecideDeleteTest(unittest.TestCase):
                 self.assertEqual(decide_delete(observed, False), expected)
 
     def test_state_of_a_missing_source_is_ignored(self):
-        observed = facts(source_exists=False, detached=True, dirty=True)
+        observed = facts(source_exists=False, detached=True, dirty=True, changed_local_files=(".env",))
         self.assertEqual(decide_delete(observed, False), DeletePlan(True, True))
 
 

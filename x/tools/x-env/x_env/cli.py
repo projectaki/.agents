@@ -120,7 +120,7 @@ def _parser() -> argparse.ArgumentParser:
 
     delete = commands.add_parser("delete", help="remove a task worktree; keep its branch and records")
     delete.add_argument("name")
-    delete.add_argument("--force", action="store_true", help="discard uncommitted and ignored files")
+    delete.add_argument("--force", action="store_true", help="discard uncommitted files and changed local files")
     delete.set_defaults(handler=cmd_delete)
 
     shell_init = commands.add_parser("shell-init", help="print shell code: PATH and the x-env function")

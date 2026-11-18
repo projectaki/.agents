@@ -744,19 +744,59 @@ class DeleteTest(CliTest):
         self.assertTrue(self.has_ref(project / "repo/main", "refs/heads/feature/fix-login"))
         self.assertEqual(record.read_text(), "{}\n")
 
-    def test_delete_requires_force_for_changed_untracked_and_ignored_files(self):
-        for kind in ("tracked", "untracked", "ignored"):
+    def test_delete_requires_force_for_uncommitted_and_untracked_files(self):
+        for kind in ("tracked", "untracked"):
             with self.subTest(kind=kind):
                 project = self.project()
                 task = self.task(project, kind)
-                source = task / "repo" / ("source.txt" if kind == "tracked" else "local.txt")
+                source = task / "repo" / ("source.txt" if kind == "tracked" else "new.txt")
                 source.write_text("Keep this work\n")
-                if kind == "ignored":
-                    (project / "repo/main/.git/info/exclude").write_text("local.txt\n")
                 self.assert_fails(self.x_env("delete", kind, cwd=project, check=False), "--force")
                 self.assertEqual(source.read_text(), "Keep this work\n")
                 self.x_env("delete", kind, "--force", cwd=project)
                 self.assertFalse(task.exists())
+
+    def ignore_local_files(self, *patterns):
+        (self.origin / ".gitignore").write_text("".join(f"{p}\n" for p in patterns))
+        self.git("-C", self.origin, "add", ".gitignore")
+        self.git("-C", self.origin, "commit", "-m", "Ignore local files")
+
+    def test_delete_allows_unchanged_copied_files_and_other_ignored_files(self):
+        self.ignore_local_files(".env", "build/")
+        project = self.project()
+        (project / "repo/main/.env").write_text("LOCAL_VALUE=1\n")
+        task = self.task(project)
+        (task / "repo/build").mkdir()
+        (task / "repo/build/out.bin").write_text("Build output\n")
+        self.assertEqual((task / "repo/.env").read_text(), "LOCAL_VALUE=1\n")
+        self.x_env("delete", "fix-login", cwd=project)
+        self.assertFalse(task.exists())
+
+    def test_delete_requires_force_for_a_changed_copied_file(self):
+        self.ignore_local_files(".env", "build/")
+        project = self.project()
+        (project / "repo/main/.env").write_text("LOCAL_VALUE=1\n")
+        task = self.task(project)
+        (task / "repo/.env").write_text("LOCAL_VALUE=2\n")
+        (task / "repo/build").mkdir()
+        (task / "repo/build/out.bin").write_text("Build output\n")
+        result = self.x_env("delete", "fix-login", cwd=project, check=False)
+        self.assert_fails(result, ".env")
+        self.assertIn("Use --force to discard them.", result.stderr)
+        self.assertNotIn("build", result.stderr)
+        self.assertEqual((task / "repo/.env").read_text(), "LOCAL_VALUE=2\n")
+        self.x_env("delete", "fix-login", "--force", cwd=project)
+        self.assertFalse(task.exists())
+
+    def test_delete_skips_a_copied_file_that_the_clone_no_longer_has(self):
+        self.ignore_local_files(".env")
+        project = self.project()
+        (project / "repo/main/.env").write_text("LOCAL_VALUE=1\n")
+        task = self.task(project)
+        (project / "repo/main/.env").unlink()
+        (task / "repo/.env").write_text("LOCAL_VALUE=2\n")
+        self.x_env("delete", "fix-login", cwd=project)
+        self.assertFalse(task.exists())
 
     def test_delete_detached_worktree_requires_force(self):
         project = self.project()
