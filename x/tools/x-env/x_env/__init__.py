@@ -12,6 +12,3 @@ TOOL_DIR = Path(__file__).resolve().parent.parent
 
 ENTRY = TOOL_DIR / "x-env"
 """The entry script. Runner and hook commands call it by absolute path."""
-
-PLUGIN_DIR = TOOL_DIR.parent.parent
-"""The x plugin folder, two levels above the tool. Sessions load it."""

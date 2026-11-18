@@ -10,14 +10,14 @@ The flow has three processes, and each writes only its own part of the record:
      child's exit status, and exits with it. It is the only writer of
      `started` and `exited`, so every session that started also ends with an
      `exited` event unless the runner itself is killed with SIGKILL.
-  3. `on_hook` (in `x-env _hook <harness> <record> <event>`, called by the
-     harness): parses the payload with the adapter and writes turn events,
+  3. `on_hook` (in `x-env _hook <harness> <record> <event> [<args>...]`,
+     called by the harness): the adapter reads the payload and turns it
+     into facts; `on_hook` writes turn events,
      last-turn.md, and the binding.
 """
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import signal
@@ -25,9 +25,11 @@ import subprocess
 import sys
 import time
 import traceback
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import TextIO
 
 from . import ENTRY, harness as harnesses, records, terminal as terminals
 from .harness import Bound, Command, TurnBegan, TurnFinished
@@ -212,17 +214,15 @@ def _redirect_output(path: Path) -> None:
 # --- Hooks (`x-env _hook`) ---------------------------------------------------------------
 
 
-def on_hook(record: SessionRecord, harness: HarnessName, event: str, raw_payload: str) -> None:
-    """Parse the payload (JSON from the hook's stdin) and apply what it
-    reports. Never raises into the harness: a failure is logged to
-    `<record>/hook-error.log` and the hook exits 0, so a broken record never
-    blocks the agent. `event` fills `hook_event_name` if the payload lacks it."""
+def on_hook(
+    record: SessionRecord, harness: HarnessName, event: str, args: Sequence[str], stdin: TextIO
+) -> None:
+    """Let the adapter read the hook call (Claude: stdin; Codex: the last
+    argument) and apply the facts it reports. Never raises into the harness:
+    a failure is logged to `<record>/hook-error.log` and the hook exits 0, so
+    a broken record never blocks the agent."""
     try:
-        payload = json.loads(raw_payload)
-        if not isinstance(payload, dict):
-            raise ValueError(f"Expected a JSON object, got {type(payload).__name__}")
-        payload.setdefault("hook_event_name", event)
-        for fact in harnesses.get(harness).parse_hook(payload):
+        for fact in harnesses.get(harness).parse_hook(event, args, stdin):
             match fact:
                 case TurnBegan():
                     record.append(TurnStarted(_now()))

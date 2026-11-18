@@ -1,18 +1,21 @@
 """The Claude adapter: the launch command for each mode and access level, the
-hook payloads it turns into facts, and the transcript path."""
+hook payloads it turns into facts, the transcript path, and `check`."""
 
+import io
 import json
+import os
 import shlex
+import tempfile
 import unittest
+from unittest import mock
 from datetime import datetime, timezone
 from pathlib import Path
 
 from x_env.harness import TurnBegan, TurnFinished
 from x_env.harness.claude import Claude, is_trusted, transcript_path
-from x_env.model import Access, HarnessName, ProjectName, SessionId, SessionName, TaskName
+from x_env.model import Access, HarnessName, XEnvError, ProjectName, SessionId, SessionName, TaskName
 from x_env.records import SCHEMA, HarnessBinding, LaunchFacts, SessionMeta
 
-PLUGIN = Path(__file__).resolve().parents[3]  # tools/x-env/tests -> the x plugin folder
 HOOK = ["/usr/bin/python3", "/x/tools/x-env/x-env", "_hook", "claude", "/w/p/sessions/fix/001-chief"]
 SESSION_ID = "0b5bfb4e-7a5a-4a39-9d55-2d1c7e1e7d0e"
 
@@ -71,11 +74,8 @@ class CommandTest(unittest.TestCase):
         argv = list(Claude().command(meta(effort="high"), HOOK).argv)
         self.assertEqual(option(argv, "--effort"), "high")
 
-    def test_loads_the_x_plugin(self):
-        argv = list(Claude().command(meta(), HOOK).argv)
-        plugin = Path(option(argv, "--plugin-dir"))
-        self.assertEqual(plugin, PLUGIN)
-        self.assertEqual(json.loads((plugin / ".claude-plugin/plugin.json").read_text())["name"], "x")
+    def test_relies_on_the_installed_x_plugin(self):
+        self.assertNotIn("--plugin-dir", Claude().command(meta(), HOOK).argv)
 
     def test_installs_turn_hooks_that_call_x_env_with_the_event(self):
         settings = json.loads(option(list(Claude().command(meta(), HOOK).argv), "--settings"))
@@ -93,35 +93,49 @@ class CommandTest(unittest.TestCase):
         self.assertEqual(shlex.split(command), [*hook, "Stop"])
 
 
+def parse(payload, event="Stop"):
+    """Call the hook the way `x-env _hook claude <record> <event>` does: the
+    payload on stdin, no extra arguments."""
+    return Claude().parse_hook(event, [], io.StringIO(json.dumps(payload)))
+
+
 class ParseHookTest(unittest.TestCase):
     def test_user_prompt_submit_begins_a_turn(self):
         payload = {"hook_event_name": "UserPromptSubmit", "session_id": SESSION_ID,
                    "transcript_path": "/t.jsonl", "prompt_id": "p1", "prompt": "hi"}
-        self.assertEqual(Claude().parse_hook(payload), [TurnBegan()])
+        self.assertEqual(parse(payload), [TurnBegan()])
 
     def test_stop_finishes_a_turn_with_the_last_message(self):
         payload = {"hook_event_name": "Stop", "session_id": SESSION_ID, "transcript_path": "/t.jsonl",
                    "prompt_id": "p1", "last_assistant_message": "PONG", "stop_hook_active": False}
-        self.assertEqual(Claude().parse_hook(payload), [TurnFinished("PONG")])
+        self.assertEqual(parse(payload), [TurnFinished("PONG")])
 
     def test_stop_while_a_stop_hook_is_active_is_not_a_new_turn(self):
         payload = {"hook_event_name": "Stop", "session_id": SESSION_ID, "transcript_path": "/t.jsonl",
                    "prompt_id": "p1", "last_assistant_message": "PONG", "stop_hook_active": True}
-        self.assertEqual(Claude().parse_hook(payload), [])
+        self.assertEqual(parse(payload), [])
 
     def test_stop_without_a_message_records_an_empty_one(self):
         payload = {"hook_event_name": "Stop", "session_id": SESSION_ID, "stop_hook_active": False}
-        self.assertEqual(Claude().parse_hook(payload), [TurnFinished("")])
+        self.assertEqual(parse(payload), [TurnFinished("")])
 
     def test_subagent_events_are_ignored(self):
         for event in ("UserPromptSubmit", "Stop"):
             payload = {"hook_event_name": event, "session_id": SESSION_ID, "agent_id": "a1",
                        "agent_type": "Explore", "last_assistant_message": "sub", "stop_hook_active": False}
-            self.assertEqual(Claude().parse_hook(payload), [], event)
+            self.assertEqual(parse(payload), [], event)
+
+    def test_the_event_argument_names_a_payload_without_hook_event_name(self):
+        self.assertEqual(parse({"session_id": SESSION_ID}, event="UserPromptSubmit"), [TurnBegan()])
+
+    def test_a_payload_that_is_not_a_json_object_is_an_error(self):
+        for raw in ("not json", "[1, 2]"):
+            with self.assertRaises(ValueError, msg=raw):
+                Claude().parse_hook("Stop", [], io.StringIO(raw))
 
     def test_other_events_are_ignored(self):
         for event in ("SessionStart", "SessionEnd", "PreToolUse"):
-            self.assertEqual(Claude().parse_hook({"hook_event_name": event, "session_id": SESSION_ID}), [])
+            self.assertEqual(parse({"hook_event_name": event, "session_id": SESSION_ID}), [])
 
 
 class TranscriptPathTest(unittest.TestCase):
@@ -130,10 +144,6 @@ class TranscriptPathTest(unittest.TestCase):
             transcript_path(Path("/home/u"), Path("/home/u/.agents/work/p.v2/repo"), SESSION_ID),
             Path(f"/home/u/.claude/projects/-home-u--agents-work-p-v2-repo/{SESSION_ID}.jsonl"),
         )
-
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 class TrustTest(unittest.TestCase):
@@ -157,3 +167,47 @@ class TrustTest(unittest.TestCase):
 
     def test_missing_projects_key(self):
         self.assertFalse(is_trusted({}, self.ROOT))
+
+
+class CheckTest(unittest.TestCase):
+    """`check` with a fake HOME and a PATH that has or lacks `claude`."""
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.home = Path(temporary.name) / "home"
+        self.bin = Path(temporary.name) / "bin"
+        self.home.mkdir()
+        self.bin.mkdir()
+        (self.bin / "claude").write_text("#!/bin/sh\n")
+        (self.bin / "claude").chmod(0o755)
+        patcher = mock.patch.dict(os.environ, HOME=str(self.home), PATH=str(self.bin))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def install(self, content):
+        path = self.home / ".claude/plugins/installed_plugins.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content)
+
+    def test_passes_when_the_cli_and_the_x_plugin_are_installed(self):
+        self.install(json.dumps({"version": 2, "plugins": {"x@amx-plugins": [{"scope": "user"}]}}))
+        Claude().check()
+
+    def test_fails_when_the_cli_is_missing(self):
+        (self.bin / "claude").unlink()
+        self.install(json.dumps({"version": 2, "plugins": {"x@amx-plugins": [{"scope": "user"}]}}))
+        with self.assertRaisesRegex(XEnvError, "claude CLI is not on PATH"):
+            Claude().check()
+
+    def test_fails_with_an_install_hint_when_the_x_plugin_is_not_installed(self):
+        for content in (None, "not json", json.dumps({"plugins": {"xx@m": [{}], "other@m": [{}]}}),
+                        json.dumps({"plugins": {"x@amx-plugins": []}})):
+            if content is not None:
+                self.install(content)
+            with self.assertRaisesRegex(XEnvError, "claude plugin install x@", msg=content):
+                Claude().check()
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -20,7 +20,7 @@ disable-model-invocation: true
 | Ask the user | `AskUserQuestion`. In `-p` mode, ask in plain text. |
 | Run a skill | The `Skill` tool with `x:<name>`. If it refuses, read the skill's `SKILL.md` and follow it. |
 | Validate the plugin | `claude plugin validate <plugin folder>` |
-| Headless run | In the working folder: `claude -p "<prompt>" --plugin-dir <plugin folder> --session-id <new uuid> --model <model> </dev/null > <output file> 2>&1`. Run it as a background shell command. |
+| Headless run | In the working folder: `claude -p "<prompt>" --session-id <new uuid> --model <model> </dev/null > <output file> 2>&1`. Run it as a background shell command. The installed x plugin loads by itself. To load a plugin that is not installed, add `--plugin-dir <plugin folder>`. |
 | Session transcript | `~/.claude/projects/<slug>/<session id>.jsonl`, where `<slug>` is the working folder with each `/` and `.` replaced by `-`. A subagent's transcript is `<session id>/subagents/agent-<id>.jsonl` in the same folder. |
 | Project skill folder | `.claude/skills/` in the repository root |
 

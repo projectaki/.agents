@@ -20,7 +20,7 @@ disable-model-invocation: true
 | Ask the user | Ask in plain text. In `codex exec`, no one can answer, so choose, continue, and say what you chose. |
 | Run a skill | Read the skill's `SKILL.md` and follow it. |
 | Validate the plugin | No validator. Check the frontmatter and the links by hand. |
-| Headless run | Copy the skills to load into `<working folder>/.agents/skills/`. Then run `codex exec` as "Calling it from another harness" says, as a background shell command. |
+| Headless run | The installed x plugin loads by itself. Copy any other skills to load into `<working folder>/.agents/skills/`. Then run `codex exec` as "Calling it from another harness" says, as a background shell command. |
 | Session transcript | `~/.codex/sessions/<yyyy>/<mm>/<dd>/rollout-<time>-<session id>.jsonl`. `codex exec` prints `session id: <id>` at the start of its output. |
 | Project skill folder | `.agents/skills/` in the repository root |
 

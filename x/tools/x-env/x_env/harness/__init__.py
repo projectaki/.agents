@@ -1,7 +1,7 @@
 """Harness adapters: how to launch one agent CLI and read its hooks.
 
-A harness never writes records. It turns a launch into a command and a hook
-payload into a `HookFact`; `sessions` does the writing. Adding a harness is one
+A harness never writes records. It turns a launch into a command and one hook
+call into `HookFact`s; `sessions` does the writing. Adding a harness is one
 new module and one line in `HARNESSES`.
 """
 
@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, TextIO
 
 from ..model import HarnessName
 from ..records import HarnessBinding, SessionMeta
@@ -49,9 +49,11 @@ class Harness(Protocol):
     name: HarnessName
 
     def check(self) -> None:
-        """Raise `XEnvError` when the CLI is missing, before any record exists."""
+        """Raise `XEnvError` before any record exists when the CLI is missing,
+        or when the x plugin is not installed in this harness. Reads only."""
 
-    def default_model(self) -> str: ...
+    def default_model(self) -> str:
+        """The model to record when the caller names none."""
 
     def initial_binding(self, cwd: Path) -> HarnessBinding | None:
         """The transcript location if x-env can choose it before launch.
@@ -61,13 +63,18 @@ class Harness(Protocol):
         """The argv for this launch. `hook` is the argv prefix of
         `x-env _hook <harness> <record>`; the adapter installs it for this one
         launch only (Claude: `--settings` JSON with UserPromptSubmit and Stop
-        hooks; Codex: `-c hooks...` or `-c notify=[...]`).
+        hooks; Codex: `-c notify=[...]`).
         Headless adds `-p` / `exec` and the prompt; visible passes the prompt
         as the first message."""
 
-    def parse_hook(self, payload: Mapping[str, object]) -> list[HookFact]:
-        """Turn one hook payload into facts. Ignores subagent events
-        (`agent_id` set): subagents live in the parent's transcript."""
+    def parse_hook(self, event: str, args: Sequence[str], stdin: TextIO) -> list[HookFact]:
+        """Read one hook call and turn its payload into facts. `event` is the
+        name the adapter appended to the hook argv; `args` are the arguments
+        the harness added after it; `stdin` is the hook's stdin, read only by
+        an adapter whose harness writes the payload there (Claude reads stdin,
+        Codex reads the last argument). Raises `ValueError` for a payload that
+        does not parse. Ignores subagent events: subagents live in the
+        parent's transcript."""
 
 
 def _registry() -> dict[HarnessName, Harness]:

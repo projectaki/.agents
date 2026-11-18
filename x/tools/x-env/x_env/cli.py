@@ -28,7 +28,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from . import TOOL_DIR, _git, config as config_module, records, sessions, workspace
-from .harness import claude
+from .harness import claude, codex
 from .model import (
     Access,
     BranchRequest,
@@ -49,7 +49,7 @@ from .model import (
 )
 
 log = logging.getLogger("x_env")
-_READY_HARNESSES = [HarnessName.CLAUDE.value]  # Codex joins in step 3
+_HARNESSES = [h.value for h in HarnessName]
 _GITHUB_NAME = re.compile(r"[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+")
 
 SHELL_INIT = r"""
@@ -114,7 +114,7 @@ def _parser() -> argparse.ArgumentParser:
       wait <session id>
       shell-init
       _session --terminal <name> <record>      (internal: the session runner)
-      _hook <harness> <record> <event>         (internal: harness hooks)
+      _hook <harness> <record> <event> [<args>...]  (internal: harness hooks)
 
     Session options: --task <name> --model <m> --effort <e> --access auto|full.
     Global: --project <name>.
@@ -169,13 +169,14 @@ def _parser() -> argparse.ArgumentParser:
     hook.add_argument("harness")
     hook.add_argument("record")
     hook.add_argument("event")
+    hook.add_argument("payload", nargs="*", help="arguments the harness adds, such as Codex's notify JSON")
     hook.set_defaults(handler=cmd_hook)
     return parser
 
 
 def _session_options(parser: argparse.ArgumentParser, named: bool = False) -> None:
     if named:
-        parser.add_argument("--agent", action=_Once, required=True, choices=_READY_HARNESSES)
+        parser.add_argument("--agent", action=_Once, required=True, choices=_HARNESSES)
         parser.add_argument("--name", action=_Once, required=True, help="session name, the <name> in <nnn>-<name>")
     parser.add_argument("--prompt", action=_Once, help="the first message")
     parser.add_argument("--task", action=_Once, help="task name, instead of the current folder")
@@ -197,6 +198,11 @@ def cmd_setup(args: argparse.Namespace, cfg: config_module.Config) -> int:
         log.info(
             "Claude Code does not trust %s yet. Run claude in %s once and accept the trust prompt, "
             "so that sessions in tasks start without it.", cfg.root, cfg.root,
+        )
+    if not codex.folder_is_trusted(Path.home(), project.clone):
+        log.info(
+            "Codex does not trust %s yet. Run codex in %s once and accept the trust prompt, "
+            "so that visible Codex sessions start without it.", project.clone, project.clone,
         )
     return 0
 
@@ -265,13 +271,15 @@ def cmd_session(args: argparse.Namespace, cfg: config_module.Config) -> int:
 
 
 def cmd_hook(args: argparse.Namespace, cfg: config_module.Config) -> int:
-    """Always exits 0: for Claude, exit 2 would block the prompt or the stop."""
+    """Always exits 0: for Claude, exit 2 would block the prompt or the stop.
+    The adapter reads the payload: Claude's from stdin, Codex's from the last
+    argument."""
     record = records.SessionRecord(Path(args.record))
     try:
         harness = HarnessName(args.harness)
     except ValueError:
         return 0
-    sessions.on_hook(record, harness, args.event, sys.stdin.read())
+    sessions.on_hook(record, harness, args.event, args.payload, sys.stdin)
     return 0
 
 

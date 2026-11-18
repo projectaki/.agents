@@ -110,6 +110,16 @@ class SetupTest(CliTest):
         (self.home / ".claude.json").write_text(json.dumps(trusted))
         self.assertNotIn(warning, self.x_env("setup", "example").stderr)
 
+    def test_setup_warns_until_codex_trusts_the_clone(self):
+        warning = "Codex does not trust"
+        clone = self.project() / "repo/main"
+        self.assertIn(warning, self.x_env("setup", "example").stderr)  # no ~/.codex/config.toml
+        (self.home / ".codex").mkdir()
+        (self.home / ".codex/config.toml").write_text("not [toml")
+        self.assertIn(warning, self.x_env("setup", "example").stderr)
+        (self.home / ".codex/config.toml").write_text(f'[projects.{json.dumps(str(clone))}]\ntrust_level = "trusted"\n')
+        self.assertNotIn(warning, self.x_env("setup", "example").stderr)
+
     def test_setup_without_repository_can_add_repository_later(self):
         project = Path(self.x_env("setup", "example").stdout.strip())
         self.assertFalse((project / "repo/main").exists())

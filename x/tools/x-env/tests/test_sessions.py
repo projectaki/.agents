@@ -1,7 +1,9 @@
-"""Session integration tests: the `x-env` CLI with a fake `claude` and a fake
-`rex` on PATH (tests/fakes). The fake claude calls the `--settings` hooks
-with real payload shapes, so these tests cover the runner, the hooks, the
-records, `wait`, and `delete` stopping sessions, end to end."""
+"""Session integration tests: the `x-env` CLI with a fake `claude`, a fake
+`codex`, and a fake `rex` on PATH (tests/fakes). The fake claude calls the
+`--settings` hooks and the fake codex calls the `notify` command, each with
+real payload shapes, so these tests cover the runner, the hooks, the
+records, `wait`, and `delete` stopping sessions, end to end. The fake HOME
+has the x plugin installed in both harnesses."""
 
 import json
 import os
@@ -18,17 +20,23 @@ FAKES = Path(__file__).resolve().parent / "fakes"
 class SessionTest(CliTest):
     def setUp(self):
         super().setUp()
-        for name in ("claude", "rex"):  # never the real ones: a real rex would open tabs
+        for name in ("claude", "codex", "rex"):  # never the real ones: a real rex would open tabs
             (self.bin / name).symlink_to(FAKES / name)
         self.state = self.root / "fake-state"
         self.state.mkdir()
-        self.env.update(FAKE_CLAUDE_STATE=str(self.state), FAKE_REX_STATE=str(self.state), FAKE_REX_SERVER="0")
+        self.env.update(FAKE_CLAUDE_STATE=str(self.state), FAKE_CODEX_STATE=str(self.state),
+                        FAKE_REX_STATE=str(self.state), FAKE_REX_SERVER="0")
+        installed = self.home / ".claude/plugins/installed_plugins.json"
+        installed.parent.mkdir(parents=True)
+        installed.write_text(json.dumps({"version": 2, "plugins": {"x@amx-plugins": [{"scope": "user"}]}}))
+        (self.home / ".codex").mkdir()
+        (self.home / ".codex/config.toml").write_text('[plugins."x@amx-plugins"]\nenabled = true\n')
         self.addCleanup(self.kill_leftovers)
         self.task_dir = self.task()
         self.sessions = self.task_dir.parent.parent / "sessions"
 
     def kill_leftovers(self):
-        pids = [self.fake_claude_pid()] + [e["pid"] for r in self.sessions.glob("*/*") for e in self.events(r)
+        pids = [self.fake_pid()] + [e["pid"] for r in self.sessions.glob("*/*") for e in self.events(r)
                                            if e["event"] == "started"]
         for pid in pids:
             if pid is not None:
@@ -58,10 +66,10 @@ class SessionTest(CliTest):
     def meta(self, record):
         return json.loads((record / "session.json").read_text())
 
-    def fake_claude_argv(self):
+    def fake_argv(self):
         return json.loads((self.state / "argv.json").read_text())
 
-    def fake_claude_pid(self):
+    def fake_pid(self):
         path = self.state / "pid"
         return int(path.read_text()) if path.exists() else None
 
@@ -106,7 +114,7 @@ class RunHeadlessTest(SessionTest):
         uuid.UUID(session)
         slug = str(self.task_dir / "repo").replace("/", "-").replace(".", "-")
         self.assertEqual(launch["binding"]["transcript"], str(self.home / ".claude/projects" / slug / f"{session}.jsonl"))
-        self.assertEqual(self.fake_claude_argv()[self.fake_claude_argv().index("--session-id") + 1], session)
+        self.assertEqual(self.fake_argv()[self.fake_argv().index("--session-id") + 1], session)
 
         events = self.events(record)
         self.assertEqual([e["event"] for e in events], ["started", "turn_started", "turn_end", "exited"])
@@ -146,7 +154,7 @@ class RunHeadlessTest(SessionTest):
         self.x_env("wait", session_id, cwd=self.task_dir)
         launch = self.meta(self.record(session_id))["launch"]
         self.assertEqual((launch["access"], launch["host"]), ("full", "box"))
-        argv = self.fake_claude_argv()
+        argv = self.fake_argv()
         self.assertEqual(argv[argv.index("--permission-mode") + 1], "bypassPermissions")
 
         session_id, _ = self.start("run", "--headless", "--agent", "claude", "--name", "b", "--prompt", "x",
@@ -170,13 +178,93 @@ class RunHeadlessTest(SessionTest):
         self.assertFalse((self.sessions / "fix-login").exists())
 
 
+class CodexHeadlessTest(SessionTest):
+    def run_codex(self, *options):
+        session_id, _ = self.start("run", "--headless", "--agent", "codex", "--name", "probe",
+                                   "--prompt", "Reply PONG", *options)
+        return session_id, self.x_env("wait", session_id, cwd=self.task_dir, check=False)
+
+    def test_run_then_wait_writes_the_records(self):
+        (self.home / ".codex/config.toml").write_text(
+            'model = "gpt-6.1-sol"\n[plugins."x@amx-plugins"]\nenabled = true\n')
+        session_id, waited = self.run_codex("--effort", "high")
+        self.assertEqual(waited.returncode, 0, waited.stderr)
+        record = self.record(session_id)
+        self.assertEqual(waited.stdout.strip(), str(record / "last-turn.md"))
+
+        launch = self.meta(record)["launch"]
+        self.assertEqual(
+            (launch["harness"], launch["model"], launch["effort"], launch["access"], launch["mode"]),
+            ("codex", "gpt-6.1-sol", "high", "auto", "headless"),
+        )
+        argv = self.fake_argv()
+        self.assertEqual(argv[:2], ["exec", "--skip-git-repo-check"])
+        self.assertEqual(argv[argv.index("-m") + 1], "gpt-6.1-sol")
+        [rollout] = (self.home / ".codex/sessions").glob("*/*/*/rollout-*.jsonl")
+        thread_id = json.loads(rollout.read_text())["payload"]["id"]
+        self.assertEqual(launch["binding"], {"session_id": thread_id, "transcript": str(rollout)})
+
+        events = self.events(record)
+        self.assertEqual([e["event"] for e in events], ["started", "turn_end", "exited"])
+        self.assertEqual((events[1]["turn"], events[2]["exit_code"]), (1, 0))
+        self.assertEqual((record / "last-turn.md").read_text(), "PONG to Reply PONG")
+        output = (record / "output.log").read_text()
+        self.assertIn(f"session id: {thread_id}", output)
+        self.assertIn("PONG to Reply PONG", output)
+        self.assertNotIn("notify", output)  # the notify command exited 0 and printed nothing
+        self.assertFalse((record / "hook-error.log").exists())
+
+    def test_without_a_configured_model_codex_picks_and_the_record_says_default(self):
+        session_id, _ = self.run_codex()
+        self.assertEqual(self.meta(self.record(session_id))["launch"]["model"], "default")
+        self.assertNotIn("-m", self.fake_argv())
+
+    def test_wait_passes_a_nonzero_exit_through(self):
+        self.env["FAKE_CODEX_EXIT"] = "3"
+        session_id, waited = self.run_codex()
+        self.assertEqual(waited.returncode, 3, waited.stderr)
+        record = self.record(session_id)
+        self.assertEqual(self.kinds(record), ["started", "turn_end", "exited"])
+        self.assertEqual(self.events(record)[-1]["exit_code"], 3)
+
+    def test_missing_x_plugin_fails_before_any_record(self):
+        (self.home / ".codex/config.toml").write_text('model = "gpt-6.1-sol"\n')
+        result = self.x_env("run", "--headless", "--agent", "codex", "--name", "a", "--prompt", "x",
+                            cwd=self.task_dir, check=False)
+        self.assert_fails(result, "x plugin is not installed in Codex")
+        self.assertFalse((self.sessions / "fix-login").exists())
+
+    def test_a_turn_of_another_user_thread_adds_no_turn(self):
+        session_id, _ = self.run_codex()
+        record = self.record(session_id)
+        bound = self.meta(record)["launch"]["binding"]
+        other = "01a1ef21-0000-7000-8000-000000000000"
+        rollout = Path(bound["transcript"]).with_name(f"rollout-2026-11-18T00-00-00-{other}.jsonl")
+        rollout.write_text(json.dumps({"type": "session_meta", "payload": {"thread_source": "user"}}) + "\n")
+        payload = {"type": "agent-turn-complete", "thread-id": other, "last-assistant-message": "other"}
+        hook = self.x_env("_hook", "codex", record, "notify", json.dumps(payload))
+        self.assertEqual((hook.returncode, hook.stdout), (0, ""))
+        self.assertIn("already bound", (record / "hook-error.log").read_text())
+        self.assertEqual(self.meta(record)["launch"]["binding"], bound)
+        self.assertEqual(self.kinds(record), ["started", "turn_end", "exited"])
+        self.assertEqual((record / "last-turn.md").read_text(), "PONG to Reply PONG")
+
+    def test_a_bad_notify_payload_is_logged_and_the_hook_exits_0(self):
+        session_id, _ = self.run_codex()
+        record = self.record(session_id)
+        hook = self.x_env("_hook", "codex", record, "notify", "not json")
+        self.assertEqual((hook.returncode, hook.stdout), (0, ""))
+        self.assertIn("JSONDecodeError", (record / "hook-error.log").read_text())
+        self.assertEqual(self.kinds(record), ["started", "turn_end", "exited"])
+
+
 class DeleteStopsSessionsTest(SessionTest):
     def test_delete_stops_a_running_headless_session(self):
         self.env["FAKE_CLAUDE_SLEEP"] = "60"
         session_id, _ = self.start("run", "--headless", "--agent", "claude", "--name", "probe", "--prompt", "x")
         record = self.record(session_id)
         self.wait_until(lambda: "turn_started" in self.kinds(record))
-        claude_pid = self.fake_claude_pid()
+        claude_pid = self.fake_pid()
         runner_pid = self.events(record)[0]["pid"]
         self.assertTrue(self.alive(claude_pid))
 
@@ -203,7 +291,7 @@ class VisibleTest(SessionTest):
         self.assertEqual(self.x_env("wait", session_id, cwd=self.task_dir).returncode, 0)
         record = self.record(session_id)
         self.assertEqual(self.meta(record)["launch"]["mode"], "headless")
-        self.assertIn("-p", self.fake_claude_argv())
+        self.assertIn("-p", self.fake_argv())
         self.assertEqual(self.events(record)[0]["terminal"], "none")
         self.assertFalse((self.state / "server-started").exists())
 
@@ -219,8 +307,8 @@ class VisibleTest(SessionTest):
         record = self.record(session_id)
         self.wait_until(lambda: "turn_started" in self.kinds(record))
         self.assertEqual(self.meta(record)["launch"]["mode"], "visible")
-        self.assertNotIn("-p", self.fake_claude_argv())
-        self.assertEqual(self.fake_claude_argv()[-2:], ["--", "hi"])
+        self.assertNotIn("-p", self.fake_argv())
+        self.assertEqual(self.fake_argv()[-2:], ["--", "hi"])
         started_event = self.events(record)[0]
         self.assertEqual((started_event["terminal"], started_event["terminal_handle"]), ("rex", "session:fake-1"))
         [new] = [call for call in self.rex_calls() if "new" in call]
@@ -232,6 +320,19 @@ class VisibleTest(SessionTest):
         self.assertEqual(self.events(record)[-1]["exit_code"], 128 + signal.SIGHUP)
         self.assertFalse((self.state / "server-started").exists())
 
+    def test_codex_agent_in_rex_opens_the_ui_and_records_the_turn(self):
+        self.env["FAKE_REX_SERVER"] = "1"
+        session_id, _ = self.start("agent", "--agent", "codex", "--name", "helper", "--prompt", "hi")
+        self.x_env("wait", session_id, cwd=self.task_dir)
+        record = self.record(session_id)
+        self.assertEqual(self.meta(record)["launch"]["mode"], "visible")
+        argv = self.fake_argv()
+        self.assertNotIn("exec", argv)
+        self.assertEqual(argv[-2:], ["--", "hi"])
+        self.assertEqual(self.kinds(record), ["started", "turn_end", "exited"])  # the title thread adds no turn
+        self.assertEqual((record / "last-turn.md").read_text(), "PONG to hi")
+        self.assertFalse((record / "hook-error.log").exists())
+
     def test_chief_sends_x_go_with_the_prompt(self):
         self.env["FAKE_REX_SERVER"] = "1"
         session_id, _ = self.start("chief", "--prompt", "fix the login bug")
@@ -239,6 +340,5 @@ class VisibleTest(SessionTest):
         self.x_env("wait", session_id, cwd=self.task_dir)
         meta = self.meta(self.record(session_id))
         self.assertEqual((meta["launch"]["mode"], meta["launch"]["prompt"]), ("visible", "/x:go fix the login bug"))
-        argv = self.fake_claude_argv()
+        argv = self.fake_argv()
         self.assertEqual(argv[-2:], ["--", "/x:go fix the login bug"])
-        self.assertEqual(argv[argv.index("--plugin-dir") + 1], str(Path(__file__).resolve().parents[3]))
