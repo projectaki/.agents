@@ -5,6 +5,8 @@ description: Adversaries try to break a change or a design, and only findings th
 
 # Interrogate
 
+Before you start, read the adapter skill for your harness, such as `../adapter-claude-code/SKILL.md` from this file. It maps the capability words in this skill, such as "worktree subagent", to your harness's tools.
+
 Adversaries try to break a change or a design. A finding survives only when a run proves it. Report the findings. Do not apply fixes.
 
 ## Frame

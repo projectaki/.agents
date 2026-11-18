@@ -6,6 +6,8 @@ disable-model-invocation: true
 
 # Create a verification skill
 
+Before you start, read the adapter skill for your harness, such as `../adapter-claude-code/SKILL.md` from this file. It maps the capability words in this skill, such as "project skill folder", to your harness's tools. The capabilities reference is `../go/references/capabilities.md`.
+
 Every serious project needs a scripted way to drive the real app and prove behavior: launch it, exercise a feature the way a user would, and capture evidence. This skill generates that as a project-local skill, `verify-<app>/` in the project skill folder (see the capabilities reference), tailored to the repo. You write the generator's output for the next agent, not for a human: it will be read cold, mid-task, by an agent that has never seen the app.
 
 ## 1. Interview the repo, not the user

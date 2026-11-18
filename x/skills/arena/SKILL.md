@@ -5,6 +5,8 @@ description: Spawn several candidates in parallel at the same task, pick a base,
 
 # Arena
 
+Before you start, read the adapter skill for your harness, such as `../adapter-claude-code/SKILL.md` from this file. It maps the capability words in this skill, such as "fresh subagent", to your harness's tools. The delegation reference is `../go/references/delegation.md`.
+
 Before you start anything, open a todo list with one item for each phase: Frame, Fan out, Cross-judge, Pick, Graft, Verify.
 
 ## Phase A: Frame

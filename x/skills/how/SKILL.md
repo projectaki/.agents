@@ -5,6 +5,8 @@ description: Explain how code works, before a change or for onboarding, and answ
 
 # How
 
+Before you start, read the adapter skill for your harness, such as `../adapter-claude-code/SKILL.md` from this file. It maps the capability words in this skill, such as "fresh subagent", to your harness's tools.
+
 Explore the codebase to answer a "how does X work?" question.
 
 If the scope is unclear, state how you read it and start. The user can redirect you.

@@ -62,6 +62,12 @@ These skills run only when you type them:
 
 The other skills, such as `verify`, `architect`, `arena`, `interrogate`, `clean-text`, and `clean-code`, run when `/x:go` calls them or when the agent matches a request to their description. Each skill's `description` field says when it applies.
 
+## Build your own workflow
+
+`/x:go` runs a full workflow from a playbook. Playbooks run only through `/x:go`. To build your own workflow, call the skills and `brain` directly in the order that you want, for example `/x:how`, then `/x:architect`, then `/x:interrogate`. Each skill that starts subagents tells the agent to read the adapter for its harness first, so it works without `/x:go`.
+
+Without `/x:go`, nothing applies the triggers in `skills/go/SKILL.md`. Ask for each step that you want, such as `clean-code` before a commit or `verify` after a UI change.
+
 ## Where things are
 
 - `skills/go/SKILL.md` has the triggers and the playbook index. Rules about how the agent works go here.
