@@ -8,6 +8,7 @@ disable-model-invocation: true
 
 ## Non-negotiables
 
+- Before any other step, read the adapter skill for the harness that you run in: `../adapter-claude-code/SKILL.md`, `../adapter-codex/SKILL.md`, or `../adapter-cursor/SKILL.md` from this file. If none matches, use the [capabilities](references/capabilities.md) with the tools that you have, and say so.
 - In each reply, name each principle that shaped a decision. State the specific choice that it changed.
 - Before your first decision, read the **brain** skill at `../brain/SKILL.md` from this file. Then read each principle file that applies to the task.
 - Name only principles whose file you read in this session.
@@ -36,6 +37,7 @@ disable-model-invocation: true
 Each reference is a file in `references/` next to this file. Read a reference when its condition applies.
 
 - [Approval for exceptions](references/approval-for-exceptions.md): read before you deviate from a standard, use a temporary workaround, or build on an uncertain design.
+- [Capabilities](references/capabilities.md): read before you write or change a skill in the x plugin.
 - [Delegation](references/delegation.md): read before you hand work to another agent.
 - [File search](references/file-search.md): read before you search files in a git repository.
 
