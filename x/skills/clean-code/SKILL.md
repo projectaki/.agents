@@ -7,11 +7,15 @@ description: Check the diff before each commit and remove code that a careful en
 
 Read the diff that you are about to commit, or the files that the caller names. Change only lines in that diff. Fix what you find. Do not only report it.
 
+- Keep the behavior the same, unless you fix a clear bug.
+- Make small, focused edits. Do not rewrite broadly.
+
 ## Remove
 
-- **Comments that the code can say.** Narration of the next line, banners, commented-out code, and notes about the change itself, such as "added", "now uses", or "fix for". If a comment explains a surprise in our own code, remove the surprise: rename, extract a function, or change a type. Then delete the comment.
+- **Comments that the code can say.** Narration of the next line, banners, commented-out code, and notes about the change itself, such as "added", "now uses", or "fix for". If a comment explains a surprise in our own code and a local rename removes the surprise, rename and delete the comment. If it needs a bigger change, delete the comment and report the surprise as open.
 - **Defensive code that cannot trigger.** A null check, a try/catch, or a fallback for a value that the types or a validated caller already guarantee, according to the boundary-discipline principle. Keep guards at real boundaries.
 - **Type-checker escapes.** `any`, `as` casts, non-null `!`, `@ts-ignore`, `@ts-expect-error`, and lint suppressions. Fix the type or the code. Keep a suppression only when its rule is style-only or wrong for this line.
+- **Deep nesting.** Use early returns.
 - **Style that does not match the file.** Naming, error handling, imports, and structure that differ from the code around them. Copy the file's pattern.
 - **Leftovers.** Debug logs, unused code, unused parameters, and dead branches that the change created.
 
@@ -26,4 +30,4 @@ When you are not sure that a keep applies, delete the comment. Before you delete
 
 ## Report
 
-One to three sentences: what you removed, and what you could not fix inside the diff.
+One to three sentences: what you removed, and each surprise or problem that you could not fix inside the diff.
