@@ -28,6 +28,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from . import TOOL_DIR, _git, config as config_module, records, sessions, workspace
+from .harness import claude
 from .model import (
     Access,
     BranchRequest,
@@ -47,6 +48,7 @@ from .model import (
     feature_branch,
 )
 
+log = logging.getLogger("x_env")
 _READY_HARNESSES = [HarnessName.CLAUDE.value]  # Codex joins in step 3
 _GITHUB_NAME = re.compile(r"[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+")
 
@@ -191,6 +193,11 @@ def cmd_setup(args: argparse.Namespace, cfg: config_module.Config) -> int:
     source = parse_repo_source(args.repository, Path.cwd()) if args.repository is not None else None
     project = workspace.setup(cfg.root, name, source)
     print(project.path)
+    if not claude.folder_is_trusted(Path.home(), cfg.root):
+        log.info(
+            "Claude Code does not trust %s yet. Run claude in %s once and accept the trust prompt, "
+            "so that sessions in tasks start without it.", cfg.root, cfg.root,
+        )
     return 0
 
 

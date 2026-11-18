@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from x_env.harness import TurnBegan, TurnFinished
-from x_env.harness.claude import Claude, transcript_path
+from x_env.harness.claude import Claude, is_trusted, transcript_path
 from x_env.model import Access, HarnessName, ProjectName, SessionId, SessionName, TaskName
 from x_env.records import SCHEMA, HarnessBinding, LaunchFacts, SessionMeta
 
@@ -134,3 +134,26 @@ class TranscriptPathTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TrustTest(unittest.TestCase):
+    ROOT = Path("/home/u/work")
+
+    def test_trusted_root(self):
+        config = {"projects": {"/home/u/work": {"hasTrustDialogAccepted": True}}}
+        self.assertTrue(is_trusted(config, self.ROOT))
+
+    def test_trusted_parent(self):
+        config = {"projects": {"/home/u": {"hasTrustDialogAccepted": True}}}
+        self.assertTrue(is_trusted(config, self.ROOT))
+
+    def test_untrusted(self):
+        config = {"projects": {"/home/other": {"hasTrustDialogAccepted": True}}}
+        self.assertFalse(is_trusted(config, self.ROOT))
+
+    def test_trust_false(self):
+        config = {"projects": {"/home/u/work": {"hasTrustDialogAccepted": False}}}
+        self.assertFalse(is_trusted(config, self.ROOT))
+
+    def test_missing_projects_key(self):
+        self.assertFalse(is_trusted({}, self.ROOT))

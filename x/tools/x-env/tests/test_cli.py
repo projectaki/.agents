@@ -2,6 +2,7 @@
 local-file copying, delete). They drive the `x-env` CLI against real
 temporary git repositories in a temporary X_ENV_ROOT."""
 
+import json
 import os
 import resource
 import shutil
@@ -99,6 +100,15 @@ class SetupTest(CliTest):
         self.assertEqual(self.x_env("setup", "example").stdout.strip(), str(project))
         self.assertTrue((project / "tasks").is_dir())
         self.assertTrue((project / "sessions").is_dir())
+
+    def test_setup_warns_until_claude_trusts_the_root(self):
+        warning = "Claude Code does not trust"
+        self.assertIn(warning, self.x_env("setup", "example").stderr)  # no ~/.claude.json
+        (self.home / ".claude.json").write_text("not json")
+        self.assertIn(warning, self.x_env("setup", "example").stderr)
+        trusted = {"projects": {str(self.root): {"hasTrustDialogAccepted": True}}}
+        (self.home / ".claude.json").write_text(json.dumps(trusted))
+        self.assertNotIn(warning, self.x_env("setup", "example").stderr)
 
     def test_setup_without_repository_can_add_repository_later(self):
         project = Path(self.x_env("setup", "example").stdout.strip())

@@ -34,6 +34,28 @@ def transcript_path(home: Path, cwd: Path, session_id: str) -> Path:
     return home / ".claude" / "projects" / slug / f"{session_id}.jsonl"
 
 
+def is_trusted(config: object, folder: Path) -> bool:
+    """Pure. True when `folder` or a parent has `hasTrustDialogAccepted: true`
+    in the parsed `~/.claude.json` (`{"projects": {"<path>": {...}}}`)."""
+    projects = config.get("projects") if isinstance(config, dict) else None
+    if not isinstance(projects, dict):
+        return False
+    return any(
+        isinstance(projects.get(str(path)), dict) and projects[str(path)].get("hasTrustDialogAccepted") is True
+        for path in (folder, *folder.parents)
+    )
+
+
+def folder_is_trusted(home: Path, folder: Path) -> bool:
+    """Reads `<home>/.claude.json`, never writes it. A missing or unreadable
+    file, or bad JSON, counts as not trusted."""
+    try:
+        config = json.loads((home / ".claude.json").read_text())
+    except (OSError, ValueError):
+        return False
+    return is_trusted(config, folder)
+
+
 class Claude:
     name = HarnessName.CLAUDE
 
