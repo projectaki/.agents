@@ -1,7 +1,0 @@
-{
-  "name": "x",
-  "version": "0.1.0",
-  "description": "Personal skills and workflows",
-  "author": { "name": "akos" },
-  "skills": "./skills/"
-}
