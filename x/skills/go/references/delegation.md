@@ -22,7 +22,7 @@ When the work needs a model from another vendor, run it as a background shell co
 
 ## Visible session
 
-A new x-env session in a new Rex tab. The user can watch it, steer it, and talk to it.
+A new x-env session in a new Rex tab. The user can watch it, steer it, and talk to it. Start it with `x-env agent`, as the **x-env** skill says.
 
 Use it only when:
 - the user may need to see, steer, or answer the agent

@@ -6,6 +6,8 @@ disable-model-invocation: true
 
 # Codex adapter
 
+Codex runs a copy of the x plugin. After an x skill changes, refresh the copy with `codex plugin add x@amx-plugins`. Codex sessions that already run keep the old copy.
+
 | Capability | In Codex |
 | --- | --- |
 | Background subagent | The subagent spawn tool. |

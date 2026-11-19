@@ -10,8 +10,8 @@ Sources (later wins: defaults, file, environment):
 
   - `X_ENV_ROOT`, default `~/work`. An empty value counts as unset.
 
-Later steps add `[this] checkout_is_task` and `[hosts.<label>]` (transport,
-target) for `--host`. Until then, other keys are ignored.
+Later steps add `[this] checkout_is_task`. Until then, other keys are
+ignored. `--host` needs no config: its value goes to Rex as `-S`.
 """
 
 from __future__ import annotations
@@ -21,16 +21,9 @@ import tomllib
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 from .model import Access, XEnvError
-
-
-@dataclass(frozen=True)
-class HostConfig:
-    label: str
-    transport: Literal["rex"]
-    target: str
 
 
 @dataclass(frozen=True)

@@ -8,7 +8,9 @@ are private to the package.
 from pathlib import Path
 
 TOOL_DIR = Path(__file__).resolve().parent.parent
-"""`<x plugin>/tools/x-env`, the folder that `shell-init` adds to PATH."""
+"""`<x plugin>/tools/x-env`. Resolved, so it is the versioned folder even
+when x-env runs through the `~/.local/bin/x-env` link."""
 
 ENTRY = TOOL_DIR / "x-env"
-"""The entry script. Runner and hook commands call it by absolute path."""
+"""The entry script. Runner and hook commands call it by absolute path, and
+`install` links `~/.local/bin/x-env` to it."""

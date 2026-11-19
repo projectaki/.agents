@@ -281,11 +281,13 @@ class TaskTest(CliTest):
         self.assertEqual(list(outside.iterdir()), [])
 
     def test_shell_integration_changes_directory_only_after_success(self):
+        """Through what `install` sets up: the link on PATH and the .bashrc block."""
+        self.x_env("install")
         shells = ["bash"] + (["zsh"] if shutil.which("zsh") else [])
         for shell in shells:
             with self.subTest(shell=shell):
                 result = self.run_command(shell, "-c", '''
-eval "$("$1" shell-init)"
+. "$HOME/.bashrc"
 x-env setup example "$2" || exit
 pwd -P
 x-env task fix-login --base export || exit

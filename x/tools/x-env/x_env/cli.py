@@ -3,8 +3,11 @@
 Output contract (the shell function and skills rely on it):
   - stdout: only the result a caller captures. `setup` and `task` print one
     absolute folder path; `chief`, `agent`, and `run` print the session id;
-    `wait` prints the last-turn.md path; `shell-init` prints shell code.
+    `wait` prints the last-turn.md path; `shell-init` prints shell code;
+    `install` prints nothing (its changes are progress).
     `_hook` prints nothing, because Claude reads a hook's stdout.
+  - `--host <host>`: the same contract, with the remote command's stdout,
+    stderr, and exit status (see `host`).
   - stderr: progress and errors, each line `x-env: <message>`.
   - exit: 0 ok, 1 `XEnvError`, 2 `UsageError` and argument errors. `wait`
     exits with the session's exit code; `_session` with the harness's;
@@ -22,12 +25,11 @@ import functools
 import logging
 import os
 import re
-import shlex
 import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from . import TOOL_DIR, _git, config as config_module, records, sessions, workspace
+from . import ENTRY, _git, config as config_module, host as hosts, install, records, sessions, workspace
 from .harness import claude, codex
 from .model import (
     Access,
@@ -65,22 +67,62 @@ x-env() {
 }
 """
 """`setup` and `task` print a folder; the function enters it only on success.
-With a global option first (`--project`), `$1` is that option, so the folder
-is not entered."""
+With a global option first (`--project`, `--host`), `$1` is that option, so
+the folder is not entered. It calls `x-env` by name, which `install` links
+into `~/.local/bin`, so it survives a plugin update."""
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Entry point: parse, then dispatch to one handler."""
     _configure_logging()
+    argv = list(sys.argv[1:] if argv is None else argv)
     args = _parser().parse_args(argv)
     try:
-        return args.handler(args, config_module.load(os.environ, Path.home()))
+        if args.host is not None:
+            return _forward(args, argv)
+        if args.forwarded:
+            os.chdir(Path.home())  # the remote side resolves paths from its home folder
+            with hosts.marked_stdout():
+                return _dispatch(args)
+        return _dispatch(args)
     except UsageError as error:
         print(f"x-env: {error}", file=sys.stderr)
         return 2
     except XEnvError as error:
         print(f"x-env: {error}", file=sys.stderr)
         return 1
+
+
+def _dispatch(args: argparse.Namespace) -> int:
+    return args.handler(args, config_module.load(os.environ, Path.home()))
+
+
+def _forward(args: argparse.Namespace, argv: Sequence[str]) -> int:
+    """Run the command on `--host`, after it parsed here, so a typo fails
+    before anything reaches the host."""
+    if args.command in ("install", "shell-init"):
+        raise UsageError(f"{args.command} acts only on the machine it runs on. Run it on the host itself, without --host.")
+    try:
+        return hosts.forward(args.host, args.command, _without_host(argv), sys.stdout, sys.stderr)
+    except KeyboardInterrupt:
+        return 130
+
+
+def _without_host(argv: Sequence[str]) -> list[str]:
+    """`argv` without the global `--host <host>` (or `--host=<host>`). Only
+    global options come before the command, and `allow_abbrev=False` means
+    no other spelling parses."""
+    rest = list(argv)
+    kept: list[str] = []
+    while rest and rest[0].startswith("-"):
+        option = rest.pop(0)
+        if option == "--host":
+            rest.pop(0)
+        elif not option.startswith("--host="):
+            kept.append(option)
+            if option == "--project":
+                kept.append(rest.pop(0))
+    return kept + rest
 
 
 def _configure_logging() -> None:
@@ -113,14 +155,20 @@ def _parser() -> argparse.ArgumentParser:
       run --headless --agent <harness> --name <n> --prompt <p> [session options]
       wait <session id>
       shell-init
+      install                                  (links ~/.local/bin/x-env; edits ~/.bashrc, ~/.profile)
       _session --terminal <name> <record>      (internal: the session runner)
       _hook <harness> <record> <event> [<args>...]  (internal: harness hooks)
 
     Session options: --task <name> --model <m> --effort <e> --access auto|full.
-    Global: --project <name>.
+    Global: --project <name>, --host <host> (a Rex host label or address).
     """
-    parser = argparse.ArgumentParser(prog="x-env", description="Task environments for the x plugin.")
+    parser = argparse.ArgumentParser(
+        prog="x-env", description="Task environments for the x plugin.", allow_abbrev=False,
+    )
     parser.add_argument("--project", action=_Once, help="project name, instead of the current folder")
+    parser.add_argument("--host", action=_Once,
+                        help="run the command on this machine: a Rex host label or server address")
+    parser.add_argument("--forwarded", action="store_true", help=argparse.SUPPRESS)  # set by --host
     commands = parser.add_subparsers(dest="command", required=True, metavar="command")
 
     setup = commands.add_parser("setup", help="create a project and clone its repository once")
@@ -157,8 +205,11 @@ def _parser() -> argparse.ArgumentParser:
     wait.add_argument("session")
     wait.set_defaults(handler=cmd_wait)
 
-    shell_init = commands.add_parser("shell-init", help="print shell code: PATH and the x-env function")
+    shell_init = commands.add_parser("shell-init", help="print shell code: the x-env function")
     shell_init.set_defaults(handler=cmd_shell_init)
+
+    install_command = commands.add_parser("install", help="make x-env a command on this machine")
+    install_command.set_defaults(handler=cmd_install)
 
     runner = commands.add_parser("_session")
     runner.add_argument("--terminal", required=True)
@@ -280,10 +331,15 @@ def cmd_hook(args: argparse.Namespace, cfg: config_module.Config) -> int:
 
 
 def cmd_shell_init(args: argparse.Namespace, cfg: config_module.Config) -> int:
-    """Prints a PATH line that adds the tool folder once, and `SHELL_INIT`."""
-    directory = shlex.quote(str(TOOL_DIR))
-    print(f'case ":$PATH:" in *:{directory}:*) ;; *) export PATH={directory}:"$PATH" ;; esac')
+    """Prints `SHELL_INIT`. PATH is install's job: a PATH entry for the
+    versioned plugin folder would go stale on the next plugin update."""
     print(SHELL_INIT.strip())
+    return 0
+
+
+def cmd_install(args: argparse.Namespace, cfg: config_module.Config) -> int:
+    for change in install.install(Path.home(), ENTRY):
+        log.info("%s", change)
     return 0
 
 
