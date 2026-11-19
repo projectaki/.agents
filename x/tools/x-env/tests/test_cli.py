@@ -101,14 +101,15 @@ class SetupTest(CliTest):
         self.assertTrue((project / "tasks").is_dir())
         self.assertTrue((project / "sessions").is_dir())
 
-    def test_setup_warns_until_claude_trusts_the_root(self):
-        warning = "Claude Code does not trust"
-        self.assertIn(warning, self.x_env("setup", "example").stderr)  # no ~/.claude.json
-        (self.home / ".claude.json").write_text("not json")
-        self.assertIn(warning, self.x_env("setup", "example").stderr)
-        trusted = {"projects": {str(self.root): {"hasTrustDialogAccepted": True}}}
-        (self.home / ".claude.json").write_text(json.dumps(trusted))
-        self.assertNotIn(warning, self.x_env("setup", "example").stderr)
+    def test_setup_does_not_mention_claude_trust(self):
+        self.assertNotIn("Claude Code does not trust", self.x_env("setup", "example").stderr)
+
+    def test_task_trusts_the_worktree_in_claude(self):
+        (self.home / ".claude.json").write_text(json.dumps({"theme": "dark"}))
+        worktree = self.task().resolve()
+        config = json.loads((self.home / ".claude.json").read_text())
+        self.assertEqual(config["theme"], "dark")
+        self.assertIs(config["projects"][str(worktree / "repo")]["hasTrustDialogAccepted"], True)
 
     def test_setup_warns_until_codex_trusts_the_clone(self):
         warning = "Codex does not trust"

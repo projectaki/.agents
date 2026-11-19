@@ -194,11 +194,6 @@ def cmd_setup(args: argparse.Namespace, cfg: config_module.Config) -> int:
     source = parse_repo_source(args.repository, Path.cwd()) if args.repository is not None else None
     project = workspace.setup(cfg.root, name, source)
     print(project.path)
-    if not claude.folder_is_trusted(Path.home(), cfg.root):
-        log.info(
-            "Claude Code does not trust %s yet. Run claude in %s once and accept the trust prompt, "
-            "so that sessions in tasks start without it.", cfg.root, cfg.root,
-        )
     if not codex.folder_is_trusted(Path.home(), project.clone):
         log.info(
             "Codex does not trust %s yet. Run codex in %s once and accept the trust prompt, "
@@ -212,6 +207,7 @@ def cmd_task(args: argparse.Namespace, cfg: config_module.Config) -> int:
     request = branch_request(name, args.base, args.onto, args.branch)
     project = workspace.find_project(Path.cwd(), cfg.root, _optional_project(args.project))
     task = workspace.open_task(project, name, request)
+    claude.trust_folder(Path.home(), task.source)
     print(task.dir)
     return 0
 

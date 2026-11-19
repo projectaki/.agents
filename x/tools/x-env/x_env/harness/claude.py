@@ -12,9 +12,13 @@ passed it (`fx/agents/claude_access.py`): `auto` -> `--permission-mode auto`;
 
 from __future__ import annotations
 
+import copy
 import json
+import logging
+import os
 import shlex
 import shutil
+import tempfile
 import uuid
 from collections.abc import Sequence
 from pathlib import Path
@@ -24,6 +28,9 @@ from ..model import Access, HarnessName, XEnvError
 from ..records import HarnessBinding, SessionMeta
 from . import Command, HookFact, TurnBegan, TurnFinished
 
+log = logging.getLogger("x_env")
+
+TRUST_ATTEMPTS = 3
 HOOK_EVENTS = ("UserPromptSubmit", "Stop")
 _PERMISSION_MODE = {Access.AUTO: "auto", Access.FULL: "bypassPermissions"}
 
@@ -35,15 +42,26 @@ def transcript_path(home: Path, cwd: Path, session_id: str) -> Path:
 
 
 def is_trusted(config: object, folder: Path) -> bool:
-    """Pure. True when `folder` or a parent has `hasTrustDialogAccepted: true`
-    in the parsed `~/.claude.json` (`{"projects": {"<path>": {...}}}`)."""
+    """Pure. True when `folder` itself has `hasTrustDialogAccepted: true` in the
+    parsed `~/.claude.json` (`{"projects": {"<path>": {...}}}`). A parent does
+    not count: a git repository root asks for its own trust."""
     projects = config.get("projects") if isinstance(config, dict) else None
+    entry = projects.get(str(folder)) if isinstance(projects, dict) else None
+    return isinstance(entry, dict) and entry.get("hasTrustDialogAccepted") is True
+
+
+def with_trust(config: dict[str, Any], folder: Path) -> dict[str, Any]:
+    """Pure. A copy of the parsed `~/.claude.json` with `folder` trusted. Every
+    other key and project entry stays."""
+    result = copy.deepcopy(config)
+    projects = result.get("projects")
     if not isinstance(projects, dict):
-        return False
-    return any(
-        isinstance(projects.get(str(path)), dict) and projects[str(path)].get("hasTrustDialogAccepted") is True
-        for path in (folder, *folder.parents)
-    )
+        projects = result["projects"] = {}
+    entry = projects.get(str(folder))
+    if not isinstance(entry, dict):
+        entry = projects[str(folder)] = {}
+    entry["hasTrustDialogAccepted"] = True
+    return result
 
 
 def has_x_plugin(installed: object) -> bool:
@@ -66,14 +84,39 @@ def x_plugin_installed(home: Path) -> bool:
     return has_x_plugin(installed)
 
 
-def folder_is_trusted(home: Path, folder: Path) -> bool:
-    """Reads `<home>/.claude.json`, never writes it. A missing or unreadable
-    file, or bad JSON, counts as not trusted."""
+def trust_folder(home: Path, folder: Path) -> None:
+    """Makes `<home>/.claude.json` trust `folder` (resolved), so that Claude
+    Code starts there without the trust prompt. Running Claude processes also
+    rewrite the file, so each attempt writes a temp file, replaces the file,
+    reads it back, and retries when another writer lost the entry. Never
+    raises: a problem logs one warning line."""
+    path = home / ".claude.json"
+    folder = folder.resolve()
     try:
-        config = json.loads((home / ".claude.json").read_text())
-    except (OSError, ValueError):
-        return False
-    return is_trusted(config, folder)
+        for _ in range(TRUST_ATTEMPTS):
+            try:
+                text = path.read_text()
+            except FileNotFoundError:
+                config, mode = {}, 0o600
+            else:
+                config, mode = json.loads(text), path.stat().st_mode & 0o7777
+                if not isinstance(config, dict):
+                    raise ValueError("not a JSON object")
+            if is_trusted(config, folder):
+                return
+            with tempfile.NamedTemporaryFile("w", dir=home, prefix=".claude.json.", delete=False) as temp:
+                json.dump(with_trust(config, folder), temp, indent=2)
+            try:
+                os.chmod(temp.name, mode)
+                os.replace(temp.name, path)
+            except BaseException:
+                os.unlink(temp.name)
+                raise
+            if is_trusted(json.loads(path.read_text()), folder):
+                return
+        log.warning("Claude Code trust for %s was overwritten by another writer; it may ask for trust.", folder)
+    except (OSError, ValueError) as error:
+        log.warning("Could not write Claude Code trust for %s in %s: %s", folder, path, error)
 
 
 class Claude:

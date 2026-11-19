@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from x_env.harness import TurnBegan, TurnFinished
-from x_env.harness.claude import Claude, is_trusted, transcript_path
+from x_env.harness.claude import Claude, is_trusted, transcript_path, trust_folder, with_trust
 from x_env.model import Access, HarnessName, XEnvError, ProjectName, SessionId, SessionName, TaskName
 from x_env.records import SCHEMA, HarnessBinding, LaunchFacts, SessionMeta
 
@@ -153,9 +153,9 @@ class TrustTest(unittest.TestCase):
         config = {"projects": {"/home/u/work": {"hasTrustDialogAccepted": True}}}
         self.assertTrue(is_trusted(config, self.ROOT))
 
-    def test_trusted_parent(self):
+    def test_parent_does_not_count(self):
         config = {"projects": {"/home/u": {"hasTrustDialogAccepted": True}}}
-        self.assertTrue(is_trusted(config, self.ROOT))
+        self.assertFalse(is_trusted(config, self.ROOT))
 
     def test_untrusted(self):
         config = {"projects": {"/home/other": {"hasTrustDialogAccepted": True}}}
@@ -167,6 +167,87 @@ class TrustTest(unittest.TestCase):
 
     def test_missing_projects_key(self):
         self.assertFalse(is_trusted({}, self.ROOT))
+
+
+class WithTrustTest(unittest.TestCase):
+    FOLDER = Path("/w/p/tasks/t/repo")
+
+    def test_new_file(self):
+        self.assertEqual(with_trust({}, self.FOLDER), {"projects": {str(self.FOLDER): {"hasTrustDialogAccepted": True}}})
+
+    def test_new_entry_keeps_other_projects_and_keys(self):
+        config = {"a": 1, "projects": {"/other": {"x": 1}}}
+        result = with_trust(config, self.FOLDER)
+        self.assertEqual(result["a"], 1)
+        self.assertEqual(result["projects"]["/other"], {"x": 1})
+        self.assertTrue(result["projects"][str(self.FOLDER)]["hasTrustDialogAccepted"])
+        self.assertNotIn(str(self.FOLDER), config["projects"])
+
+    def test_existing_entry_keeps_other_keys(self):
+        config = {"projects": {str(self.FOLDER): {"hasTrustDialogAccepted": False, "allowedTools": ["x"]}}}
+        entry = with_trust(config, self.FOLDER)["projects"][str(self.FOLDER)]
+        self.assertEqual(entry, {"hasTrustDialogAccepted": True, "allowedTools": ["x"]})
+
+
+class TrustFolderTest(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.home = Path(temporary.name).resolve()
+        self.folder = self.home / "w" / "repo"
+        self.path = self.home / ".claude.json"
+
+    def config(self):
+        return json.loads(self.path.read_text())
+
+    def test_creates_the_file_with_only_projects(self):
+        trust_folder(self.home, self.folder)
+        self.assertEqual(self.config(), {"projects": {str(self.folder): {"hasTrustDialogAccepted": True}}})
+
+    def test_keeps_other_keys_and_permissions(self):
+        self.path.write_text(json.dumps({"theme": "dark"}))
+        self.path.chmod(0o640)
+        trust_folder(self.home, self.folder)
+        self.assertEqual(self.config()["theme"], "dark")
+        self.assertTrue(self.config()["projects"][str(self.folder)]["hasTrustDialogAccepted"])
+        self.assertEqual(self.path.stat().st_mode & 0o777, 0o640)
+        self.assertEqual([p.name for p in self.home.iterdir()], [".claude.json"])
+
+    def test_bad_json_is_untouched(self):
+        for text in ("not json", "[1]"):
+            self.path.write_text(text)
+            with self.assertLogs("x_env", "WARNING") as logs:
+                trust_folder(self.home, self.folder)
+            self.assertEqual(len(logs.records), 1)
+            self.assertEqual(self.path.read_text(), text)
+
+    def test_already_trusted_leaves_the_file_alone(self):
+        self.path.write_text(json.dumps({"projects": {str(self.folder): {"hasTrustDialogAccepted": True}}}))
+        os.utime(self.path, (1000, 1000))
+        trust_folder(self.home, self.folder)
+        self.assertEqual(self.path.stat().st_mtime, 1000)
+
+    def test_retries_when_another_writer_loses_the_change(self):
+        real, calls = os.replace, []
+
+        def lossy(source, destination):
+            calls.append(source)
+            if len(calls) == 1:
+                os.unlink(source)  # the other writer wins: our change is lost
+                self.path.write_text("{}")
+            else:
+                real(source, destination)
+
+        with mock.patch("os.replace", lossy):
+            trust_folder(self.home, self.folder)
+        self.assertEqual(len(calls), 2)
+        self.assertTrue(self.config()["projects"][str(self.folder)]["hasTrustDialogAccepted"])
+
+    def test_gives_up_with_one_warning(self):
+        with mock.patch("os.replace", lambda s, d: os.unlink(s)), self.assertLogs("x_env", "WARNING") as logs:
+            self.path.write_text("{}")
+            trust_folder(self.home, self.folder)
+        self.assertEqual(len(logs.records), 1)
 
 
 class CheckTest(unittest.TestCase):
