@@ -284,6 +284,63 @@ class DeleteStopsSessionsTest(SessionTest):
         self.assertNotIn("Stopping", deleted.stderr)
 
 
+class ListSessionsTest(SessionTest):
+    def run_and_wait(self, task_dir, harness):
+        session_id = self.x_env("run", "--headless", "--agent", harness, "--name", "probe", "--prompt", "x",
+                                cwd=task_dir).stdout.strip()
+        self.x_env("wait", session_id, cwd=task_dir)
+        return session_id
+
+    def turn_end_at(self, session_id):
+        [end] = [e["at"] for e in self.events(self.record(session_id)) if e["event"] == "turn_end"]
+        return end
+
+    def test_lists_every_task_of_the_project_and_one_task_with_the_option(self):
+        project = self.task_dir.parent.parent
+        other_dir = self.task(project, "add-cache")
+        codex_id = self.run_and_wait(other_dir, "codex")
+        claude_id = self.run_and_wait(self.task_dir, "claude")
+        self.assertEqual((codex_id, claude_id), ("add-cache/001-probe", "fix-login/001-probe"))
+        codex_line = f"add-cache/001-probe\tcodex\theadless\tfinished\t1\t{self.turn_end_at(codex_id)}\n"
+        claude_line = f"fix-login/001-probe\tclaude\theadless\tfinished\t1\t{self.turn_end_at(claude_id)}\n"
+
+        listed = self.x_env("ls", cwd=self.task_dir)  # the whole project, not only the task of the folder
+        self.assertEqual((listed.stdout, listed.returncode), (codex_line + claude_line, 0))
+        self.assertRegex(self.turn_end_at(claude_id), r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$")
+        self.assertEqual(self.x_env("ls", "--task", "fix-login", cwd=project).stdout, claude_line)
+
+    def test_a_record_without_events_is_prepared(self):
+        session_id = self.run_and_wait(self.task_dir, "claude")
+        (self.record(session_id) / "events.jsonl").unlink()  # as if the runner never started
+        listed = self.x_env("ls", cwd=self.task_dir)
+        self.assertEqual(listed.stdout, "fix-login/001-probe\tclaude\theadless\tprepared\t0\t-\n")
+
+    def test_a_held_open_session_is_running(self):
+        self.env["FAKE_CLAUDE_SLEEP"] = "60"
+        session_id, _ = self.start("run", "--headless", "--agent", "claude", "--name", "probe", "--prompt", "x")
+        self.wait_until(lambda: "turn_started" in self.kinds(self.record(session_id)))
+        listed = self.x_env("ls", cwd=self.task_dir)
+        self.assertEqual(listed.stdout, "fix-login/001-probe\tclaude\theadless\trunning\t0\t-\n")
+
+    def test_an_unreadable_record_is_reported_and_the_others_are_listed(self):
+        first = self.run_and_wait(self.task_dir, "claude")
+        second = self.x_env("run", "--headless", "--agent", "claude", "--name", "other", "--prompt", "x",
+                            cwd=self.task_dir).stdout.strip()
+        self.x_env("wait", second, cwd=self.task_dir)
+        broken = self.record(first) / "session.json"
+        broken.write_text("{")
+        listed = self.x_env("ls", cwd=self.task_dir, check=False)
+        self.assertEqual(listed.returncode, 1)
+        self.assertEqual(listed.stdout,
+                         f"fix-login/002-other\tclaude\theadless\tfinished\t1\t{self.turn_end_at(second)}\n")
+        self.assertIn(f"x-env: Unreadable session record: {broken}", listed.stderr)
+
+    def test_an_unknown_task_lists_nothing(self):
+        self.run_and_wait(self.task_dir, "claude")
+        listed = self.x_env("ls", "--task", "no-such-task", cwd=self.task_dir)
+        self.assertEqual((listed.stdout, listed.returncode), ("", 0))
+
+
 class VisibleTest(SessionTest):
     def test_agent_runs_headless_without_a_rex_server(self):
         session_id, started = self.start("agent", "--agent", "claude", "--name", "helper", "--prompt", "hi")

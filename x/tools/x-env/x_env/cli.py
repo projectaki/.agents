@@ -3,11 +3,14 @@
 Output contract (the shell function and skills rely on it):
   - stdout: only the result a caller captures. `setup` and `task` print one
     absolute folder path; `chief`, `agent`, and `run` print the session id;
-    `wait` prints the last-turn.md path; `shell-init` prints shell code.
+    `wait` prints the last-turn.md path; `ls` prints one line per session,
+    `<id> <harness> <mode> <status> <turns> <last turn end>` joined by tabs,
+    with `-` when no turn ended; `shell-init` prints shell code.
     `_hook` prints nothing, because Claude reads a hook's stdout.
   - stderr: progress and errors, each line `x-env: <message>`.
-  - exit: 0 ok, 1 `XEnvError`, 2 `UsageError` and argument errors. `wait`
-    exits with the session's exit code; `_session` with the harness's;
+  - exit: 0 ok, 1 `XEnvError`, 2 `UsageError` and argument errors. `ls`
+    exits 1 when a session record is unreadable, after it lists the others.
+    `wait` exits with the session's exit code; `_session` with the harness's;
     `_hook` always 0.
 
 Raw strings become domain types here and nowhere else (per
@@ -112,6 +115,7 @@ def _parser() -> argparse.ArgumentParser:
       agent --agent <harness> --name <n> [--prompt <p>] [session options]
       run --headless --agent <harness> --name <n> --prompt <p> [session options]
       wait <session id>
+      ls [--task <name>]
       shell-init
       _session --terminal <name> <record>      (internal: the session runner)
       _hook <harness> <record> <event> [<args>...]  (internal: harness hooks)
@@ -156,6 +160,10 @@ def _parser() -> argparse.ArgumentParser:
     wait = commands.add_parser("wait", help="wait for a session to exit; print its last-turn.md path")
     wait.add_argument("session")
     wait.set_defaults(handler=cmd_wait)
+
+    ls = commands.add_parser("ls", help="list the project's sessions, one line each")
+    ls.add_argument("--task", action=_Once, help="list only this task's sessions")
+    ls.set_defaults(handler=cmd_ls)
 
     shell_init = commands.add_parser("shell-init", help="print shell code: PATH and the x-env function")
     shell_init.set_defaults(handler=cmd_shell_init)
@@ -264,6 +272,33 @@ def cmd_wait(args: argparse.Namespace, cfg: config_module.Config) -> int:
         logging.getLogger("x_env").info("The session ended without a finished turn.")
     print(record.last_turn_path)
     return exit_code
+
+
+def cmd_ls(args: argparse.Namespace, cfg: config_module.Config) -> int:
+    project = workspace.find_project(Path.cwd(), cfg.root, _optional_project(args.project))
+    task = TaskName(args.task) if args.task is not None else None
+    unreadable = False
+    for record in records.list_sessions(project.sessions_dir, task):
+        try:
+            launch = record.meta().launch
+            status = record.status(cfg.host)
+        except XEnvError as error:
+            log.error("%s", error)
+            unreadable = True
+            continue
+        match status:
+            case records.Prepared():
+                state, turns = "prepared", 0
+            case records.Running(turns=turns):
+                state = "running"
+            case records.Finished(turns=turns):
+                state = "finished"
+            case records.Lost(turns=turns):
+                state = "lost"
+        end = record.last_turn_end()
+        last = records.format_time(end) if end is not None else "-"
+        print("\t".join([record.id, launch.harness.value, launch.mode, state, str(turns), last]))
+    return 1 if unreadable else 0
 
 
 def cmd_session(args: argparse.Namespace, cfg: config_module.Config) -> int:

@@ -256,6 +256,11 @@ class SessionRecord:
             return Lost(started, turns)
         return Running(started, turns)
 
+    def last_turn_end(self) -> datetime | None:
+        """The time of the latest turn end, or None before the first one."""
+        ends = [event.at for event in self.events() if isinstance(event, TurnEnded)]
+        return ends[-1] if ends else None
+
     def append(self, event: Started | TurnStarted | Exited) -> None:
         """Append one event line. Turn ends go through `append_turn_end`."""
         _append_line(self.events_path, _event_to_line(event))
@@ -388,6 +393,11 @@ def process_start_time(pid: int) -> str | None:
     return stat.rpartition(")")[2].split()[19]
 
 
+def format_time(value: datetime) -> str:
+    """UTC with milliseconds and `Z`, as the records files write times."""
+    return value.astimezone(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
 # --- Files and serialization (private) -------------------------------------------------
 
 
@@ -420,12 +430,8 @@ def _replace_file(path: Path, content: str) -> None:
         temporary.unlink(missing_ok=True)
 
 
-def _time(value: datetime) -> str:
-    return value.astimezone(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
-
-
 def _event_to_line(event: Event) -> str:
-    data: dict[str, Any] = {"event": _KINDS[type(event)], "at": _time(event.at)}
+    data: dict[str, Any] = {"event": _KINDS[type(event)], "at": format_time(event.at)}
     match event:
         case Started():
             data |= {
@@ -461,7 +467,7 @@ def _meta_to_json(meta: SessionMeta) -> str:
         "project": meta.project,
         "task": meta.task,
         "name": meta.name,
-        "created_at": _time(meta.created_at),
+        "created_at": format_time(meta.created_at),
         "launch": {
             "harness": launch.harness.value,
             "model": launch.model,
