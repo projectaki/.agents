@@ -1,0 +1,14 @@
+{
+  "name": "amx-plugins",
+  "description": "Personal agent plugins",
+  "owner": {
+    "name": "akos"
+  },
+  "plugins": [
+    {
+      "name": "x",
+      "description": "Personal skills and workflows",
+      "source": "./x"
+    }
+  ]
+}

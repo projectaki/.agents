@@ -1,0 +1,65 @@
+#!/usr/bin/env python3
+"""A fake `codex` for the session tests.
+
+It reads the `-c notify=[...]` setting (a TOML array, as Codex parses it) and
+calls that command once per turn with the payload shape that Codex sends
+(tested on this machine, codex-cli 0.169.0): one JSON argument appended
+after the configured argv, nothing on stdin. Like Codex, it prints
+`session id: <id>` and writes its rollout file under
+`~/.codex/sessions/<yyyy>/<mm>/<dd>/` before the turn ends. In the UI (no
+`exec`), it first calls notify for a title-generation thread that has its own
+thread id and no rollout file, as the real UI does (the real one may call it
+before or after the main turn; before is the harder case).
+
+Environment:
+  FAKE_CODEX_STATE  folder; it writes `argv.json` and `pid` there
+  FAKE_CODEX_EXIT   exit code (default 0)
+"""
+import json
+import os
+import subprocess
+import sys
+import tomllib
+import uuid
+from datetime import datetime
+from pathlib import Path
+
+argv = sys.argv[1:]
+state = Path(os.environ["FAKE_CODEX_STATE"])
+(state / "argv.json").write_text(json.dumps(argv))
+(state / "pid").write_text(str(os.getpid()))
+
+settings = {}
+for flag, value in zip(argv, argv[1:]):
+    if flag == "-c":
+        settings.update(tomllib.loads(value))
+prompt = argv[argv.index("--") + 1] if "--" in argv else None
+thread_id = str(uuid.uuid4())
+now = datetime.now()
+rollout = Path.home() / ".codex/sessions" / now.strftime("%Y/%m/%d") / f"rollout-{now:%Y-%m-%dT%H-%M-%S}-{thread_id}.jsonl"
+rollout.parent.mkdir(parents=True, exist_ok=True)
+rollout.write_text(json.dumps({"type": "session_meta", "payload": {
+    "id": thread_id, "cwd": os.getcwd(), "thread_source": "user"}}) + "\n")
+print(f"session id: {thread_id}", file=sys.stderr, flush=True)
+
+
+
+def notify(thread, message, inputs):
+    payload = {
+        "type": "agent-turn-complete", "thread-id": thread, "turn-id": str(uuid.uuid4()),
+        "cwd": os.getcwd(), "client": "codex_exec" if argv[:1] == ["exec"] else "codex-tui",
+        "input-messages": inputs, "last-assistant-message": message,
+    }
+    if "notify" in settings:
+        result = subprocess.run([*settings["notify"], json.dumps(payload)], capture_output=True, text=True)
+        if result.returncode != 0 or result.stdout:
+            print(f"notify exit={result.returncode} stdout={result.stdout!r}", file=sys.stderr)
+
+
+if prompt is not None:
+    reply = f"PONG to {prompt}"
+    print(reply, flush=True)
+    if argv[:1] != ["exec"]:
+        notify(str(uuid.uuid4()), '{"title":"Reply PONG"}', [f"Generate a concise title.\n\nUser prompt:\n{prompt}"])
+    notify(thread_id, reply, [prompt])
+sys.exit(int(os.environ.get("FAKE_CODEX_EXIT", "0")))
